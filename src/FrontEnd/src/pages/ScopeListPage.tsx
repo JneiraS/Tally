@@ -18,6 +18,7 @@ import { ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
 import { TodayActivityEditor } from "../components/TodayActivityEditor";
+import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { getTodayIsoDate } from "../utils/date";
 import { useToast } from "../hooks/useToast";
 
@@ -38,7 +39,7 @@ export function ScopeListPage({
   onOpenImportCsv,
   refreshTrigger,
 }: ScopeListPageProps) {
-  const { error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [scopes, setScopes] = useState<ScopeMonitoring[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -46,6 +47,7 @@ export function ScopeListPage({
   const [statusFilter, setStatusFilter] = useState<
     "all" | "in_progress" | "completed"
   >("all");
+  const [completingIds, setCompletingIds] = useState<string[]>([]);
 
   const todayIso = getTodayIsoDate();
 
@@ -57,6 +59,48 @@ export function ScopeListPage({
         return { ...s, daily_activities: [...others, activity] };
       }),
     );
+  };
+
+  const handleCompleteToday = async (scope: ScopeMonitoring) => {
+    if (completingIds.includes(scope.id)) return;
+    setCompletingIds((prev) => [...prev, scope.id]);
+    try {
+      const todayActivity = scope.daily_activities.find(
+        (a) => a.day === todayIso,
+      );
+      if (!todayActivity) {
+        await protabApi.createActivity(scope.id, {
+          day: todayIso,
+          errors_reported: 0,
+          incidents_created: 0,
+          feai: [],
+        });
+      }
+      await protabApi.completeActivities(scope.id, { days: [todayIso] });
+      const completedActivity: DailyActivity = todayActivity
+        ? { ...todayActivity, completed: true, handled: true }
+        : {
+            day: todayIso,
+            errors_reported: 0,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: true,
+          };
+      handleActivityChanged(scope.id, completedActivity);
+      toastSuccess(
+        "Activité validée",
+        `L'activité du jour de « ${scope.name} » a été marquée comme terminée.`,
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : (err as Error)?.message || "Erreur lors de la validation.";
+      toastError("Échec de la validation", msg);
+    } finally {
+      setCompletingIds((prev) => prev.filter((id) => id !== scope.id));
+    }
   };
 
   const fetchScopes = async () => {
@@ -477,10 +521,19 @@ export function ScopeListPage({
                       <td className="px-5 py-4 text-center">
                         {scope.todayCompleted ? (
                           <Badge type="completed" label="Terminé" />
-                        ) : todayAct ? (
-                          <Badge type="in_progress" label="En cours" />
                         ) : (
-                          <Badge type="neutral" label="Non saisi" />
+                          <div className="flex flex-col items-center gap-1.5">
+                            {todayAct ? (
+                              <Badge type="in_progress" label="En cours" />
+                            ) : (
+                              <Badge type="neutral" label="Non saisi" />
+                            )}
+                            <CompleteTodayButton
+                              onClick={() => handleCompleteToday(scope)}
+                              disabled={completingIds.includes(scope.id)}
+                              pending={completingIds.includes(scope.id)}
+                            />
+                          </div>
                         )}
                       </td>
 
