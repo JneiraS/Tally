@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -22,6 +22,12 @@ import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } 
 import { ActivityFormModal } from '../components/ActivityFormModal';
 import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
 import { useToast } from '../hooks/useToast';
+
+const ScopeDetailCharts = lazy(() =>
+  import('../components/ScopeDetailCharts').then((module) => ({
+    default: module.ScopeDetailCharts,
+  }))
+);
 
 export function ScopeDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -300,6 +306,20 @@ export function ScopeDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Tendance du périmètre, placée avant le détail jour par jour */}
+      {sortedActivities.length > 0 && (
+        <Suspense
+          fallback={
+            <div
+              aria-label="Chargement du graphique"
+              className="h-80 bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs animate-pulse"
+            />
+          }
+        >
+          <ScopeDetailCharts scope={scope} />
+        </Suspense>
+      )}
 
       {/* Barre d'actions groupées si des lignes sont sélectionnées */}
       {selectedDayCheckboxes.length > 0 && (
