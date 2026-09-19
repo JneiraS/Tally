@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / frontend (built in a separate stage when needed)
+node_modules/
+dist/
+
+# Divers
+.git/
+.env
+*.log
+.DS_Store

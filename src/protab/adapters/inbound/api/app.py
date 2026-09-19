@@ -16,8 +16,15 @@ from protab.adapters.inbound.api.schemas import (
 from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
     parse_scope_monitorings_csv,
 )
+from protab.adapters.inbound.api.config import database_url_from_env
 from protab.adapters.outbound.persistence.in_memory_scope_monitoring_repository import (
     InMemoryScopeMonitoringRepository,
+)
+from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+    PostgresScopeMonitoringRepository,
+)
+from protab.ports.outbound.scope_monitoring_repository import (
+    ScopeMonitoringRepository,
 )
 from protab.application.commands.create_scope_monitoring import (
     CreateScopeMonitoringCommand,
@@ -71,10 +78,24 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
     )
 
 
+def build_repository() -> ScopeMonitoringRepository:
+    """Select the persistence adapter from configuration.
+
+    A ``DATABASE_URL`` present in the environment selects PostgreSQL;
+    otherwise the in-memory repository is used (default for tests/demo).
+    """
+    dsn = database_url_from_env()
+    if dsn is not None:
+        repository = PostgresScopeMonitoringRepository(dsn)
+        repository.connect()
+        return repository
+    return InMemoryScopeMonitoringRepository()
+
+
 def create_app(
-    repository: InMemoryScopeMonitoringRepository | None = None,
+    repository: ScopeMonitoringRepository | None = None,
 ) -> FastAPI:
-    repo = repository or InMemoryScopeMonitoringRepository()
+    repo = repository if repository is not None else build_repository()
     create_scope_monitoring = CreateScopeMonitoringUseCase(repo)
     create_daily_activity = CreateDailyActivityUseCase(repo)
     complete_daily_activity = CompleteDailyActivityUseCase(repo)

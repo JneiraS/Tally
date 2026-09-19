@@ -33,3 +33,12 @@ def host_port_from_env() -> tuple[str, int]:
         host_env=os.getenv("PROTAB_HOST"),
         port_env=os.getenv("PROTAB_PORT"),
     )
+
+
+def database_url_from_env() -> str | None:
+    """Return the PostgreSQL DSN from DATABASE_URL, or None when unset.
+
+    None selects the in-memory repository (default for tests/demo).
+    """
+    value = os.getenv("DATABASE_URL")
+    return value.strip() if value and value.strip() else None

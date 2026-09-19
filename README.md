@@ -62,7 +62,8 @@ Démarrage : `make run` (ou `uv run protab`) → serveur uvicorn sur `http://0.0
 interactive : `/docs` (Swagger). Healthcheck : `GET /healthz` → `{"status": "ok"}`.
 
 Configuration (fichier `.env` copié depuis `.env.example`) :
-`PROTAB_HOST` (défaut `0.0.0.0`) et `PROTAB_PORT` (défaut `8000`).
+`PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`) et
+`DATABASE_URL` (DSN PostgreSQL ; **si absent/vide → repository en mémoire**, par défaut pour les tests/démo).
 
 | Méthode & path | Body | Succès | Erreurs |
 |---|---|---|---|
@@ -78,3 +79,43 @@ Configuration (fichier `.env` copié depuis `.env.example`) :
 Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/errors.py`) :
 `ScopeMonitoringNotFoundError`/`DailyActivityNotFoundError` → **404**, `ScopeMonitoringNameAlreadyExistsError`/
 `DuplicateDailyActivityError` → **409**, toute autre `DomainError` et `ScopeMonitoringCsvError` → **400**.
+
+## Persistance
+
+Le port outbound `ScopeMonitoringRepository` accepte deux adapters, choisis par la composition root
+(`create_app` / `build_repository`) :
+
+| Adapter | Fichier | Sélection |
+|---|---|---|
+| Mémoire (défaut) | `adapters/outbound/persistence/in_memory_scope_monitoring_repository.py` | `DATABASE_URL` absent ou vide |
+| PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py` | `DATABASE_URL` défini |
+
+L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables :
+`scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`) et
+`daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
+`feai TEXT[]`, `handled`, `completed`). Le schéma est créé de façon **idempotente au démarrage**
+(`CREATE TABLE IF NOT EXISTS`, aucun outil de migration). Un `save()` remplace tout l'agrégat dans une
+**transaction** (atomicité préservée) ; les contraintes DB (nom unique, jour unique) traduisent les erreurs
+en exceptions de domaine (→ `409`).
+
+## Docker
+
+La stack complète (`db` PostgreSQL + `api` FastAPI + `frontend` React/nginx) est définie dans
+`docker-compose.yml`. Le frontend est servi par nginx (SPA) qui proxiie `/scope-monitorings` vers `api`
+— même origine, aucun CORS requis.
+
+```bash
+make docker-up    # docker compose up -d --build
+# → API :      http://localhost:8000   (Swagger : /docs)
+# → Frontend : http://localhost:5173
+```
+
+| Cible Makefile | Effet |
+|---|---|
+| `db-up` / `db-down` | Démarre / arrête uniquement le service PostgreSQL |
+| `docker-up` / `docker-down` | Construit et démarre / arrête toute la stack |
+| `db-shell` | Shell `psql` dans le conteneur Postgres |
+| `test-db` | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
+
+Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
+via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).
