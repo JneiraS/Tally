@@ -7,3 +7,7 @@ class InvalidKnowledgeBaseIdError(DomainError):
 
 class EmptyOfficialsError(DomainError):
     """Raised when main or backup officials are not provided or are blank."""
+
+
+class DuplicateDailyActivityError(DomainError):
+    """Raised when a ScopeMonitoring already has a DailyActivity for the given day."""

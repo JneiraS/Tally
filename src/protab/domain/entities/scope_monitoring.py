@@ -1,6 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 
-from protab.domain.exceptions import InvalidKnowledgeBaseIdError
+from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.exceptions import (
+    DuplicateDailyActivityError,
+    EmptyOfficialsError,
+    InvalidKnowledgeBaseIdError,
+)
 
 
 @dataclass
@@ -21,8 +27,6 @@ class Officials:
 
     def __post_init__(self):
         if not self.main.strip() or not self.backup.strip():
-            from protab.domain.exceptions import EmptyOfficialsError
-
             raise EmptyOfficialsError(
                 "Both main and backup officials must be provided."
             )
@@ -35,3 +39,14 @@ class ScopeMonitoring:
     name: str
     knowledge: KnowledgeBase
     officials: Officials
+    daily_activities: dict[date, DailyActivity] = field(default_factory=dict)
+
+    def add_daily_activity(self, activity: DailyActivity) -> None:
+        if activity.day in self.daily_activities:
+            raise DuplicateDailyActivityError(
+                f"ScopeMonitoring already has a DailyActivity for day {activity.day!r}."
+            )
+        self.daily_activities[activity.day] = activity
+
+    def daily_activity_for(self, day: date) -> DailyActivity | None:
+        return self.daily_activities.get(day)

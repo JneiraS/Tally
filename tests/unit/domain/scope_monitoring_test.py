@@ -1,13 +1,16 @@
 import pytest
+from datetime import date
 
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
     ScopeMonitoring,
 )
+from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.exceptions import (
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
+    DuplicateDailyActivityError,
 )
 
 
@@ -60,3 +63,88 @@ def test_officials_blank_strings_rejected():
         Officials(main=" ", backup="Backup")
     with pytest.raises(EmptyOfficialsError):
         Officials(main="Main", backup=" ")
+
+
+# tests pour DailyActivity et ScopeMonitoring
+def test_scope_monitoring_add_daily_activity(fixture_scope_monitoring):
+    """Adding a DailyActivity for a new day should succeed."""
+    monitoring = fixture_scope_monitoring
+    activity = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=2,
+        incidents_created=1,
+        feai=["INC0000001"],
+    )
+    monitoring.add_daily_activity(activity)
+    assert monitoring.daily_activity_for(date(2026, 9, 19)) is activity
+
+
+def test_scope_monitoring_rejects_duplicate_day(fixture_scope_monitoring):
+    """Adding a second DailyActivity for the same day should raise DuplicateDailyActivityError."""
+    monitoring = fixture_scope_monitoring
+    activity = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=1,
+        incidents_created=0,
+        feai=["INC0000001"],
+    )
+    monitoring.add_daily_activity(activity)
+    activity2 = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=1,
+        incidents_created=0,
+        feai=["INC0000002"],
+    )
+    with pytest.raises(DuplicateDailyActivityError):
+        monitoring.add_daily_activity(activity2)
+
+
+def test_scope_monitoring_multiple_activities_different_days(fixture_scope_monitoring):
+    """Multiple DailyActivities for different days should be allowed."""
+    monitoring = fixture_scope_monitoring
+    activity1 = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=2,
+        incidents_created=1,
+        feai=["INC0000001"],
+    )
+    activity2 = DailyActivity(
+        day=date(2026, 9, 20),
+        errors_reported=3,
+        incidents_created=1,
+        feai=["INC0000002"],
+    )
+    monitoring.add_daily_activity(activity1)
+    monitoring.add_daily_activity(activity2)
+    assert monitoring.daily_activity_for(date(2026, 9, 19)) is activity1
+    assert monitoring.daily_activity_for(date(2026, 9, 20)) is activity2
+
+
+def test_scope_monitoring_multiple_activities_same_day_different_monitorings(
+    fixture_scope_monitoring,
+):
+    """Different ScopeMonitoring instances can have activities on the same day."""
+    monitoring = fixture_scope_monitoring
+    # Create a second monitoring (minimal)
+    kb = KnowledgeBase(id="Other Knowledge")
+    officials = Officials(main="Other", backup="Backup")
+    monitoring2 = ScopeMonitoring(
+        name="Other Monitoring", knowledge=kb, officials=officials
+    )
+    activity = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=1,
+        incidents_created=0,
+        feai=["INC0000001"],
+    )
+    activity2 = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=2,
+        incidents_created=1,
+        feai=["INC0000002"],
+    )
+    monitoring.add_daily_activity(activity2)
+    monitoring2.add_daily_activity(activity)
+    # Both monitorings should have their own activity for that same day
+    assert monitoring.daily_activity_for(date(2026, 9, 19)) is activity2
+    assert monitoring2.daily_activity_for(date(2026, 9, 19)) is activity
