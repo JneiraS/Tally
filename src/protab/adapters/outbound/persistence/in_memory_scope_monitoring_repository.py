@@ -16,3 +16,6 @@ class InMemoryScopeMonitoringRepository:
 
     def find_by_name(self, name: str) -> ScopeMonitoring | None:
         return self._by_name.get(name)
+
+    def find_all(self) -> list[ScopeMonitoring]:
+        return list(self._by_id.values())

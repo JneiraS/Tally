@@ -40,11 +40,38 @@ Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
 | Use case | Commande | Comportement |
 |---|---|---|
 | `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté. |
+| `CreateDailyActivityUseCase` | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)` | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`. |
 | `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)` | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
 | `UpdateDailyActivityUseCase` | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)` | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués. |
+
+Lectures (`application/queries/`) : `ListScopesUseCase`, `GetScopeUseCase`, `GetDailyActivityUseCase` —
+retournent les entités ; les erreurs `*NotFoundError` sont levées côté application.
 
 ## Import CSV
 
 Adapter inbound `adapters/inbound/csv/scope_monitoring_csv_reader.py` : transforme les lignes du fichier
 (colonnes `name, knowledge_base_id, official_main, official_backup`) en `CreateScopeMonitoringCommand`.
 En-têtes et nombre de colonnes sont vérifiés structurellement ; les règles métier sont levées par le domaine.
+
+## API HTTP (FastAPI)
+
+Adapter inbound `adapters/inbound/api/` : expose les use cases via REST. Aucune logique métier dans les
+routes — traduction HTTP ↔ commandes, la validation reste dans le domaine/application.
+
+Démarrage : `protab` (ou `uv run protab`) → serveur uvicorn sur `http://0.0.0.0:8000`. Documentation
+interactive : `/docs` (Swagger).
+
+| Méthode & path | Body | Succès | Erreurs |
+|---|---|---|---|
+| `POST /scope-monitorings` | `[{name, knowledge_base_id, official_main, official_backup}]` | `201 {ids: [...]}` | `409` nom existant, `400` validation domaine |
+| `POST /scope-monitorings/import-csv` | multipart, champ `csv_file` | `201 {ids: [...]}` | `400` CSV invalide ou ligne non conforme |
+| `POST /scope-monitorings/{id}/activities` | `{day, errors_reported, incidents_created, feai}` | `201` | `404` périmètre inconnu, `409` jour déjà enregistré, `400` invariant violé |
+| `POST /scope-monitorings/{id}/activities/complete` | `{days: ["YYYY-MM-DD"]}` | `204` | `404` périmètre ou jour inconnu |
+| `PATCH /scope-monitorings/{id}/activities/{day}` | `{errors_reported, incidents_created, feai}` | `204` | `404` périmètre ou jour inconnu, `400` invariant violé |
+| `GET /scope-monitorings` | — | `200` liste des périmètres (id, name, knowledge, officials, activities) | — |
+| `GET /scope-monitorings/{id}` | — | `200` périmètre| `404` |
+| `GET /scope-monitorings/{id}/activities/{day}` | — | `200` activité | `404` périmètre ou jour inconnu |
+
+Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/errors.py`) :
+`ScopeMonitoringNotFoundError`/`DailyActivityNotFoundError` → **404**, `ScopeMonitoringNameAlreadyExistsError`/
+`DuplicateDailyActivityError` → **409**, toute autre `DomainError` et `ScopeMonitoringCsvError` → **400**.

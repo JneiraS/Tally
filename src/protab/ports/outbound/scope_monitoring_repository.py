@@ -15,3 +15,7 @@ class ScopeMonitoringRepository(Protocol):
     def find_by_name(self, name: str) -> ScopeMonitoring | None:
         """Return the ScopeMonitoring with the given name, or None."""
         ...
+
+    def find_all(self) -> list[ScopeMonitoring]:
+        """Return all ScopeMonitorings."""
+        ...
