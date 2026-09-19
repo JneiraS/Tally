@@ -17,9 +17,6 @@ from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
     parse_scope_monitorings_csv,
 )
 from protab.adapters.inbound.api.config import database_url_from_env
-from protab.adapters.outbound.persistence.in_memory_scope_monitoring_repository import (
-    InMemoryScopeMonitoringRepository,
-)
 from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
     PostgresScopeMonitoringRepository,
 )
@@ -81,15 +78,19 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
 def build_repository() -> ScopeMonitoringRepository:
     """Select the persistence adapter from configuration.
 
-    A ``DATABASE_URL`` present in the environment selects PostgreSQL;
-    otherwise the in-memory repository is used (default for tests/demo).
+    PostgreSQL is required for the running API. In-memory repositories can
+    still be injected explicitly by tests through ``create_app``.
     """
     dsn = database_url_from_env()
-    if dsn is not None:
-        repository = PostgresScopeMonitoringRepository(dsn)
-        repository.connect()
-        return repository
-    return InMemoryScopeMonitoringRepository()
+    if dsn is None:
+        raise RuntimeError(
+            "DATABASE_URL est obligatoire : le backend ProTab nécessite PostgreSQL. "
+            "Configurez cette variable avec les valeurs de .env.example."
+        )
+
+    repository = PostgresScopeMonitoringRepository(dsn)
+    repository.connect()
+    return repository
 
 
 def create_app(
@@ -198,4 +199,6 @@ def create_app(
     return app
 
 
-app = create_app()
+def create_default_app() -> FastAPI:
+    """Create the production app using the configured PostgreSQL repository."""
+    return create_app()

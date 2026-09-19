@@ -1058,8 +1058,8 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 ## 28.1 Persistance
 
 - Le port outbound `ScopeMonitoringRepository` (sync, `Protocol`) a **deux** implémentations :
-  - `InMemoryScopeMonitoringRepository` — **défaut**, utilisé quand `DATABASE_URL` est absent (tests, démo).
-  - `PostgresScopeMonitoringRepository` — sélectionné quand `DATABASE_URL` est défini ;
+  - `InMemoryScopeMonitoringRepository` — utilisé uniquement par injection explicite dans les tests.
+  - `PostgresScopeMonitoringRepository` — obligatoire pour l'API quand `DATABASE_URL` est défini ;
     `psycopg` (sync) + `psycopg_pool`. Le schéma est créé **idempotemment au démarrage**
     (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Chaque `save()` remplace l'agrégat
     dans une transaction ; les contraintes DB (nom unique, unique `(scope_id, day)`) sont traduites

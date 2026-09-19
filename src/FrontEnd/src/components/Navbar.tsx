@@ -4,11 +4,10 @@ import {
   Activity,
   Plus,
   UploadCloud,
-  SlidersHorizontal,
   Sun,
   Moon,
 } from 'lucide-react';
-import { ApiConfig, protabApi } from '../services/api';
+import { protabApi } from '../services/api';
 import { useToast } from '../hooks/useToast';
 import { useTheme } from '../hooks/useTheme';
 
@@ -20,7 +19,6 @@ interface NavbarProps {
 export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
   const { info, success } = useToast();
   const { isNord, toggleTheme } = useTheme();
-  const [isDemo, setIsDemo] = useState(ApiConfig.isDemoMode);
   const [isCheckingServer, setIsCheckingServer] = useState(false);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
 
@@ -32,7 +30,7 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
       if (ok) {
         success('Backend connecté', 'Le serveur FastAPI http://localhost:8000 répond correctement.');
       } else {
-        info('Mode démo actif', 'Le backend local ne répond pas (port 8000). Les données locales sont actives.');
+        info('Backend déconnecté', 'Le serveur FastAPI local ne répond pas (port 8000).');
       }
     } finally {
       setIsCheckingServer(false);
@@ -42,20 +40,6 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
   useEffect(() => {
     checkStatus();
   }, []);
-
-  const toggleMode = () => {
-    const next = !isDemo;
-    setIsDemo(next);
-    ApiConfig.setDemoMode(next);
-    if (next) {
-      info('Mode Démo activé', 'Utilisation du stockage local respectant les contrats de l\'API FastAPI.');
-    } else {
-      info('Mode API activé', 'Les requêtes sont dirigées vers le proxy Vite / backend FastAPI.');
-      checkStatus();
-    }
-    // Recharger la page ou rafraîchir
-    window.location.reload();
-  };
 
   return (
     <header className="bg-white dark:bg-nord-0/95 border-b border-slate-200 dark:border-nord-2 sticky top-0 z-40 transition-colors backdrop-blur-md">
@@ -90,28 +74,16 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
             <div className="hidden md:flex items-center gap-2 bg-slate-100/80 dark:bg-nord-1 px-2.5 py-1 rounded-full text-xs border border-slate-200 dark:border-nord-2">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isDemo
-                    ? 'bg-amber-500 dark:bg-nord-13 animate-pulse'
-                    : serverOnline
+                  serverOnline
                     ? 'bg-emerald-500 dark:bg-nord-14'
                     : 'bg-rose-500 dark:bg-nord-11'
                 }`}
               />
               <span className="font-medium text-slate-600 dark:text-nord-4">
-                {isDemo
-                  ? 'Mode Démo (Local)'
-                  : serverOnline
+                {serverOnline
                   ? 'FastAPI Connecté (8000)'
                   : 'Backend Déconnecté'}
               </span>
-              <button
-                type="button"
-                onClick={toggleMode}
-                title={isDemo ? 'Basculer vers backend réel' : 'Basculer vers mode démo'}
-                className="text-slate-400 hover:text-blue-600 dark:hover:text-nord-8 p-0.5 ml-0.5 rounded transition-colors"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-              </button>
             </div>
 
             {/* Bouton bascule Thème Sombre Nord */}

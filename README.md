@@ -63,7 +63,7 @@ interactive : `/docs` (Swagger). Healthcheck : `GET /healthz` → `{"status": "o
 
 Configuration (fichier `.env` copié depuis `.env.example`) :
 `PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`) et
-`DATABASE_URL` (DSN PostgreSQL ; **si absent/vide → repository en mémoire**, par défaut pour les tests/démo).
+`DATABASE_URL` (DSN PostgreSQL ; **obligatoire** pour démarrer l'API).
 
 | Méthode & path | Body | Succès | Erreurs |
 |---|---|---|---|
@@ -82,13 +82,13 @@ Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/
 
 ## Persistance
 
-Le port outbound `ScopeMonitoringRepository` accepte deux adapters, choisis par la composition root
-(`create_app` / `build_repository`) :
+Le port outbound `ScopeMonitoringRepository` possède un adapter PostgreSQL pour l'exécution de l'API.
+Le repository mémoire reste disponible pour l'injection explicite dans les tests :
 
 | Adapter | Fichier | Sélection |
 |---|---|---|
-| Mémoire (défaut) | `adapters/outbound/persistence/in_memory_scope_monitoring_repository.py` | `DATABASE_URL` absent ou vide |
-| PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py` | `DATABASE_URL` défini |
+| Mémoire | `adapters/outbound/persistence/in_memory_scope_monitoring_repository.py` | Tests uniquement, injecté explicitement |
+| PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py` | Obligatoire pour l'API |
 
 L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables :
 `scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`) et

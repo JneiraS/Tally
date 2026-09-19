@@ -20,12 +20,6 @@ vi.mock('../services/api', async (importOriginal) => {
       completeActivities: vi.fn(),
       checkBackendHealth: vi.fn().mockResolvedValue(true),
     },
-    ApiConfig: {
-      ...actual.ApiConfig,
-      isDemoMode: false,
-      setDemoMode: vi.fn(),
-      getBaseUrl: vi.fn().mockReturnValue('http://localhost:8000'),
-    },
   };
 });
 

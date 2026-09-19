@@ -1,15 +1,15 @@
-import { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Navbar } from './components/Navbar';
-import { ToastProvider } from './hooks/useToast';
-import { ToastContainer } from './components/Toast';
-import { ThemeProvider } from './hooks/useTheme';
-import { ScopeListPage } from './pages/ScopeListPage';
-import { ScopeDetailPage } from './pages/ScopeDetailPage';
-import { NotFoundPage } from './pages/NotFoundPage';
-import { ScopeFormModal } from './components/ScopeFormModal';
-import { CsvImportModal } from './components/CsvImportModal';
-import { ExternalLink, Terminal } from 'lucide-react';
+import { useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Navbar } from "./components/Navbar";
+import { ToastProvider } from "./hooks/useToast";
+import { ToastContainer } from "./components/Toast";
+import { ThemeProvider } from "./hooks/useTheme";
+import { ScopeListPage } from "./pages/ScopeListPage";
+import { ScopeDetailPage } from "./pages/ScopeDetailPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
+import { ScopeFormModal } from "./components/ScopeFormModal";
+import { CsvImportModal } from "./components/CsvImportModal";
+import { ExternalLink, Terminal } from "lucide-react";
 
 export default function App() {
   const [isCreateScopeOpen, setIsCreateScopeOpen] = useState(false);
@@ -57,7 +57,9 @@ export default function App() {
             <footer className="border-t border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 py-6 mt-12 text-xs text-slate-500 dark:text-nord-4 transition-colors">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-700 dark:text-nord-6">ProTab Scope Monitoring</span>
+                  <span className="font-semibold text-slate-700 dark:text-nord-6">
+                    ProTab Scope Monitoring
+                  </span>
                   <span>•</span>
                   <span>Projection et supervision d'activité quotidienne</span>
                 </div>

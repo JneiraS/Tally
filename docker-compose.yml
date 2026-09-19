@@ -1,4 +1,4 @@
-# Composition de développement / démo : PostgreSQL + API FastAPI + Frontend (nginx).
+# Composition de développement : PostgreSQL + API FastAPI + Frontend (nginx).
 # ⚠️ Identifiants POSTGRES_* : valeurs de DÉVELOPPEMENT LOCAL uniquement,
 # à surcharger via un fichier .env ou les variables d'environnement en production.
 

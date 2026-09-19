@@ -15,7 +15,6 @@ import {
   ScopeMonitoring,
   UpdateActivityInput,
 } from '../types';
-import { MockStorage } from './mockStorage';
 
 /**
  * Erreur personnalisée pour les retours API non réussis
@@ -35,32 +34,6 @@ export class ApiError extends Error {
 // Configuration de l'URL de base
 // Par défaut utilise le proxy Vite (/scope-monitorings) ou l'URL spécifiée via variable d'environnement
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
-
-// Gestion de l'état de connexion & mode démo
-let isDemoMode = false;
-
-// Initialiser le mode démo si configuré dans localStorage
-if (typeof window !== 'undefined') {
-  const storedMode = localStorage.getItem('protab_api_mode');
-  if (storedMode === 'demo') {
-    isDemoMode = true;
-  }
-}
-
-export const ApiConfig = {
-  get isDemoMode(): boolean {
-    return isDemoMode;
-  },
-  setDemoMode(val: boolean): void {
-    isDemoMode = val;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('protab_api_mode', val ? 'demo' : 'api');
-    }
-  },
-  getBaseUrl(): string {
-    return API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-  },
-};
 
 /**
  * Traduit et formate les erreurs FastAPI (dont 422) en français clair
@@ -197,19 +170,7 @@ export const protabApi = {
    * Liste tous les périmètres avec leurs activités quotidiennes
    */
   async getScopeMonitorings(): Promise<ScopeMonitoring[]> {
-    if (isDemoMode) {
-      return MockStorage.getScopes();
-    }
-    try {
-      return await request<ScopeMonitoring[]>('/scope-monitorings');
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 0) {
-        // En cas d'impossibilité de joindre le backend, bascule en mode démo interactif pour l'UI
-        isDemoMode = true;
-        return MockStorage.getScopes();
-      }
-      throw err;
-    }
+    return request<ScopeMonitoring[]>('/scope-monitorings');
   },
 
   /**
@@ -217,24 +178,7 @@ export const protabApi = {
    * Récupère le détail d'un périmètre
    */
   async getScopeMonitoring(id: string): Promise<ScopeMonitoring> {
-    if (isDemoMode) {
-      const scope = MockStorage.getScopeById(id);
-      if (!scope) {
-        throw new ApiError(404, `Périmètre introuvable (ID: ${id})`);
-      }
-      return scope;
-    }
-    try {
-      return await request<ScopeMonitoring>(`/scope-monitorings/${id}`);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 0) {
-        isDemoMode = true;
-        const scope = MockStorage.getScopeById(id);
-        if (!scope) throw new ApiError(404, `Périmètre introuvable (ID: ${id})`);
-        return scope;
-      }
-      throw err;
-    }
+    return request<ScopeMonitoring>(`/scope-monitorings/${id}`);
   },
 
   /**
@@ -244,14 +188,6 @@ export const protabApi = {
    * Réponse 201: { ids: [uuid...] }
    */
   async createScopeMonitorings(payload: CreateScopeInput[]): Promise<CreateScopeResponse> {
-    if (isDemoMode) {
-      try {
-        return MockStorage.createScopes(payload);
-      } catch (err: unknown) {
-        const error = err as { status?: number; message?: string };
-        throw new ApiError(error.status || 400, error.message || 'Erreur lors de la création du périmètre.');
-      }
-    }
     return request<CreateScopeResponse>('/scope-monitorings', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -265,16 +201,6 @@ export const protabApi = {
    * Réponse 201: { ids: [uuid...] }
    */
   async importCsv(file: File): Promise<ImportCsvResponse> {
-    if (isDemoMode) {
-      try {
-        const text = await file.text();
-        return MockStorage.importCsv(text);
-      } catch (err: unknown) {
-        const error = err as { status?: number; message?: string };
-        throw new ApiError(error.status || 400, error.message || 'Erreur lors de l\'importation CSV.');
-      }
-    }
-
     const formData = new FormData();
     formData.append('csv_file', file);
 
@@ -290,16 +216,6 @@ export const protabApi = {
    * Réponse 201
    */
   async createActivity(scopeId: string, payload: CreateActivityInput): Promise<void> {
-    if (isDemoMode) {
-      try {
-        MockStorage.createActivity(scopeId, payload);
-        return;
-      } catch (err: unknown) {
-        const error = err as { status?: number; message?: string };
-        throw new ApiError(error.status || 400, error.message || 'Erreur lors de la création de l\'activité.');
-      }
-    }
-
     await request<void>(`/scope-monitorings/${scopeId}/activities`, {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -311,14 +227,6 @@ export const protabApi = {
    * Récupère le détail d'une activité pour un jour précis
    */
   async getActivity(scopeId: string, day: string): Promise<DailyActivity> {
-    if (isDemoMode) {
-      const activity = MockStorage.getActivity(scopeId, day);
-      if (!activity) {
-        throw new ApiError(404, `Activité introuvable pour le jour ${day}`);
-      }
-      return activity;
-    }
-
     return request<DailyActivity>(`/scope-monitorings/${scopeId}/activities/${day}`);
   },
 
@@ -328,16 +236,6 @@ export const protabApi = {
    * Réponse 204
    */
   async updateActivity(scopeId: string, day: string, payload: UpdateActivityInput): Promise<void> {
-    if (isDemoMode) {
-      try {
-        MockStorage.updateActivity(scopeId, day, payload);
-        return;
-      } catch (err: unknown) {
-        const error = err as { status?: number; message?: string };
-        throw new ApiError(error.status || 400, error.message || 'Erreur lors de la mise à jour de l\'activité.');
-      }
-    }
-
     await request<void>(`/scope-monitorings/${scopeId}/activities/${day}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
@@ -351,16 +249,6 @@ export const protabApi = {
    * Réponse 204
    */
   async completeActivities(scopeId: string, payload: CompleteActivitiesInput): Promise<void> {
-    if (isDemoMode) {
-      try {
-        MockStorage.completeActivities(scopeId, payload.days);
-        return;
-      } catch (err: unknown) {
-        const error = err as { status?: number; message?: string };
-        throw new ApiError(error.status || 400, error.message || 'Erreur lors de la validation des activités.');
-      }
-    }
-
     await request<void>(`/scope-monitorings/${scopeId}/activities/complete`, {
       method: 'POST',
       body: JSON.stringify(payload),

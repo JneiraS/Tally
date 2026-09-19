@@ -36,9 +36,6 @@ def host_port_from_env() -> tuple[str, int]:
 
 
 def database_url_from_env() -> str | None:
-    """Return the PostgreSQL DSN from DATABASE_URL, or None when unset.
-
-    None selects the in-memory repository (default for tests/demo).
-    """
+    """Return the PostgreSQL DSN from DATABASE_URL, or None when unset."""
     value = os.getenv("DATABASE_URL")
     return value.strip() if value and value.strip() else None
