@@ -1048,3 +1048,39 @@ Every implementation should allow the following answers to be "yes":
 - Is `AGENT.md` synchronized with the project's current architecture and development rules?
 
 If any answer is "no", review the implementation before considering the task complete.
+
+---
+
+# 28. ProTab — Notes d'infrastructure
+
+Conventions propres au dépôt ProTab, qui complètent les règles générales ci-dessus.
+
+## 28.1 Persistance
+
+- Le port outbound `ScopeMonitoringRepository` (sync, `Protocol`) a **deux** implémentations :
+  - `InMemoryScopeMonitoringRepository` — **défaut**, utilisé quand `DATABASE_URL` est absent (tests, démo).
+  - `PostgresScopeMonitoringRepository` — sélectionné quand `DATABASE_URL` est défini ;
+    `psycopg` (sync) + `psycopg_pool`. Le schéma est créé **idempotemment au démarrage**
+    (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Chaque `save()` remplace l'agrégat
+    dans une transaction ; les contraintes DB (nom unique, unique `(scope_id, day)`) sont traduites
+    en exceptions de domaine par l'adapter.
+- Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
+  les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
+
+## 28.2 Configuration
+
+- Chargée via `load_dotenv()` (`src/protab/adapters/inbound/api/config.py`) + `os.getenv`.
+- Variables : `PROTAB_HOST`, `PROTAB_PORT`, `DATABASE_URL` (DSN PostgreSQL), `PROTAB_TEST_DATABASE_URL` (tests).
+- Seuls des défauts/conteneurs de dev sont commités (cf. `.env.example`) ; aucun secret réel.
+
+## 28.3 Tests d'intégration PostgreSQL
+
+- `tests/integration/adapters/postgres_scope_monitoring_repository_test.py` est ignoré (`skip`) tant que
+  `PROTAB_TEST_DATABASE_URL` n'est pas défini. Le lancer via `make test-db` (base `protab_test` créée si absente).
+
+## 28.4 Conteneurisation & commandes utiles
+
+- `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
+  multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
+- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `test-db`.
+- Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.

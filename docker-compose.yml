@@ -1,0 +1,54 @@
+# Composition de développement / démo : PostgreSQL + API FastAPI + Frontend (nginx).
+# ⚠️ Identifiants POSTGRES_* : valeurs de DÉVELOPPEMENT LOCAL uniquement,
+# à surcharger via un fichier .env ou les variables d'environnement en production.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-protab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-protab}
+      POSTGRES_DB: ${POSTGRES_DB:-protab}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-protab} -d ${POSTGRES_DB:-protab}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-protab}:${POSTGRES_PASSWORD:-protab}@db:5432/${POSTGRES_DB:-protab}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./src/FrontEnd
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:
