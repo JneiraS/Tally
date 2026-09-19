@@ -11,3 +11,19 @@ class EmptyOfficialsError(DomainError):
 
 class DuplicateDailyActivityError(DomainError):
     """Raised when a ScopeMonitoring already has a DailyActivity for the given day."""
+
+
+class InvalidScopeMonitoringIdError(DomainError):
+    """Raised when a ScopeMonitoring id is empty or blank."""
+
+
+class ScopeMonitoringNotFoundError(DomainError):
+    """Raised when a ScopeMonitoring cannot be found for the given id."""
+
+
+class DailyActivityNotFoundError(DomainError):
+    """Raised when a DailyActivity cannot be found for the given day."""
+
+
+class ScopeMonitoringNameAlreadyExistsError(DomainError):
+    """Raised when a ScopeMonitoring with the same name already exists."""
