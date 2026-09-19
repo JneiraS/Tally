@@ -20,3 +20,14 @@
   --color-nord-14: #a3be8c;
   --color-nord-15: #b48ead;
 }
+
+/* Suppression des flèches pour les inputs de type number */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
+}

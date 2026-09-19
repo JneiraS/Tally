@@ -50,23 +50,22 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
         {values.map((code) => (
           <span
             key={code}
-            className="inline-flex items-center gap-1 text-[11px] font-mono bg-slate-100 dark:bg-nord-0 text-blue-800 dark:text-nord-8 px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-nord-2"
+            className="inline-flex items-center gap-0.5 text-[10px] font-mono bg-slate-50 dark:bg-nord-0 text-blue-700 dark:text-nord-8 px-1 py-0 rounded border border-slate-200 dark:border-nord-2"
           >
             {code}
             <button
               type="button"
               onClick={() => onChange(values.filter((c) => c !== code))}
-              aria-label={`Retirer le FEAI ${code}`}
-              className="text-slate-400 dark:text-nord-3 hover:text-rose-600 dark:hover:text-nord-11 transition-colors"
+              className="text-slate-400 hover:text-rose-600 dark:text-nord-3 dark:hover:text-nord-11"
             >
-              <X className="w-3 h-3" />
+              <X className="w-2.5 h-2.5" />
             </button>
           </span>
         ))}
       </div>
 
       <div className="flex items-center gap-1.5">
-        <input
+          <input
           type="text"
           value={draft}
           onChange={(e) => {
@@ -77,21 +76,19 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
           placeholder="INC0000001"
           maxLength={10}
           aria-label="Ajouter une référence FEAI"
-          className={`w-full min-w-0 flex-1 px-2 py-1 text-[11px] font-mono tracking-wider bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-md focus:outline-none focus:ring-2 ${
+          className={`w-full min-w-0 flex-1 px-1.5 py-0.5 text-[10px] font-mono tracking-wider bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 ${
             itemError
               ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500'
-              : 'border-slate-200 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+              : 'border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
           }`}
         />
         <button
           type="button"
           onClick={handleAddClick}
           disabled={!draft.trim()}
-          className="inline-flex items-center gap-0.5 px-1.5 py-1 text-[11px] font-semibold text-blue-600 dark:text-nord-8 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          aria-label="Ajouter la référence FEAI"
+          className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-nord-8 disabled:opacity-40"
         >
           <Plus className="w-3 h-3" />
-          <span className="hidden sm:inline">Ajouter</span>
         </button>
       </div>
 

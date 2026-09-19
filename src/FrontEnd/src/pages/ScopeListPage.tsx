@@ -1,5 +1,5 @@
-import { useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import {
   Layers,
   Search,
@@ -13,13 +13,13 @@ import {
   FileSpreadsheet,
   Users,
   Activity as ActivityIcon,
-} from 'lucide-react';
-import { ScopeMonitoring, DailyActivity } from '../types';
-import { protabApi, ApiError } from '../services/api';
-import { Badge } from '../components/Badge';
-import { TodayActivityEditor } from '../components/TodayActivityEditor';
-import { getTodayIsoDate } from '../utils/date';
-import { useToast } from '../hooks/useToast';
+} from "lucide-react";
+import { ScopeMonitoring, DailyActivity } from "../types";
+import { protabApi, ApiError } from "../services/api";
+import { Badge } from "../components/Badge";
+import { TodayActivityEditor } from "../components/TodayActivityEditor";
+import { getTodayIsoDate } from "../utils/date";
+import { useToast } from "../hooks/useToast";
 
 interface ScopeListPageProps {
   onOpenCreateScope: () => void;
@@ -36,8 +36,10 @@ export function ScopeListPage({
   const [scopes, setScopes] = useState<ScopeMonitoring[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "in_progress" | "completed"
+  >("all");
 
   const todayIso = getTodayIsoDate();
 
@@ -47,7 +49,7 @@ export function ScopeListPage({
         if (s.id !== scopeId) return s;
         const others = s.daily_activities.filter((a) => a.day !== activity.day);
         return { ...s, daily_activities: [...others, activity] };
-      })
+      }),
     );
   };
 
@@ -61,9 +63,10 @@ export function ScopeListPage({
       const msg =
         err instanceof ApiError
           ? err.message
-          : (err as Error)?.message || 'Erreur lors du chargement des périmètres.';
+          : (err as Error)?.message ||
+            "Erreur lors du chargement des périmètres.";
       setErrorMessage(msg);
-      toastError('Erreur de chargement', msg);
+      toastError("Erreur de chargement", msg);
     } finally {
       setIsLoading(false);
     }
@@ -83,17 +86,23 @@ export function ScopeListPage({
       const todayHandled = todayActivity?.handled ?? false;
 
       // Détermination du statut global du jour ou de suivi
-      let status: 'completed' | 'in_progress' | 'none' = 'none';
+      let status: "completed" | "in_progress" | "none" = "none";
       if (todayActivity) {
-        status = todayCompleted ? 'completed' : 'in_progress';
+        status = todayCompleted ? "completed" : "in_progress";
       } else {
         // Si aucune activité aujourd'hui mais des activités passées non complétées
         const uncompletedPast = activities.some((a) => !a.completed);
-        status = uncompletedPast ? 'in_progress' : 'none';
+        status = uncompletedPast ? "in_progress" : "none";
       }
 
-      const totalErrors = activities.reduce((acc, a) => acc + (a.errors_reported || 0), 0);
-      const totalIncidents = activities.reduce((acc, a) => acc + (a.incidents_created || 0), 0);
+      const totalErrors = activities.reduce(
+        (acc, a) => acc + (a.errors_reported || 0),
+        0,
+      );
+      const totalIncidents = activities.reduce(
+        (acc, a) => acc + (a.incidents_created || 0),
+        0,
+      );
 
       return {
         ...scope,
@@ -113,16 +122,18 @@ export function ScopeListPage({
     return enrichedScopes.filter((scope) => {
       const matchesSearch =
         scope.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scope.knowledge_base_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        scope.knowledge_base_id
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase()) ||
         scope.official_main.toLowerCase().includes(searchQuery.toLowerCase()) ||
         scope.official_backup.toLowerCase().includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
-      if (statusFilter === 'completed') {
+      if (statusFilter === "completed") {
         return scope.todayCompleted;
       }
-      if (statusFilter === 'in_progress') {
+      if (statusFilter === "in_progress") {
         return !scope.todayCompleted;
       }
       return true;
@@ -132,15 +143,17 @@ export function ScopeListPage({
   // Statistiques pour le bandeau supérieur
   const stats = useMemo(() => {
     const total = scopes.length;
-    const completedCount = enrichedScopes.filter((s) => s.todayCompleted).length;
+    const completedCount = enrichedScopes.filter(
+      (s) => s.todayCompleted,
+    ).length;
     const pendingCount = total - completedCount;
     const todayErrors = enrichedScopes.reduce(
       (acc, s) => acc + (s.todayActivity?.errors_reported || 0),
-      0
+      0,
     );
     const todayIncidents = enrichedScopes.reduce(
       (acc, s) => acc + (s.todayActivity?.incidents_created || 0),
-      0
+      0,
     );
 
     return { total, completedCount, pendingCount, todayErrors, todayIncidents };
@@ -156,7 +169,8 @@ export function ScopeListPage({
             Périmètres de Supervision
           </h1>
           <p className="text-sm text-slate-500 dark:text-nord-4 mt-1">
-            Projection et suivi quotidien des activités par périmètre de surveillance (GET /scope-monitorings)
+            Projection et suivi quotidien des activités par périmètre de
+            surveillance
           </p>
         </div>
 
@@ -168,7 +182,9 @@ export function ScopeListPage({
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 dark:text-nord-5 bg-white dark:bg-nord-1 hover:bg-slate-50 dark:hover:bg-nord-2 border border-slate-300 dark:border-nord-2 rounded-lg shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8"
             title="Rafraîchir la liste"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-600 dark:text-nord-8' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${isLoading ? "animate-spin text-blue-600 dark:text-nord-8" : ""}`}
+            />
             <span>Actualiser</span>
           </button>
         </div>
@@ -178,38 +194,62 @@ export function ScopeListPage({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
-            <span className="text-xs font-medium uppercase tracking-wider">Périmètres totaux</span>
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Périmètres totaux
+            </span>
             <Layers className="w-4 h-4 text-blue-600 dark:text-nord-9" />
           </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-nord-6 mt-2">{stats.total}</p>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">Supervisés activement</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-nord-6 mt-2">
+            {stats.total}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
+            Supervisés activement
+          </p>
         </div>
 
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
-            <span className="text-xs font-medium uppercase tracking-wider">Aujourd'hui validé</span>
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Aujourd'hui validé
+            </span>
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-nord-14" />
           </div>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-nord-14 mt-2">{stats.completedCount}</p>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">{stats.pendingCount} en cours ou en attente</p>
+          <p className="text-2xl font-bold text-emerald-600 dark:text-nord-14 mt-2">
+            {stats.completedCount}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
+            {stats.pendingCount} en cours ou en attente
+          </p>
         </div>
 
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
-            <span className="text-xs font-medium uppercase tracking-wider">Erreurs du jour</span>
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Erreurs du jour
+            </span>
             <ActivityIcon className="w-4 h-4 text-amber-600 dark:text-nord-13" />
           </div>
-          <p className="text-2xl font-bold text-amber-600 dark:text-nord-13 mt-2">{stats.todayErrors}</p>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">Signalées sur le périmètre</p>
+          <p className="text-2xl font-bold text-amber-600 dark:text-nord-13 mt-2">
+            {stats.todayErrors}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
+            Signalées sur le périmètre
+          </p>
         </div>
 
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
-            <span className="text-xs font-medium uppercase tracking-wider">Incidents créés</span>
+            <span className="text-xs font-medium uppercase tracking-wider">
+              Incidents créés
+            </span>
             <AlertCircle className="w-4 h-4 text-rose-600 dark:text-nord-11" />
           </div>
-          <p className="text-2xl font-bold text-rose-600 dark:text-nord-11 mt-2">{stats.todayIncidents}</p>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">Rattachés aux fiches FEAI</p>
+          <p className="text-2xl font-bold text-rose-600 dark:text-nord-11 mt-2">
+            {stats.todayIncidents}
+          </p>
+          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
+            Rattachés aux fiches FEAI
+          </p>
         </div>
       </div>
 
@@ -230,33 +270,34 @@ export function ScopeListPage({
           <div className="inline-flex rounded-lg border border-slate-200 dark:border-nord-2 p-0.5 bg-slate-50 dark:bg-nord-0 text-xs">
             <button
               type="button"
-              onClick={() => setStatusFilter('all')}
+              onClick={() => setStatusFilter("all")}
               className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === 'all'
-                  ? 'bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs'
-                  : 'text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6'
+                statusFilter === "all"
+                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
+                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
               Tous ({enrichedScopes.length})
             </button>
             <button
               type="button"
-              onClick={() => setStatusFilter('in_progress')}
+              onClick={() => setStatusFilter("in_progress")}
               className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === 'in_progress'
-                  ? 'bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs'
-                  : 'text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6'
+                statusFilter === "in_progress"
+                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
+                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
-              En cours ({enrichedScopes.filter((s) => !s.todayCompleted).length})
+              En cours ({enrichedScopes.filter((s) => !s.todayCompleted).length}
+              )
             </button>
             <button
               type="button"
-              onClick={() => setStatusFilter('completed')}
+              onClick={() => setStatusFilter("completed")}
               className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === 'completed'
-                  ? 'bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs'
-                  : 'text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6'
+                statusFilter === "completed"
+                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
+                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
               Terminés ({enrichedScopes.filter((s) => s.todayCompleted).length})
@@ -270,8 +311,12 @@ export function ScopeListPage({
         <div className="p-4 bg-rose-50 dark:bg-nord-11/15 border border-rose-200 dark:border-nord-11/30 rounded-xl flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-rose-600 dark:text-nord-11 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-rose-900 dark:text-nord-11">Échec du chargement de l'API</h3>
-            <p className="text-xs text-rose-700 dark:text-nord-4 mt-0.5">{errorMessage}</p>
+            <h3 className="text-sm font-semibold text-rose-900 dark:text-nord-11">
+              Échec du chargement de l'API
+            </h3>
+            <p className="text-xs text-rose-700 dark:text-nord-4 mt-0.5">
+              {errorMessage}
+            </p>
             <button
               type="button"
               onClick={fetchScopes}
@@ -287,8 +332,12 @@ export function ScopeListPage({
       {isLoading ? (
         <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-12 text-center shadow-2xs">
           <div className="w-8 h-8 border-3 border-blue-600 dark:border-nord-8 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-700 dark:text-nord-5">Chargement des périmètres en cours...</p>
-          <p className="text-xs text-slate-400 dark:text-nord-3 mt-1">Interrogation de GET /scope-monitorings</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-nord-5">
+            Chargement des périmètres en cours...
+          </p>
+          <p className="text-xs text-slate-400 dark:text-nord-3 mt-1">
+            Interrogation de GET /scope-monitorings
+          </p>
         </div>
       ) : filteredScopes.length === 0 ? (
         /* État vide */
@@ -297,12 +346,14 @@ export function ScopeListPage({
             <Layers className="w-6 h-6" />
           </div>
           <h3 className="text-base font-semibold text-slate-800 dark:text-nord-6">
-            {searchQuery ? 'Aucun résultat trouvé' : 'Aucun périmètre de supervision'}
+            {searchQuery
+              ? "Aucun résultat trouvé"
+              : "Aucun périmètre de supervision"}
           </h3>
           <p className="text-xs text-slate-500 dark:text-nord-4 max-w-sm mx-auto">
             {searchQuery
               ? `Aucun périmètre ne correspond à votre recherche "${searchQuery}". Essayez un autre mot-clé.`
-              : 'Commencez par créer votre premier périmètre de supervision ou importez un ensemble de périmètres via fichier CSV.'}
+              : "Commencez par créer votre premier périmètre de supervision ou importez un ensemble de périmètres via fichier CSV."}
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
             <button
@@ -339,7 +390,7 @@ export function ScopeListPage({
                   <th scope="col" className="px-5 py-3.5">
                     Responsable Suppléant
                   </th>
-                  <th scope="col" className="px-5 py-3.5 text-left">
+                  <th scope="col" className="px-3 py-3.5 text-left w-80">
                     Activité du jour
                     <span className="block text-[10px] font-medium text-slate-400 dark:text-nord-3 normal-case tracking-normal mt-0.5">
                       Saisie en ligne — sauvegarde auto
@@ -387,11 +438,13 @@ export function ScopeListPage({
 
                       {/* Responsable Backup */}
                       <td className="px-5 py-4">
-                        <span className="text-slate-600 dark:text-nord-4">{scope.official_backup}</span>
+                        <span className="text-slate-600 dark:text-nord-4">
+                          {scope.official_backup}
+                        </span>
                       </td>
 
                       {/* Saisie en ligne de l'activité du jour */}
-                      <td className="px-5 py-3">
+                      <td className="px-3 py-2">
                         <TodayActivityEditor
                           scopeId={scope.id}
                           day={todayIso}
@@ -430,9 +483,12 @@ export function ScopeListPage({
 
           <div className="px-5 py-3 border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 text-xs text-slate-500 dark:text-nord-4 flex items-center justify-between">
             <span>
-              Affichage de {filteredScopes.length} sur {scopes.length} périmètre(s)
+              Affichage de {filteredScopes.length} sur {scopes.length}{" "}
+              périmètre(s)
             </span>
-            <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">Date du jour : {todayIso}</span>
+            <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">
+              Date du jour : {todayIso}
+            </span>
           </div>
         </div>
       )}

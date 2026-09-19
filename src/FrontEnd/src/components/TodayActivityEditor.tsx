@@ -191,11 +191,11 @@ export function TodayActivityEditor({
   }[status];
 
   return (
-    <div className="flex flex-col gap-2 min-w-[230px] text-left">
+    <div className="flex flex-col gap-1.5 min-w-[240px] text-left">
       {/* Compteurs erreurs / incidents */}
-      <div className="flex items-center gap-2">
-        <label className="flex flex-col items-start gap-0.5">
-          <span className="text-[10px] font-medium text-amber-700 dark:text-nord-13">Erreurs</span>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-nord-4 uppercase tracking-wider">Erreurs</span>
           <input
             type="number"
             min="0"
@@ -206,18 +206,16 @@ export function TodayActivityEditor({
               scheduleSave();
             }}
             aria-label="Erreurs signalées du jour"
-            className={`w-16 px-2 py-1 text-sm text-center font-semibold bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-md focus:outline-none focus:ring-2 transition-colors ${
+            className={`w-full px-2 py-1 text-xs text-center font-semibold bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 transition-all ${
               validation.errors.errors_reported
                 ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500'
-                : 'border-slate-200 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+                : 'border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
             }`}
           />
         </label>
 
-        <span className="text-xs text-slate-400 dark:text-nord-3 mt-4">/</span>
-
-        <label className="flex flex-col items-start gap-0.5">
-          <span className="text-[10px] font-medium text-rose-700 dark:text-nord-11">Incidents</span>
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-nord-4 uppercase tracking-wider">Incidents</span>
           <input
             type="number"
             min="0"
@@ -229,10 +227,10 @@ export function TodayActivityEditor({
               scheduleSave();
             }}
             aria-label="Incidents créés du jour"
-            className={`w-16 px-2 py-1 text-sm text-center font-semibold bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-md focus:outline-none focus:ring-2 transition-colors ${
+            className={`w-full px-2 py-1 text-xs text-center font-semibold bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 transition-all ${
               validation.errors.incidents_created
                 ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500'
-                : 'border-slate-200 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+                : 'border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
             }`}
           />
         </label>
