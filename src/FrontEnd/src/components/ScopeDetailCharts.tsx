@@ -54,16 +54,16 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
       <div className="h-64 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={trendData} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#434c5e" opacity={0.3} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.3} />
             <XAxis
               dataKey="day"
-              stroke="#d8dee9"
+              stroke="var(--chart-axis)"
               tick={{ fontSize: 10 }}
               tickFormatter={(day: string) => formatDateFr(day).replace(/\s+\d{4}$/, '')}
               minTickGap={24}
             />
             <YAxis
-              stroke="#d8dee9"
+              stroke="var(--chart-axis)"
               tick={{ fontSize: 10 }}
               allowDecimals={false}
               width={32}

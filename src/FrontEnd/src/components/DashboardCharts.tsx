@@ -78,9 +78,9 @@ export function DashboardCharts({ scopes }: DashboardChartsProps) {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#434c5e" opacity={0.3} />
-              <XAxis dataKey="day" stroke="#d8dee9" tick={{ fontSize: 10 }} />
-              <YAxis stroke="#d8dee9" tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.3} />
+              <XAxis dataKey="day" stroke="var(--chart-axis)" tick={{ fontSize: 10 }} />
+              <YAxis stroke="var(--chart-axis)" tick={{ fontSize: 10 }} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#2e3440', borderColor: '#434c5e' }}
                 itemStyle={{ fontSize: '12px' }}
