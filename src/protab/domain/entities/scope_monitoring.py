@@ -6,6 +6,7 @@ from protab.domain.exceptions import (
     DuplicateDailyActivityError,
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
+    InvalidScopeMonitoringIdError,
 )
 
 
@@ -36,10 +37,18 @@ class Officials:
 
 @dataclass
 class ScopeMonitoring:
+    id: str
     name: str
     knowledge: KnowledgeBase
     officials: Officials
     daily_activities: dict[date, DailyActivity] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.id = self.id.strip()
+        if not self.id:
+            raise InvalidScopeMonitoringIdError(
+                "ScopeMonitoring id must not be empty."
+            )
 
     def add_daily_activity(self, activity: DailyActivity) -> None:
         if activity.day in self.daily_activities:

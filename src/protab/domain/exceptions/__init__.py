@@ -1,5 +1,13 @@
 from .domain_error import DomainError
-from .scope_monitoring import InvalidKnowledgeBaseIdError, EmptyOfficialsError, DuplicateDailyActivityError
+from .scope_monitoring import (
+    InvalidKnowledgeBaseIdError,
+    EmptyOfficialsError,
+    DuplicateDailyActivityError,
+    InvalidScopeMonitoringIdError,
+    ScopeMonitoringNotFoundError,
+    DailyActivityNotFoundError,
+    ScopeMonitoringNameAlreadyExistsError,
+)
 from .daily_activity import (
     NegativeErrorsCountError,
     NegativeIncidentsCountError,
@@ -13,6 +21,10 @@ __all__ = [
     "InvalidKnowledgeBaseIdError",
     "EmptyOfficialsError",
     "DuplicateDailyActivityError",
+    "InvalidScopeMonitoringIdError",
+    "ScopeMonitoringNotFoundError",
+    "DailyActivityNotFoundError",
+    "ScopeMonitoringNameAlreadyExistsError",
     "NegativeErrorsCountError",
     "NegativeIncidentsCountError",
     "IncidentsExceedErrorsError",

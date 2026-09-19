@@ -1,16 +1,18 @@
-import pytest
 from datetime import date
 
+import pytest
+
+from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
     ScopeMonitoring,
 )
-from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.exceptions import (
+    DuplicateDailyActivityError,
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
-    DuplicateDailyActivityError,
+    InvalidScopeMonitoringIdError,
 )
 
 
@@ -19,17 +21,38 @@ def fixture_scope_monitoring():
     knowledge_base = KnowledgeBase(id="Test Knowledge")
     officials = Officials(main="Official", backup="Secondary Official")
     monitoring = ScopeMonitoring(
-        name="Test Monitoring", knowledge=knowledge_base, officials=officials
+        id="scope-001",
+        name="Test Monitoring",
+        knowledge=knowledge_base,
+        officials=officials,
     )
     return monitoring
 
 
 def test_scope_monitoring_creation(fixture_scope_monitoring):
     monitoring = fixture_scope_monitoring
+    assert monitoring.id == "scope-001"
     assert monitoring.name == "Test Monitoring"
     assert isinstance(monitoring.knowledge.id, str)
     assert monitoring.officials.main == "Official"
     assert monitoring.officials.backup == "Secondary Official"
+
+
+def test_scope_monitoring_empty_id():
+    with pytest.raises(InvalidScopeMonitoringIdError):
+        ScopeMonitoring(
+            id="",
+            name="Test",
+            knowledge=KnowledgeBase(id="Test Knowledge"),
+            officials=Officials(main="Main", backup="Backup"),
+        )
+    with pytest.raises(InvalidScopeMonitoringIdError):
+        ScopeMonitoring(
+            id="   ",
+            name="Test",
+            knowledge=KnowledgeBase(id="Test Knowledge"),
+            officials=Officials(main="Main", backup="Backup"),
+        )
 
 
 # test pour les exceptions
@@ -129,7 +152,10 @@ def test_scope_monitoring_multiple_activities_same_day_different_monitorings(
     kb = KnowledgeBase(id="Other Knowledge")
     officials = Officials(main="Other", backup="Backup")
     monitoring2 = ScopeMonitoring(
-        name="Other Monitoring", knowledge=kb, officials=officials
+        id="scope-002",
+        name="Other Monitoring",
+        knowledge=kb,
+        officials=officials,
     )
     activity = DailyActivity(
         day=date(2026, 9, 19),
