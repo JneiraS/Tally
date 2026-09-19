@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import {
   Layers,
@@ -20,6 +20,12 @@ import { Badge } from "../components/Badge";
 import { TodayActivityEditor } from "../components/TodayActivityEditor";
 import { getTodayIsoDate } from "../utils/date";
 import { useToast } from "../hooks/useToast";
+
+const DashboardCharts = lazy(() =>
+  import("../components/DashboardCharts").then((m) => ({
+    default: m.DashboardCharts,
+  })),
+);
 
 interface ScopeListPageProps {
   onOpenCreateScope: () => void;
@@ -252,6 +258,20 @@ export function ScopeListPage({
           </p>
         </div>
       </div>
+
+      {/* Graphiques KPI */}
+      {scopes.length > 0 && (
+        <Suspense
+          fallback={
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs h-80 animate-pulse" />
+              <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs h-80 animate-pulse" />
+            </div>
+          }
+        >
+          <DashboardCharts scopes={scopes} />
+        </Suspense>
+      )}
 
       {/* Barre d'outils (Recherche & Filtres) */}
       <div className="bg-white dark:bg-nord-1 p-3.5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
