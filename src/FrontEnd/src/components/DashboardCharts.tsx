@@ -13,14 +13,14 @@ import {
   Cell,
 } from 'recharts';
 import { ScopeMonitoring } from '../types';
-import { getTodayIsoDate } from '../utils/date';
+import { formatDateFr, getTodayIsoDate } from '../utils/date';
 
 interface DashboardChartsProps {
   scopes: ScopeMonitoring[];
+  day?: string;
 }
 
-export function DashboardCharts({ scopes }: DashboardChartsProps) {
-  const todayIso = getTodayIsoDate();
+export function DashboardCharts({ scopes, day = getTodayIsoDate() }: DashboardChartsProps) {
 
   // Agrégation pour le graphique de tendance (7 derniers jours)
   const trendData = useMemo(() => {
@@ -52,9 +52,9 @@ export function DashboardCharts({ scopes }: DashboardChartsProps) {
     let none = 0;
 
     scopes.forEach((s) => {
-      const today = s.daily_activities.find((a) => a.day === todayIso);
-      if (today) {
-        if (today.completed) completed++;
+      const activity = s.daily_activities.find((a) => a.day === day);
+      if (activity) {
+        if (activity.completed) completed++;
         else inProgress++;
       } else {
         none++;
@@ -66,7 +66,9 @@ export function DashboardCharts({ scopes }: DashboardChartsProps) {
       { name: 'En cours', value: inProgress, color: '#ebcb8b' }, // nord-13
       { name: 'Non saisi', value: none, color: '#4c566a' }, // nord-3
     ].filter((item) => item.value > 0);
-  }, [scopes, todayIso]);
+  }, [scopes, day]);
+
+  const dayLabel = day === getTodayIsoDate() ? "Aujourd'hui" : `le ${formatDateFr(day)}`;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -96,7 +98,7 @@ export function DashboardCharts({ scopes }: DashboardChartsProps) {
       {/* Répartition des statuts */}
       <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
         <h3 className="text-sm font-semibold text-slate-800 dark:text-nord-5 mb-4">
-          Répartition des statuts (Aujourd'hui)
+           Répartition des statuts ({dayLabel})
         </h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
