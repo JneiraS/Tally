@@ -14,9 +14,10 @@ import {
   Users,
   Activity as ActivityIcon,
 } from 'lucide-react';
-import { ScopeMonitoring } from '../types';
+import { ScopeMonitoring, DailyActivity } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
+import { TodayActivityEditor } from '../components/TodayActivityEditor';
 import { getTodayIsoDate } from '../utils/date';
 import { useToast } from '../hooks/useToast';
 
@@ -39,6 +40,16 @@ export function ScopeListPage({
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'completed'>('all');
 
   const todayIso = getTodayIsoDate();
+
+  const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
+    setScopes((prev) =>
+      prev.map((s) => {
+        if (s.id !== scopeId) return s;
+        const others = s.daily_activities.filter((a) => a.day !== activity.day);
+        return { ...s, daily_activities: [...others, activity] };
+      })
+    );
+  };
 
   const fetchScopes = async () => {
     setIsLoading(true);
@@ -328,8 +339,11 @@ export function ScopeListPage({
                   <th scope="col" className="px-5 py-3.5">
                     Responsable Suppléant
                   </th>
-                  <th scope="col" className="px-5 py-3.5 text-center">
-                    Activités du jour
+                  <th scope="col" className="px-5 py-3.5 text-left">
+                    Activité du jour
+                    <span className="block text-[10px] font-medium text-slate-400 dark:text-nord-3 normal-case tracking-normal mt-0.5">
+                      Saisie en ligne — sauvegarde auto
+                    </span>
                   </th>
                   <th scope="col" className="px-5 py-3.5 text-center">
                     Statut
@@ -376,24 +390,14 @@ export function ScopeListPage({
                         <span className="text-slate-600 dark:text-nord-4">{scope.official_backup}</span>
                       </td>
 
-                      {/* Nb d'activités du jour */}
-                      <td className="px-5 py-4 text-center">
-                        {todayAct ? (
-                          <div className="inline-flex flex-col items-center">
-                            <span className="text-xs font-semibold text-slate-900 dark:text-nord-6">
-                              {todayAct.errors_reported} err. / {todayAct.incidents_created} inc.
-                            </span>
-                            {todayAct.feai && todayAct.feai.length > 0 && (
-                              <span className="text-[10px] text-blue-600 dark:text-nord-8 font-mono">
-                                {todayAct.feai.length} FEAI
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400 dark:text-nord-3 italic">
-                            0 enregistrée
-                          </span>
-                        )}
+                      {/* Saisie en ligne de l'activité du jour */}
+                      <td className="px-5 py-3">
+                        <TodayActivityEditor
+                          scopeId={scope.id}
+                          day={todayIso}
+                          initialActivity={scope.todayActivity}
+                          onChanged={handleActivityChanged}
+                        />
                       </td>
 
                       {/* Statut (en-cours / terminé) */}
