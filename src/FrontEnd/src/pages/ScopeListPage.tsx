@@ -19,8 +19,9 @@ import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
 import { TodayActivityEditor } from "../components/TodayActivityEditor";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
-import { getTodayIsoDate } from "../utils/date";
+import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { useToast } from "../hooks/useToast";
+import { DateNavigator } from "../components/DateNavigator";
 
 const DashboardCharts = lazy(() =>
   import("../components/DashboardCharts").then((m) => ({
@@ -50,6 +51,12 @@ export function ScopeListPage({
   const [completingIds, setCompletingIds] = useState<string[]>([]);
 
   const todayIso = getTodayIsoDate();
+  const [selectedDay, setSelectedDay] = useState(todayIso);
+  const isSelectedDayToday = selectedDay === todayIso;
+  const selectedDayLabel = isSelectedDayToday ? "du jour" : `du ${formatDateFr(selectedDay)}`;
+  const selectedDayValidationLabel = isSelectedDayToday
+    ? "aujourd'hui"
+    : `le ${formatDateFr(selectedDay)}`;
 
   const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
     setScopes((prev) =>
@@ -61,26 +68,26 @@ export function ScopeListPage({
     );
   };
 
-  const handleCompleteToday = async (scope: ScopeMonitoring) => {
+  const handleCompleteSelectedDay = async (scope: ScopeMonitoring) => {
     if (completingIds.includes(scope.id)) return;
     setCompletingIds((prev) => [...prev, scope.id]);
     try {
-      const todayActivity = scope.daily_activities.find(
-        (a) => a.day === todayIso,
+      const selectedActivity = scope.daily_activities.find(
+        (a) => a.day === selectedDay,
       );
-      if (!todayActivity) {
+      if (!selectedActivity) {
         await protabApi.createActivity(scope.id, {
-          day: todayIso,
+          day: selectedDay,
           errors_reported: 0,
           incidents_created: 0,
           feai: [],
         });
       }
-      await protabApi.completeActivities(scope.id, { days: [todayIso] });
-      const completedActivity: DailyActivity = todayActivity
-        ? { ...todayActivity, completed: true, handled: true }
+      await protabApi.completeActivities(scope.id, { days: [selectedDay] });
+      const completedActivity: DailyActivity = selectedActivity
+        ? { ...selectedActivity, completed: true, handled: true }
         : {
-            day: todayIso,
+            day: selectedDay,
             errors_reported: 0,
             incidents_created: 0,
             feai: [],
@@ -90,7 +97,7 @@ export function ScopeListPage({
       handleActivityChanged(scope.id, completedActivity);
       toastSuccess(
         "Activité validée",
-        `L'activité du jour de « ${scope.name} » a été marquée comme terminée.`,
+        `L'activité ${selectedDayLabel} de « ${scope.name} » a été marquée comme terminée.`,
       );
     } catch (err: unknown) {
       const msg =
@@ -130,19 +137,15 @@ export function ScopeListPage({
   const enrichedScopes = useMemo(() => {
     return scopes.map((scope) => {
       const activities = scope.daily_activities || [];
-      const todayActivity = activities.find((a) => a.day === todayIso);
-      const hasToday = !!todayActivity;
-      const todayCompleted = todayActivity?.completed ?? false;
-      const todayHandled = todayActivity?.handled ?? false;
+      const selectedActivity = activities.find((a) => a.day === selectedDay);
+      const hasSelectedDay = !!selectedActivity;
+      const selectedDayCompleted = selectedActivity?.completed ?? false;
+      const selectedDayHandled = selectedActivity?.handled ?? false;
 
       // Détermination du statut global du jour ou de suivi
       let status: "completed" | "in_progress" | "none" = "none";
-      if (todayActivity) {
-        status = todayCompleted ? "completed" : "in_progress";
-      } else {
-        // Si aucune activité aujourd'hui mais des activités passées non complétées
-        const uncompletedPast = activities.some((a) => !a.completed);
-        status = uncompletedPast ? "in_progress" : "none";
+      if (selectedActivity) {
+        status = selectedDayCompleted ? "completed" : "in_progress";
       }
 
       const totalErrors = activities.reduce(
@@ -156,16 +159,16 @@ export function ScopeListPage({
 
       return {
         ...scope,
-        todayActivity,
-        hasToday,
-        todayCompleted,
-        todayHandled,
+        selectedActivity,
+        hasSelectedDay,
+        selectedDayCompleted,
+        selectedDayHandled,
         status,
         totalErrors,
         totalIncidents,
       };
     });
-  }, [scopes, todayIso]);
+  }, [scopes, selectedDay]);
 
   // Filtrage selon recherche et statut
   const filteredScopes = useMemo(() => {
@@ -181,10 +184,10 @@ export function ScopeListPage({
       if (!matchesSearch) return false;
 
       if (statusFilter === "completed") {
-        return scope.todayCompleted;
+        return scope.selectedDayCompleted;
       }
       if (statusFilter === "in_progress") {
-        return !scope.todayCompleted;
+        return !scope.selectedDayCompleted;
       }
       return true;
     });
@@ -194,19 +197,19 @@ export function ScopeListPage({
   const stats = useMemo(() => {
     const total = scopes.length;
     const completedCount = enrichedScopes.filter(
-      (s) => s.todayCompleted,
+      (s) => s.selectedDayCompleted,
     ).length;
     const pendingCount = total - completedCount;
-    const todayErrors = enrichedScopes.reduce(
-      (acc, s) => acc + (s.todayActivity?.errors_reported || 0),
+    const selectedDayErrors = enrichedScopes.reduce(
+      (acc, s) => acc + (s.selectedActivity?.errors_reported || 0),
       0,
     );
-    const todayIncidents = enrichedScopes.reduce(
-      (acc, s) => acc + (s.todayActivity?.incidents_created || 0),
+    const selectedDayIncidents = enrichedScopes.reduce(
+      (acc, s) => acc + (s.selectedActivity?.incidents_created || 0),
       0,
     );
 
-    return { total, completedCount, pendingCount, todayErrors, todayIncidents };
+    return { total, completedCount, pendingCount, selectedDayErrors, selectedDayIncidents };
   }, [scopes, enrichedScopes]);
 
   return (
@@ -225,6 +228,7 @@ export function ScopeListPage({
         </div>
 
         <div className="flex items-center gap-2">
+          <DateNavigator value={selectedDay} today={todayIso} onChange={setSelectedDay} />
           <button
             type="button"
             onClick={fetchScopes}
@@ -260,7 +264,7 @@ export function ScopeListPage({
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
-              Aujourd'hui validé
+              {isSelectedDayToday ? "Aujourd'hui validé" : `Validé ${selectedDayValidationLabel}`}
             </span>
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-nord-14" />
           </div>
@@ -275,12 +279,12 @@ export function ScopeListPage({
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
-              Erreurs du jour
+              {`Erreurs ${selectedDayLabel}`}
             </span>
             <ActivityIcon className="w-4 h-4 text-amber-600 dark:text-nord-13" />
           </div>
           <p className="text-2xl font-bold text-amber-600 dark:text-nord-13 mt-2">
-            {stats.todayErrors}
+            {stats.selectedDayErrors}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
             Signalées sur le périmètre
@@ -290,12 +294,12 @@ export function ScopeListPage({
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
-              Incidents créés
+              {`Incidents créés ${selectedDayLabel}`}
             </span>
             <AlertCircle className="w-4 h-4 text-rose-600 dark:text-nord-11" />
           </div>
           <p className="text-2xl font-bold text-rose-600 dark:text-nord-11 mt-2">
-            {stats.todayIncidents}
+            {stats.selectedDayIncidents}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
             Rattachés aux fiches FEAI
@@ -313,7 +317,7 @@ export function ScopeListPage({
             </div>
           }
         >
-          <DashboardCharts scopes={scopes} />
+          <DashboardCharts scopes={scopes} day={selectedDay} />
         </Suspense>
       )}
 
@@ -352,7 +356,7 @@ export function ScopeListPage({
                   : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
-              En cours ({enrichedScopes.filter((s) => !s.todayCompleted).length}
+              En cours ({enrichedScopes.filter((s) => !s.selectedDayCompleted).length}
               )
             </button>
             <button
@@ -364,7 +368,7 @@ export function ScopeListPage({
                   : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
-              Terminés ({enrichedScopes.filter((s) => s.todayCompleted).length})
+              Terminés ({enrichedScopes.filter((s) => s.selectedDayCompleted).length})
             </button>
           </div>
         </div>
@@ -455,7 +459,7 @@ export function ScopeListPage({
                     Responsable Suppléant
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left w-80">
-                    Activité du jour
+                    {`Activité ${selectedDayLabel}`}
                     <span className="block text-[10px] font-medium text-slate-400 dark:text-nord-3 normal-case tracking-normal mt-0.5">
                       Saisie en ligne — sauvegarde auto
                     </span>
@@ -470,7 +474,7 @@ export function ScopeListPage({
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
                 {filteredScopes.map((scope) => {
-                  const todayAct = scope.todayActivity;
+                  const selectedActivity = scope.selectedActivity;
 
                   return (
                     <tr
@@ -510,26 +514,28 @@ export function ScopeListPage({
                       {/* Saisie en ligne de l'activité du jour */}
                       <td className="px-3 py-2">
                         <TodayActivityEditor
+                          key={`${scope.id}-${selectedDay}`}
                           scopeId={scope.id}
-                          day={todayIso}
-                          initialActivity={scope.todayActivity}
+                          day={selectedDay}
+                          initialActivity={selectedActivity}
                           onChanged={handleActivityChanged}
                         />
                       </td>
 
                       {/* Statut (en-cours / terminé) */}
                       <td className="px-5 py-4 text-center">
-                        {scope.todayCompleted ? (
+                        {scope.selectedDayCompleted ? (
                           <Badge type="completed" label="Terminé" />
                         ) : (
                           <div className="flex flex-col items-center gap-1.5">
-                            {todayAct ? (
+                            {selectedActivity ? (
                               <Badge type="in_progress" label="En cours" />
                             ) : (
                               <Badge type="neutral" label="Non saisi" />
                             )}
                             <CompleteTodayButton
-                              onClick={() => handleCompleteToday(scope)}
+                              onClick={() => handleCompleteSelectedDay(scope)}
+                              dayLabel={selectedDayLabel}
                               disabled={completingIds.includes(scope.id)}
                               pending={completingIds.includes(scope.id)}
                             />
@@ -560,7 +566,7 @@ export function ScopeListPage({
               périmètre(s)
             </span>
             <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">
-              Date du jour : {todayIso}
+               Jour affiché : {formatDateFr(selectedDay)}
             </span>
           </div>
         </div>
