@@ -1,4 +1,4 @@
-.PHONY: help install test test-v test-failed clean
+.PHONY: help install test test-v test-failed run clean
 
 ## help: Affiche les commandes disponibles
 help:
@@ -8,6 +8,10 @@ help:
 ## install: Synchronise et installe toutes les dépendances (crée le .venv automatiquement)
 install:
 	uv sync
+
+## run: Démarre le serveur API (host/port configurables via .env)
+run:
+	uv run protab
 
 ## test: Lance tous les tests en mode normal
 test:

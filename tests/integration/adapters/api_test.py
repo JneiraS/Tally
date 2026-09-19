@@ -53,6 +53,18 @@ def make_scope_with_activity(
     return scope
 
 
+# --- Health ---------------------------------------------------------------
+
+
+def test_healthz_returns_ok(client):
+    http, _ = client
+
+    response = http.get("/healthz")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 # --- Create ---------------------------------------------------------------
 
 

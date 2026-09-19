@@ -86,6 +86,10 @@ def create_app(
     app = FastAPI(title="ProTab API")
     register_exception_handlers(app)
 
+    @app.get("/healthz")
+    def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
     @app.post("/scope-monitorings", response_model=CreatedResponse, status_code=201)
     def create_scope_monitorings(items: list[CreateScopeItem]) -> CreatedResponse:
         commands = [

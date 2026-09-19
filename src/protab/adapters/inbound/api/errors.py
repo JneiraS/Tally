@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from protab.adapters.inbound.csv.scope_monitoring_csv_reader import ScopeMonitoringCsvError
+from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
+    ScopeMonitoringCsvError,
+)
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DomainError,

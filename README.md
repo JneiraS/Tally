@@ -58,8 +58,11 @@ En-têtes et nombre de colonnes sont vérifiés structurellement ; les règles m
 Adapter inbound `adapters/inbound/api/` : expose les use cases via REST. Aucune logique métier dans les
 routes — traduction HTTP ↔ commandes, la validation reste dans le domaine/application.
 
-Démarrage : `protab` (ou `uv run protab`) → serveur uvicorn sur `http://0.0.0.0:8000`. Documentation
-interactive : `/docs` (Swagger).
+Démarrage : `make run` (ou `uv run protab`) → serveur uvicorn sur `http://0.0.0.0:8000`. Documentation
+interactive : `/docs` (Swagger). Healthcheck : `GET /healthz` → `{"status": "ok"}`.
+
+Configuration (fichier `.env` copié depuis `.env.example`) :
+`PROTAB_HOST` (défaut `0.0.0.0`) et `PROTAB_PORT` (défaut `8000`).
 
 | Méthode & path | Body | Succès | Erreurs |
 |---|---|---|---|

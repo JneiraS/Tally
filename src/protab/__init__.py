@@ -2,4 +2,7 @@ def main() -> None:
     """Run the ProTab HTTP API server."""
     import uvicorn
 
-    uvicorn.run("protab.adapters.inbound.api.app:app", host="0.0.0.0", port=8000)
+    from protab.adapters.inbound.api.config import host_port_from_env
+
+    host, port = host_port_from_env()
+    uvicorn.run("protab.adapters.inbound.api.app:app", host=host, port=port)
