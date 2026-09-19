@@ -1,6 +1,0 @@
-{
-  "name": "ProTab - Suivi de Périmètres de Supervision",
-  "description": "Outil de projection et suivi d'activité quotidienne par périmètre de supervision (scope monitoring)",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

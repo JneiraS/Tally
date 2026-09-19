@@ -1,4 +1,4 @@
-.PHONY: help install test test-v test-failed run clean
+.PHONY: help install test test-v test-failed run frontend clean
 
 ## help: Affiche les commandes disponibles
 help:
@@ -12,6 +12,10 @@ install:
 ## run: Démarre le serveur API (host/port configurables via .env)
 run:
 	uv run protab
+
+## frontend: Démarre le frontend React/Vite (src/FrontEnd, port 5173)
+frontend:
+	cd src/FrontEnd && npm run dev
 
 ## test: Lance tous les tests en mode normal
 test:
