@@ -1066,6 +1066,8 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
     en exceptions de domaine par l'adapter.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
+- L'API de production utilise une session HTTP-only et filtre les périmètres par `project_id` ; les routes
+  métier sont protégées par l'authentification projet/quadrigramme.
 
 ## 28.2 Configuration
 

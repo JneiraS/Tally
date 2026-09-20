@@ -65,6 +65,22 @@ Configuration (fichier `.env` copié depuis `.env.example`) :
 `PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`) et
 `DATABASE_URL` (DSN PostgreSQL ; **obligatoire** pour démarrer l'API).
 
+### Authentification par projet
+
+L'application demande le projet, le quadrigramme de l'utilisateur et le mot de passe partagé du projet.
+Les mots de passe sont stockés sous forme de hash et la session est conservée dans un cookie HTTP-only.
+Les périmètres et activités sont filtrés côté backend par le projet authentifié.
+
+Routes publiques : `GET /projects`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
+Les routes de supervision nécessitent une session valide.
+
+Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
+`PROTAB_DEFAULT_PROJECT_NAME` et `PROTAB_DEFAULT_PROJECT_PASSWORD`. Les projets suivants se créent avec :
+
+```bash
+uv run protab-project projet-alpha "Projet Alpha"
+```
+
 | Méthode & path | Body | Succès | Erreurs |
 |---|---|---|---|
 | `POST /scope-monitorings` | `[{name, knowledge_base_id, official_main, official_backup}]` | `201 {ids: [...]}` | `409` nom existant, `400` validation domaine |

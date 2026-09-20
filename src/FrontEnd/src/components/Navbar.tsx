@@ -1,22 +1,19 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import {
-  Activity,
-  Plus,
-  UploadCloud,
-  Sun,
-  Moon,
-} from 'lucide-react';
-import { protabApi } from '../services/api';
-import { useToast } from '../hooks/useToast';
-import { useTheme } from '../hooks/useTheme';
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Activity, Plus, UploadCloud, Sun, Moon } from "lucide-react";
+import { protabApi } from "../services/api";
+import { useToast } from "../hooks/useToast";
+import { useTheme } from "../hooks/useTheme";
 
 interface NavbarProps {
   onOpenCreateScope: () => void;
   onOpenImportCsv: () => void;
+  projectName: string;
+  quadrigramme: string;
+  onLogout: () => void;
 }
 
-export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
+export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadrigramme, onLogout }: NavbarProps) {
   const { info, success } = useToast();
   const { isNord, toggleTheme } = useTheme();
   const [isCheckingServer, setIsCheckingServer] = useState(false);
@@ -28,9 +25,9 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
       const ok = await protabApi.checkBackendHealth();
       setServerOnline(ok);
       if (ok) {
-        success('Backend connecté', 'Le serveur FastAPI http://localhost:8000 répond correctement.');
+        success("Backend connecté", "Le serveur répond correctement.");
       } else {
-        info('Backend déconnecté', 'Le serveur FastAPI local ne répond pas (port 8000).');
+        info("Backend déconnecté", "Le serveur ne répond pas.");
       }
     } finally {
       setIsCheckingServer(false);
@@ -70,29 +67,31 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv }: NavbarProps) {
 
           {/* Actions & Indicateur API */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Badge de statut du backend */}
-            <div className="hidden md:flex items-center gap-2 bg-slate-100/80 dark:bg-nord-1 px-2.5 py-1 rounded-full text-xs border border-slate-200 dark:border-nord-2">
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  serverOnline
-                    ? 'bg-emerald-500 dark:bg-nord-14'
-                    : 'bg-rose-500 dark:bg-nord-11'
-                }`}
-              />
-              <span className="font-medium text-slate-600 dark:text-nord-4">
-                {serverOnline
-                  ? 'FastAPI Connecté (8000)'
-                  : 'Backend Déconnecté'}
-              </span>
+            <div className="hidden lg:block text-right text-xs">
+              <p className="font-semibold text-slate-700 dark:text-nord-5">{projectName}</p>
+              <p className="text-slate-500 dark:text-nord-4">{quadrigramme}</p>
             </div>
-
-            {/* Bouton bascule Thème Sombre Nord */}
+            <button
+              type="button"
+              onClick={onLogout}
+              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-nord-2 dark:text-nord-5 dark:hover:bg-nord-2"
+            >
+              Déconnexion
+            </button>
             <button
               type="button"
               onClick={toggleTheme}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-nord-5 bg-white dark:bg-nord-1 hover:bg-slate-50 dark:hover:bg-nord-2 border border-slate-300 dark:border-nord-2 rounded-lg shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8"
-              title={isNord ? 'Passer au thème clair' : 'Activer le thème sombre Nord'}
-              aria-label={isNord ? 'Passer au thème clair' : 'Activer le thème sombre Nord'}
+              title={
+                isNord
+                  ? "Passer au thème clair"
+                  : "Activer le thème sombre Nord"
+              }
+              aria-label={
+                isNord
+                  ? "Passer au thème clair"
+                  : "Activer le thème sombre Nord"
+              }
             >
               {isNord ? (
                 <>

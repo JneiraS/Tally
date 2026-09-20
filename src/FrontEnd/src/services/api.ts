@@ -35,6 +35,16 @@ export class ApiError extends Error {
 // Par défaut utilise le proxy Vite (/scope-monitorings) ou l'URL spécifiée via variable d'environnement
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
+export interface Project {
+  id: string;
+  name: string;
+}
+
+export interface AuthSession {
+  project: Project;
+  quadrigramme: string;
+}
+
 /**
  * Traduit et formate les erreurs FastAPI (dont 422) en français clair
  */
@@ -90,6 +100,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   try {
     const response = await fetch(url, {
       ...options,
+      credentials: 'include',
       headers,
     });
 
@@ -155,7 +166,7 @@ export const protabApi = {
    */
   async checkBackendHealth(): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE_URL}/scope-monitorings`, {
+      const res = await fetch(`${API_BASE_URL}/healthz`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
       });
@@ -163,6 +174,25 @@ export const protabApi = {
     } catch {
       return false;
     }
+  },
+
+  async listProjects(): Promise<Project[]> {
+    return request<Project[]>('/projects');
+  },
+
+  async login(projectId: string, quadrigramme: string, password: string): Promise<AuthSession> {
+    return request<AuthSession>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ project_id: projectId, quadrigramme, password }),
+    });
+  },
+
+  async getSession(): Promise<AuthSession> {
+    return request<AuthSession>('/auth/me');
+  },
+
+  async logout(): Promise<void> {
+    await request<void>('/auth/logout', { method: 'POST' });
   },
 
   /**
