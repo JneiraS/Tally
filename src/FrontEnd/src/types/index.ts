@@ -53,6 +53,32 @@ export interface CompleteActivitiesInput {
   days: string[];
 }
 
+export type AuditAction =
+  | "scope_created"
+  | "scope_imported"
+  | "activity_created"
+  | "activity_updated"
+  | "activity_completed";
+
+export interface AuditEvent {
+  id: string; // UUID v4
+  actor: string | null; // Quadrigramme de l'utilisateur
+  action: AuditAction;
+  scope_id: string | null; // Périmètre concerné
+  day: string | null; // "YYYY-MM-DD" associé si pertinent
+  created_at: string; // Horodatage ISO 8601 de l'événement
+  changes: Record<string, { old: unknown; new: unknown }> | null; // Diff avant/après
+}
+
+export interface AuditLogQuery {
+  scope_id?: string;
+  actor?: string;
+  action?: AuditAction;
+  from_date?: string;
+  to_date?: string;
+  limit?: number;
+}
+
 /**
  * Erreurs standard FastAPI (Shape Pydantic)
  */

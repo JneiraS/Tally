@@ -6,6 +6,7 @@ import { ToastContainer } from "./components/Toast";
 import { ThemeProvider } from "./hooks/useTheme";
 import { ScopeListPage } from "./pages/ScopeListPage";
 import { ScopeDetailPage } from "./pages/ScopeDetailPage";
+import { AuditLogPage } from "./pages/AuditLogPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ScopeFormModal } from "./components/ScopeFormModal";
@@ -76,6 +77,7 @@ export default function App() {
                   }
                 />
                 <Route path="/scopes/:id" element={<ScopeDetailPage />} />
+                <Route path="/audit" element={<AuditLogPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>

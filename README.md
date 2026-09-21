@@ -44,8 +44,11 @@ Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
 | `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)` | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
 | `UpdateDailyActivityUseCase` | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)` | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués. |
 
-Lectures (`application/queries/`) : `ListScopesUseCase`, `GetScopeUseCase`, `GetDailyActivityUseCase` —
-retournent les entités ; les erreurs `*NotFoundError` sont levées côté application.
+Lectures (`application/queries/`) : `ListScopesUseCase`, `GetScopeUseCase`, `GetDailyActivityUseCase`,
+`ListAuditEventsUseCase` — retournent les entités ; les erreurs `*NotFoundError` sont levées côté application.
+
+Chaque use case de mutation enregistre un événement d'audit via le port `AuditTrailRepository` (voir
+« Journal d'audit »).
 
 ## Import CSV
 
@@ -91,10 +94,19 @@ uv run protab-project projet-alpha "Projet Alpha"
 | `GET /scope-monitorings` | — | `200` liste des périmètres (id, name, knowledge, officials, activities) | — |
 | `GET /scope-monitorings/{id}` | — | `200` périmètre| `404` |
 | `GET /scope-monitorings/{id}/activities/{day}` | — | `200` activité | `404` périmètre ou jour inconnu |
+| `GET /audit-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | — |
 
 Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/errors.py`) :
 `ScopeMonitoringNotFoundError`/`DailyActivityNotFoundError` → **404**, `ScopeMonitoringNameAlreadyExistsError`/
 `DuplicateDailyActivityError` → **409**, toute autre `DomainError` et `ScopeMonitoringCsvError` → **400**.
+
+### Journal d'audit
+
+Chaque mutation (création/import de périmètre, création/mise à jour/validation d'activité) est tracée dans un
+journal `audit_log` : acteur (quadrigramme de session), action, périmètre, jour concerné et diff avant/après
+(`changes`, champ par champ). Les modifications sans changement effectif ne sont pas journalisées. L'écriture
+du journal est best-effort : un échec d'audit ne fait pas échouer la requête métier. Lecture via
+`GET /audit-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/audit`.
 
 ## Persistance
 

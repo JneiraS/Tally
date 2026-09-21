@@ -4,6 +4,8 @@
  */
 
 import {
+  AuditEvent,
+  AuditLogQuery,
   CompleteActivitiesInput,
   CreateActivityInput,
   CreateScopeInput,
@@ -283,5 +285,21 @@ export const protabApi = {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  },
+
+  /**
+   * GET /audit-log
+   * Liste les événements du journal d'audit, du plus récent au plus ancien.
+   * Paramètres filtres optionnels : scope_id, actor, action, from_date, to_date, limit.
+   */
+  async getAuditLog(params: AuditLogQuery = {}): Promise<AuditEvent[]> {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        qs.set(key, String(value));
+      }
+    });
+    const query = qs.toString();
+    return request<AuditEvent[]>(`/audit-log${query ? `?${query}` : ''}`);
   },
 };
