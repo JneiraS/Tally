@@ -318,7 +318,7 @@ export function ActivityFormModal({
                 Références FEAI ({feaiList.length})
               </span>
               <p className="text-[11px] text-slate-500 dark:text-nord-4">
-                Format obligatoire : <code className="text-blue-700 dark:text-nord-8">INC + 7 chiffres</code> (ex: INC0000001), sans doublon.
+                Format obligatoire : <code className="text-blue-700 dark:text-nord-8">INC + 9 chiffres</code> (ex: INC000000001), sans doublon.
               </p>
             </div>
             <button
@@ -341,7 +341,7 @@ export function ActivityFormModal({
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {feaiList.map((code, idx) => {
                 const itemError = feaiItemErrors[idx];
-                const valid = code.length === 10 && isValidFeai(code);
+                const valid = code.length === 12 && isValidFeai(code);
 
                 return (
                   <div key={idx} className="space-y-1">
@@ -351,8 +351,8 @@ export function ActivityFormModal({
                           type="text"
                           value={code}
                           onChange={(e) => handleFeaiChange(idx, e.target.value)}
-                          placeholder="INC0000001"
-                          maxLength={10}
+                          placeholder="INC000000001"
+                          maxLength={12}
                           className={`w-full px-3 py-1.5 text-xs font-mono tracking-wider bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                             itemError
                               ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10'

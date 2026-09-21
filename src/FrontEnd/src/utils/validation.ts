@@ -2,7 +2,7 @@
  * Règles métier et validations UI pour ProTab
  */
 
-export const FEAI_REGEX = /^INC\d{7}$/;
+export const FEAI_REGEX = /^INC\d{9}$/;
 
 export interface ActivityValidationErrors {
   day?: string;
@@ -22,7 +22,7 @@ export interface ScopeValidationErrors {
 }
 
 /**
- * Valide le format d'un identifiant FEAI (ex: "INC0000001")
+ * Valide le format d'un identifiant FEAI (ex: "INC000000001")
  */
 export function isValidFeai(value: string): boolean {
   return FEAI_REGEX.test(value.trim());
@@ -77,7 +77,7 @@ export function validateActivityForm(
     if (code === '') {
       feaiItemErrors[idx] = 'Le numéro FEAI ne peut pas être vide.';
     } else if (!isValidFeai(code)) {
-      feaiItemErrors[idx] = 'Format attendu : INC suivi de 7 chiffres (ex: INC0000001).';
+      feaiItemErrors[idx] = 'Format attendu : INC suivi de 9 chiffres (ex: INC000000001).';
     } else if (seenFeai.has(code)) {
       feaiItemErrors[idx] = `Référence en doublon : "${code}". Chaque référence doit être unique.`;
     } else {

@@ -10,7 +10,7 @@ from protab.domain.exceptions import (
     NegativeIncidentsCountError,
 )
 
-_FEAI_PATTERN = re.compile(r"^INC\d{7}$")
+_FEAI_PATTERN = re.compile(r"^INC\d{9}$")
 
 
 @dataclass
@@ -47,7 +47,7 @@ class DailyActivity:
         for ref in feai:
             if not isinstance(ref, str) or _FEAI_PATTERN.fullmatch(ref) is None:
                 raise InvalidFeaiReferenceError(
-                    f"Invalid FEAI reference: {ref!r}. Expected format: INC\\d{{7}}."
+                    f"Invalid FEAI reference: {ref!r}. Expected format: INC\\d{{9}}."
                 )
             if ref in seen:
                 raise DuplicateFeaiReferenceError(f"Duplicate FEAI reference: {ref!r}.")

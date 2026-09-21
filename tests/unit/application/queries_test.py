@@ -68,7 +68,7 @@ def test_get_daily_activity_found():
             day=date(2026, 9, 19),
             errors_reported=2,
             incidents_created=1,
-            feai=["INC0000001"],
+            feai=["INC000000001"],
         )
     )
     repo.save(scope)

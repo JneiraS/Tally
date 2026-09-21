@@ -35,7 +35,7 @@ def make_command(
     day=date(2026, 9, 19),
     errors_reported=2,
     incidents_created=1,
-    feai=("INC0000001",),
+    feai=("INC000000001",),
 ):
     return CreateDailyActivityCommand(
         scope_id=scope_id,
@@ -57,7 +57,7 @@ def test_create_daily_activity():
     assert activity is not None
     assert activity.errors_reported == 2
     assert activity.incidents_created == 1
-    assert activity.feai == ["INC0000001"]
+    assert activity.feai == ["INC000000001"]
     assert activity.handled is False
     assert activity.completed is False
 
@@ -104,5 +104,5 @@ def make_scope_daily_activity():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )

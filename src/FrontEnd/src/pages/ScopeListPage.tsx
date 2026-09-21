@@ -46,14 +46,16 @@ export function ScopeListPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "in_progress" | "completed"
+    "all" | "in_progress" | "completed" | "none"
   >("all");
   const [completingIds, setCompletingIds] = useState<string[]>([]);
 
   const todayIso = getTodayIsoDate();
   const [selectedDay, setSelectedDay] = useState(todayIso);
   const isSelectedDayToday = selectedDay === todayIso;
-  const selectedDayLabel = isSelectedDayToday ? "du jour" : `du ${formatDateFr(selectedDay)}`;
+  const selectedDayLabel = isSelectedDayToday
+    ? "du jour"
+    : `du ${formatDateFr(selectedDay)}`;
   const selectedDayValidationLabel = isSelectedDayToday
     ? "aujourd'hui"
     : `le ${formatDateFr(selectedDay)}`;
@@ -184,10 +186,13 @@ export function ScopeListPage({
       if (!matchesSearch) return false;
 
       if (statusFilter === "completed") {
-        return scope.selectedDayCompleted;
+        return scope.status === "completed";
       }
       if (statusFilter === "in_progress") {
-        return !scope.selectedDayCompleted;
+        return scope.status === "in_progress";
+      }
+      if (statusFilter === "none") {
+        return scope.status === "none";
       }
       return true;
     });
@@ -209,7 +214,13 @@ export function ScopeListPage({
       0,
     );
 
-    return { total, completedCount, pendingCount, selectedDayErrors, selectedDayIncidents };
+    return {
+      total,
+      completedCount,
+      pendingCount,
+      selectedDayErrors,
+      selectedDayIncidents,
+    };
   }, [scopes, enrichedScopes]);
 
   return (
@@ -228,7 +239,11 @@ export function ScopeListPage({
         </div>
 
         <div className="flex items-center gap-2">
-          <DateNavigator value={selectedDay} today={todayIso} onChange={setSelectedDay} />
+          <DateNavigator
+            value={selectedDay}
+            today={todayIso}
+            onChange={setSelectedDay}
+          />
           <button
             type="button"
             onClick={fetchScopes}
@@ -264,7 +279,9 @@ export function ScopeListPage({
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
-              {isSelectedDayToday ? "Aujourd'hui validé" : `Validé ${selectedDayValidationLabel}`}
+              {isSelectedDayToday
+                ? "validé aujourd'hui"
+                : `Terminé ${selectedDayValidationLabel}`}
             </span>
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-nord-14" />
           </div>
@@ -302,7 +319,7 @@ export function ScopeListPage({
             {stats.selectedDayIncidents}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            Rattachés aux fiches FEAI
+            Hors FEAI/FE
           </p>
         </div>
       </div>
@@ -356,8 +373,20 @@ export function ScopeListPage({
                   : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
-              En cours ({enrichedScopes.filter((s) => !s.selectedDayCompleted).length}
-              )
+              En cours (
+              {enrichedScopes.filter((s) => s.status === "in_progress").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("none")}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                statusFilter === "none"
+                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
+                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
+              }`}
+            >
+              Non saisi (
+              {enrichedScopes.filter((s) => s.status === "none").length})
             </button>
             <button
               type="button"
@@ -368,7 +397,8 @@ export function ScopeListPage({
                   : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
               }`}
             >
-              Terminés ({enrichedScopes.filter((s) => s.selectedDayCompleted).length})
+              Terminés (
+              {enrichedScopes.filter((s) => s.selectedDayCompleted).length})
             </button>
           </div>
         </div>
@@ -566,7 +596,7 @@ export function ScopeListPage({
               périmètre(s)
             </span>
             <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">
-               Jour affiché : {formatDateFr(selectedDay)}
+              Jour affiché : {formatDateFr(selectedDay)}
             </span>
           </div>
         </div>

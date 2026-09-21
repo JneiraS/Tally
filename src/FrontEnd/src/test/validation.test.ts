@@ -7,19 +7,20 @@ import {
 import { isValidIsoDate, formatDateFr } from '../utils/date';
 
 describe('Validation des invariants métier ProTab', () => {
-  describe('Format FEAI (^INC\\d{7}$)', () => {
+  describe('Format FEAI (^INC\\d{9}$)', () => {
     it('valide les codes conformes', () => {
-      expect(isValidFeai('INC0000001')).toBe(true);
-      expect(isValidFeai('INC1234567')).toBe(true);
-      expect(isValidFeai('INC9999999')).toBe(true);
+      expect(isValidFeai('INC000000001')).toBe(true);
+      expect(isValidFeai('INC123456789')).toBe(true);
+      expect(isValidFeai('INC999999999')).toBe(true);
     });
 
     it('rejette les formats non conformes', () => {
       expect(isValidFeai('INC123')).toBe(false); // trop court
-      expect(isValidFeai('INC12345678')).toBe(false); // trop long
-      expect(isValidFeai('inc0000001')).toBe(false); // minuscules
-      expect(isValidFeai('FEAI0000001')).toBe(false); // mauvais préfixe
-      expect(isValidFeai('INC000000A')).toBe(false); // lettres au lieu de chiffres
+      expect(isValidFeai('INC1234567')).toBe(false); // trop court (7 chiffres)
+      expect(isValidFeai('INC1234567890')).toBe(false); // trop long (10 chiffres)
+      expect(isValidFeai('inc000000001')).toBe(false); // minuscules
+      expect(isValidFeai('FEAI000000001')).toBe(false); // mauvais préfixe
+      expect(isValidFeai('INC00000000A')).toBe(false); // lettres au lieu de chiffres
     });
   });
 
@@ -30,7 +31,7 @@ describe('Validation des invariants métier ProTab', () => {
           day: '2026-09-19',
           errors_reported: 3,
           incidents_created: 2,
-          feai: ['INC0000001', 'INC0000002'],
+          feai: ['INC000000001', 'INC000000002'],
         },
         { isCreation: true, existingDays: [] }
       );
@@ -68,7 +69,7 @@ describe('Validation des invariants métier ProTab', () => {
         day: '2026-09-19',
         errors_reported: 5,
         incidents_created: 2,
-        feai: ['INC0000001', 'INC0000001'],
+        feai: ['INC000000001', 'INC000000001'],
       });
 
       expect(result.isValid).toBe(false);

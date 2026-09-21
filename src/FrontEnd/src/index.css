@@ -3,106 +3,106 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Palette Nord historique utilisée par le thème sombre. */
-  --color-nord-0: #2e3440;
-  --color-nord-1: #3b4252;
-  --color-nord-2: #434c5e;
-  --color-nord-3: #4c566a;
-  --color-nord-4: #d8dee9;
-  --color-nord-5: #e5e9f0;
-  --color-nord-6: #eceff4;
-  --color-nord-7: #8fbcbb;
-  --color-nord-8: #88c0d0;
-  --color-nord-9: #81a1c1;
-  --color-nord-10: #5e81ac;
-  --color-nord-11: #bf616a;
-  --color-nord-12: #d08770;
-  --color-nord-13: #ebcb8b;
-  --color-nord-14: #a3be8c;
-  --color-nord-15: #b48ead;
+    /* Palette Nord historique utilisée par le thème sombre. */
+    --color-nord-0: #2e3440;
+    --color-nord-1: #3b4252;
+    --color-nord-2: #434c5e;
+    --color-nord-3: #4c566a;
+    --color-nord-4: #d8dee9;
+    --color-nord-5: #e5e9f0;
+    --color-nord-6: #eceff4;
+    --color-nord-7: #8fbcbb;
+    --color-nord-8: #88c0d0;
+    --color-nord-9: #81a1c1;
+    --color-nord-10: #5e81ac;
+    --color-nord-11: #bf616a;
+    --color-nord-12: #d08770;
+    --color-nord-13: #f6ae2d;
+    --color-nord-14: #499167;
+    --color-nord-15: #b48ead;
 
-  /*
+    /*
    * Palette claire Nord light.
    * Les composants utilisent les tokens Tailwind standards en mode clair ;
    * ils restent donc cohérents avec les classes dark:nord-* existantes.
    */
-  --color-slate-50: #eceff4;
-  --color-slate-100: #e5e9f0;
-  --color-slate-200: #d8dee9;
-  --color-slate-300: #c0cadd;
-  --color-slate-400: #7a869e;
-  --color-slate-500: #4c566a;
-  --color-slate-600: #434c5e;
-  --color-slate-700: #3b4252;
-  --color-slate-800: #343d4e;
-  --color-slate-900: #2e3440;
+    --color-slate-50: #eceff4;
+    --color-slate-100: #e5e9f0;
+    --color-slate-200: #d8dee9;
+    --color-slate-300: #c0cadd;
+    --color-slate-400: #7a869e;
+    --color-slate-500: #4c566a;
+    --color-slate-600: #434c5e;
+    --color-slate-700: #3b4252;
+    --color-slate-800: #343d4e;
+    --color-slate-900: #2e3440;
 
-  --color-blue-50: #e9f0f8;
-  --color-blue-100: #d9e5f1;
-  --color-blue-200: #c0d2e6;
-  --color-blue-300: #9db8d3;
-  --color-blue-400: #7e9dc0;
-  --color-blue-500: #5e81ac;
-  --color-blue-600: #5e81ac;
-  --color-blue-700: #4e76a0;
-  --color-blue-800: #436385;
-  --color-blue-900: #36506b;
+    --color-blue-50: #e9f0f8;
+    --color-blue-100: #d9e5f1;
+    --color-blue-200: #c0d2e6;
+    --color-blue-300: #9db8d3;
+    --color-blue-400: #7e9dc0;
+    --color-blue-500: #5e81ac;
+    --color-blue-600: #5e81ac;
+    --color-blue-700: #4e76a0;
+    --color-blue-800: #436385;
+    --color-blue-900: #36506b;
 
-  --color-rose-50: #fbeced;
-  --color-rose-100: #f5d6d8;
-  --color-rose-200: #eab4b8;
-  --color-rose-300: #de8f95;
-  --color-rose-400: #d0777e;
-  --color-rose-500: #c4626a;
-  --color-rose-600: #b24f58;
-  --color-rose-700: #96444c;
-  --color-rose-800: #7b373e;
-  --color-rose-900: #5e2b31;
+    --color-rose-50: #fbeced;
+    --color-rose-100: #f5d6d8;
+    --color-rose-200: #eab4b8;
+    --color-rose-300: #de8f95;
+    --color-rose-400: #d0777e;
+    --color-rose-500: #c4626a;
+    --color-rose-600: #b24f58;
+    --color-rose-700: #96444c;
+    --color-rose-800: #7b373e;
+    --color-rose-900: #5e2b31;
 
-  --color-amber-50: #fcf4e0;
-  --color-amber-100: #f9eac3;
-  --color-amber-200: #f2d994;
-  --color-amber-300: #e9c56b;
-  --color-amber-400: #dfb24b;
-  --color-amber-500: #cfa037;
-  --color-amber-600: #b8892f;
-  --color-amber-700: #9a7227;
-  --color-amber-800: #7e5c22;
-  --color-amber-900: #62481d;
+    --color-amber-50: #fcf4e0;
+    --color-amber-100: #f9eac3;
+    --color-amber-200: #f2d994;
+    --color-amber-300: #e9c56b;
+    --color-amber-400: #dfb24b;
+    --color-amber-500: #cfa037;
+    --color-amber-600: #b8892f;
+    --color-amber-700: #9a7227;
+    --color-amber-800: #7e5c22;
+    --color-amber-900: #62481d;
 
-  --color-emerald-50: #f0f5ea;
-  --color-emerald-100: #e2ebd8;
-  --color-emerald-200: #c8d8b3;
-  --color-emerald-300: #adc693;
-  --color-emerald-400: #97b47c;
-  --color-emerald-500: #85a26b;
-  --color-emerald-600: #718d5a;
-  --color-emerald-700: #5d764c;
-  --color-emerald-800: #4b5f3f;
-  --color-emerald-900: #3b4a33;
+    --color-emerald-50: #f0f5ea;
+    --color-emerald-100: #e2ebd8;
+    --color-emerald-200: #c8d8b3;
+    --color-emerald-300: #adc693;
+    --color-emerald-400: #97b47c;
+    --color-emerald-500: #85a26b;
+    --color-emerald-600: #718d5a;
+    --color-emerald-700: #5d764c;
+    --color-emerald-800: #4b5f3f;
+    --color-emerald-900: #3b4a33;
 
-  --color-orange-100: #f7e5dd;
-  --color-orange-200: #f0ccbe;
-  --color-orange-800: #a05a3c;
+    --color-orange-100: #f7e5dd;
+    --color-orange-200: #f0ccbe;
+    --color-orange-800: #a05a3c;
 }
 
 :root {
-  --chart-axis: #4c566a;
-  --chart-grid: #c0cadd;
+    --chart-axis: #4c566a;
+    --chart-grid: #c0cadd;
 }
 
 .dark {
-  --chart-axis: #d8dee9;
-  --chart-grid: #434c5e;
+    --chart-axis: #d8dee9;
+    --chart-grid: #434c5e;
 }
 
 /* Suppression des flèches pour les inputs de type number */
-input[type='number']::-webkit-inner-spin-button,
-input[type='number']::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
-input[type='number'] {
-  -moz-appearance: textfield;
+input[type="number"] {
+    -moz-appearance: textfield;
 }

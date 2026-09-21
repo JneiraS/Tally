@@ -34,7 +34,7 @@ def make_scope_with_activity(scope_id="scope-001", day=date(2026, 9, 19)):
             day=day,
             errors_reported=2,
             incidents_created=1,
-            feai=["INC0000001"],
+            feai=["INC000000001"],
         )
     )
     return scope
@@ -50,7 +50,7 @@ def test_update_daily_activity():
             day=date(2026, 9, 19),
             errors_reported=5,
             incidents_created=3,
-            feai=["INC0000001", "INC0000002"],
+            feai=["INC000000001", "INC000000002"],
         )
     )
 
@@ -58,7 +58,7 @@ def test_update_daily_activity():
     activity = saved.daily_activity_for(date(2026, 9, 19))
     assert activity.errors_reported == 5
     assert activity.incidents_created == 3
-    assert activity.feai == ["INC0000001", "INC0000002"]
+    assert activity.feai == ["INC000000001", "INC000000002"]
 
 
 def test_update_scope_not_found():
@@ -70,7 +70,7 @@ def test_update_scope_not_found():
                 day=date(2026, 9, 19),
                 errors_reported=1,
                 incidents_created=0,
-                feai=["INC0000001"],
+                feai=["INC000000001"],
             )
         )
 
@@ -86,7 +86,7 @@ def test_update_day_without_activity_raises():
                 day=date(2026, 9, 20),
                 errors_reported=1,
                 incidents_created=0,
-                feai=["INC0000001"],
+                feai=["INC000000001"],
             )
         )
 
@@ -102,7 +102,7 @@ def test_update_invalid_invariant_raises_and_does_not_modify():
                 day=date(2026, 9, 19),
                 errors_reported=1,
                 incidents_created=2,
-                feai=["INC0000001"],
+                feai=["INC000000001"],
             )
         )
 

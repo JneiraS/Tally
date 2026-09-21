@@ -11,7 +11,7 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ├── id: str                                            ├── day: date            ← datetime.date (pas de classe Day)
 ├── name: str                                         ├── errors_reported: int ← >= 0
 ├── knowledge: KnowledgeBase                          ├── incidents_created: int ← >= 0 et <= errors_reported
-├── officials: Officials                              ├── feai: list[str]      ← format INC\d{7}, sans doublon
+├── officials: Officials                              ├── feai: list[str]      ← format INC\d{9}, sans doublon
 └── daily_activities: dict[date, DailyActivity]       ├── handled: bool
      └── clé = jour → une seule activité par jour     └── completed: bool      ← completed ⇒ handled
 ```
@@ -28,7 +28,7 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ### Invariants
 
 - `errors_reported >= 0`, `incidents_created >= 0`, `incidents_created <= errors_reported`.
-- Références FEAI : format `INC` suivi d'exactement 7 chiffres (`^INC\d{7}$`), aucune doublon.
+- Références FEAI : format `INC` suivi d'exactement 9 chiffres (`^INC\d{9}$`), aucune doublon.
 - Une seule `DailyActivity` par `ScopeMonitoring` et par jour.
 - `mark_completed()` force `handled = True` (`completed` ⇒ `handled`).
 
