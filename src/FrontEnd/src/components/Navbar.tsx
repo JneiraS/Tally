@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Activity, Plus, UploadCloud, Sun, Moon, History } from "lucide-react";
+import { Activity, Plus, UploadCloud, Sun, Moon } from "lucide-react";
 import { protabApi } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import { useTheme } from "../hooks/useTheme";
@@ -105,14 +105,6 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadri
                 </>
               )}
             </button>
-
-            <Link
-              to="/audit"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-nord-5 hover:text-slate-900 dark:hover:text-nord-6 bg-white dark:bg-nord-1 hover:bg-slate-50 dark:hover:bg-nord-2 border border-slate-300 dark:border-nord-2 rounded-lg shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8"
-            >
-              <History className="w-4 h-4 text-slate-500 dark:text-nord-4" />
-              <span className="hidden sm:inline">Historique</span>
-            </Link>
 
             {/* Boutons d'action rapides */}
             <button
