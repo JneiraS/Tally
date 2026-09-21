@@ -186,10 +186,10 @@ export function ScopeListPage({
       if (!matchesSearch) return false;
 
       if (statusFilter === "completed") {
-        return scope.selectedDayCompleted;
+        return scope.status === "completed";
       }
       if (statusFilter === "in_progress") {
-        return !scope.selectedDayCompleted;
+        return scope.status === "in_progress";
       }
       return true;
     });
@@ -371,7 +371,7 @@ export function ScopeListPage({
               }`}
             >
               En cours (
-              {enrichedScopes.filter((s) => !s.selectedDayCompleted).length})
+              {enrichedScopes.filter((s) => s.status === "in_progress").length})
             </button>
             <button
               type="button"
