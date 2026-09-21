@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -68,3 +68,13 @@ class ScopeResponse(BaseModel):
     official_main: str
     official_backup: str
     daily_activities: list[ActivityResponse]
+
+
+class AuditEventResponse(BaseModel):
+    id: str
+    actor: str | None
+    action: str
+    scope_id: str | None
+    day: date | None
+    created_at: datetime
+    changes: dict

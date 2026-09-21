@@ -12,6 +12,7 @@ from protab.adapters.inbound.api.config import database_url_from_env
 from protab.adapters.inbound.api.errors import register_exception_handlers
 from protab.adapters.inbound.api.schemas import (
     ActivityResponse,
+    AuditEventResponse,
     CompleteRequest,
     CreateActivityRequest,
     CreatedResponse,
@@ -26,6 +27,12 @@ from protab.adapters.inbound.api.schemas import (
 from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
     parse_scope_monitorings_csv,
 )
+from protab.adapters.outbound.persistence.in_memory_audit_trail_repository import (
+    InMemoryAuditTrailRepository,
+)
+from protab.adapters.outbound.persistence.postgres_audit_trail_repository import (
+    PostgresAuditTrailRepository,
+)
 from protab.adapters.outbound.persistence.postgres_auth_repository import (
     PostgresAuthRepository,
 )
@@ -33,6 +40,10 @@ from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository i
     PostgresScopeMonitoringRepository,
     reset_current_project,
     set_current_project,
+)
+from protab.application.actor_context import (
+    reset_current_actor,
+    set_current_actor,
 )
 from protab.application.commands.create_scope_monitoring import (
     CreateScopeMonitoringCommand,
@@ -44,6 +55,7 @@ from protab.application.commands.daily_activity import (
 )
 from protab.application.queries.get_daily_activity import GetDailyActivityUseCase
 from protab.application.queries.get_scope import GetScopeUseCase
+from protab.application.queries.list_audit_events import ListAuditEventsUseCase
 from protab.application.queries.list_scopes import ListScopesUseCase
 from protab.application.use_cases.complete_daily_activity import (
     CompleteDailyActivityUseCase,
@@ -57,8 +69,13 @@ from protab.application.use_cases.create_scope_monitoring import (
 from protab.application.use_cases.update_daily_activity import (
     UpdateDailyActivityUseCase,
 )
+from protab.domain.entities.audit_event import AuditEvent
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
+from protab.ports.outbound.audit_trail_repository import (
+    AuditEventQuery,
+    AuditTrailRepository,
+)
 from protab.ports.outbound.scope_monitoring_repository import (
     ScopeMonitoringRepository,
 )
@@ -89,6 +106,18 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
     )
 
 
+def _audit_event_to_response(event: AuditEvent) -> AuditEventResponse:
+    return AuditEventResponse(
+        id=event.id,
+        actor=event.actor,
+        action=event.action,
+        scope_id=event.scope_id,
+        day=event.day,
+        created_at=event.created_at,
+        changes=event.changes,
+    )
+
+
 def build_repository() -> ScopeMonitoringRepository:
     """Select the persistence adapter from configuration.
 
@@ -110,6 +139,7 @@ def build_repository() -> ScopeMonitoringRepository:
 def create_app(
     repository: ScopeMonitoringRepository | None = None,
     auth_repository: PostgresAuthRepository | None = None,
+    audit_repository: AuditTrailRepository | None = None,
 ) -> FastAPI:
     repo = repository if repository is not None else build_repository()
     auth = auth_repository
@@ -118,10 +148,20 @@ def create_app(
         assert dsn is not None
         auth = PostgresAuthRepository(dsn)
         auth.connect()
-    create_scope_monitoring = CreateScopeMonitoringUseCase(repo)
-    create_daily_activity = CreateDailyActivityUseCase(repo)
-    complete_daily_activity = CompleteDailyActivityUseCase(repo)
-    update_daily_activity = UpdateDailyActivityUseCase(repo)
+    audit = audit_repository
+    if audit is None:
+        if repository is None:
+            dsn = database_url_from_env()
+            assert dsn is not None
+            audit = PostgresAuditTrailRepository(dsn)
+            audit.connect()
+        else:
+            audit = InMemoryAuditTrailRepository()
+    create_scope_monitoring = CreateScopeMonitoringUseCase(repo, audit)
+    create_daily_activity = CreateDailyActivityUseCase(repo, audit)
+    complete_daily_activity = CompleteDailyActivityUseCase(repo, audit)
+    update_daily_activity = UpdateDailyActivityUseCase(repo, audit)
+    list_audit_events = ListAuditEventsUseCase(audit)
     list_scopes = ListScopesUseCase(repo)
     get_scope = GetScopeUseCase(repo)
     get_daily_activity = GetDailyActivityUseCase(repo)
@@ -135,9 +175,11 @@ def create_app(
             return
         user = current_user(request, auth)
         token = set_current_project(user.project.id)
+        actor_token = set_current_actor(user.session.quadrigramme)
         try:
             yield
         finally:
+            reset_current_actor(actor_token)
             reset_current_project(token)
 
     @app.get("/healthz")
@@ -205,7 +247,7 @@ def create_app(
             )
             for item in items
         ]
-        ids = create_scope_monitoring.execute(commands)
+        ids = create_scope_monitoring.execute(commands, source="manual")
         return CreatedResponse(ids=ids)
 
     @app.post(
@@ -218,7 +260,7 @@ def create_app(
         raw = (await csv_file.read()).decode("utf-8")
         rows = list(csv.reader(raw.splitlines()))
         commands = parse_scope_monitorings_csv(rows)
-        ids = create_scope_monitoring.execute(commands)
+        ids = create_scope_monitoring.execute(commands, source="csv")
         return CreatedResponse(ids=ids)
 
     @app.post(
@@ -290,6 +332,31 @@ def create_app(
     )
     def get_scope_daily_activity(scope_id: str, day: date) -> ActivityResponse:
         return _activity_to_response(get_daily_activity.execute(scope_id, day))
+
+    @app.get(
+        "/audit-log",
+        response_model=list[AuditEventResponse],
+        dependencies=[Depends(project_context)],
+    )
+    def list_scope_audit_log(
+        scope_id: str | None = None,
+        actor: str | None = None,
+        action: str | None = None,
+        from_date: date | None = None,
+        to_date: date | None = None,
+        limit: int = 200,
+    ) -> list[AuditEventResponse]:
+        events = list_audit_events.execute(
+            AuditEventQuery(
+                scope_id=scope_id,
+                actor=actor,
+                action=action,
+                from_date=from_date,
+                to_date=to_date,
+                limit=max(1, min(limit, 1000)),
+            )
+        )
+        return [_audit_event_to_response(event) for event in events]
 
     return app
 

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Navbar } from "./components/Navbar";
+import { AuditShortcut } from "./components/AuditShortcut";
 import { ToastProvider } from "./hooks/useToast";
 import { ToastContainer } from "./components/Toast";
 import { ThemeProvider } from "./hooks/useTheme";
 import { ScopeListPage } from "./pages/ScopeListPage";
 import { ScopeDetailPage } from "./pages/ScopeDetailPage";
+import { AuditLogPage } from "./pages/AuditLogPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ScopeFormModal } from "./components/ScopeFormModal";
@@ -61,6 +63,7 @@ export default function App() {
               quadrigramme={session.quadrigramme}
               onLogout={handleLogout}
             />
+            <AuditShortcut />
 
             {/* Contenu principal */}
             <main className="flex-1 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -76,6 +79,7 @@ export default function App() {
                   }
                 />
                 <Route path="/scopes/:id" element={<ScopeDetailPage />} />
+                <Route path="/audit" element={<AuditLogPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>
