@@ -1,17 +1,17 @@
 from protab.domain.exceptions import (
+    DailyActivityNotFoundError,
     DomainError,
+    DuplicateDailyActivityError,
+    DuplicateFeaiReferenceError,
     EmptyOfficialsError,
-    InvalidKnowledgeBaseIdError,
-    NegativeErrorsCountError,
-    NegativeIncidentsCountError,
     IncidentsExceedErrorsError,
     InvalidFeaiReferenceError,
-    DuplicateFeaiReferenceError,
-    DuplicateDailyActivityError,
+    InvalidKnowledgeBaseIdError,
     InvalidScopeMonitoringIdError,
-    ScopeMonitoringNotFoundError,
-    DailyActivityNotFoundError,
+    NegativeErrorsCountError,
+    NegativeIncidentsCountError,
     ScopeMonitoringNameAlreadyExistsError,
+    ScopeMonitoringNotFoundError,
 )
 
 

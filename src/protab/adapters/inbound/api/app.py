@@ -3,12 +3,13 @@ from datetime import date
 
 from fastapi import Depends, FastAPI, Request, Response, UploadFile
 
-from protab.adapters.inbound.api.errors import register_exception_handlers
 from protab.adapters.inbound.api.auth import (
     clear_session_cookie,
     current_user,
     set_session_cookie,
 )
+from protab.adapters.inbound.api.config import database_url_from_env
+from protab.adapters.inbound.api.errors import register_exception_handlers
 from protab.adapters.inbound.api.schemas import (
     ActivityResponse,
     CompleteRequest,
@@ -18,24 +19,20 @@ from protab.adapters.inbound.api.schemas import (
     LoginRequest,
     LoginResponse,
     ProjectResponse,
-    SessionResponse,
     ScopeResponse,
+    SessionResponse,
     UpdateRequest,
 )
 from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
     parse_scope_monitorings_csv,
 )
-from protab.adapters.inbound.api.config import database_url_from_env
+from protab.adapters.outbound.persistence.postgres_auth_repository import (
+    PostgresAuthRepository,
+)
 from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
     PostgresScopeMonitoringRepository,
     reset_current_project,
     set_current_project,
-)
-from protab.adapters.outbound.persistence.postgres_auth_repository import (
-    PostgresAuthRepository,
-)
-from protab.ports.outbound.scope_monitoring_repository import (
-    ScopeMonitoringRepository,
 )
 from protab.application.commands.create_scope_monitoring import (
     CreateScopeMonitoringCommand,
@@ -62,6 +59,9 @@ from protab.application.use_cases.update_daily_activity import (
 )
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
+from protab.ports.outbound.scope_monitoring_repository import (
+    ScopeMonitoringRepository,
+)
 
 
 def _activity_to_response(activity: DailyActivity) -> ActivityResponse:
@@ -157,7 +157,9 @@ def create_app(
         ):
             from fastapi import HTTPException
 
-            raise HTTPException(status_code=401, detail="Projet, quadrigramme ou mot de passe invalide.")
+            raise HTTPException(
+                status_code=401, detail="Projet, quadrigramme ou mot de passe invalide."
+            )
         session = auth.create_session(payload.project_id, payload.quadrigramme)
         project = auth.get_project(payload.project_id)
         assert project is not None
@@ -187,7 +189,12 @@ def create_app(
                 auth.delete_session(token)
         clear_session_cookie(response)
 
-    @app.post("/scope-monitorings", response_model=CreatedResponse, status_code=201, dependencies=[Depends(project_context)])
+    @app.post(
+        "/scope-monitorings",
+        response_model=CreatedResponse,
+        status_code=201,
+        dependencies=[Depends(project_context)],
+    )
     def create_scope_monitorings(items: list[CreateScopeItem]) -> CreatedResponse:
         commands = [
             CreateScopeMonitoringCommand(
@@ -260,11 +267,19 @@ def create_app(
             )
         )
 
-    @app.get("/scope-monitorings", response_model=list[ScopeResponse], dependencies=[Depends(project_context)])
+    @app.get(
+        "/scope-monitorings",
+        response_model=list[ScopeResponse],
+        dependencies=[Depends(project_context)],
+    )
     def list_scope_monitorings() -> list[ScopeResponse]:
         return [_scope_to_response(scope) for scope in list_scopes.execute()]
 
-    @app.get("/scope-monitorings/{scope_id}", response_model=ScopeResponse, dependencies=[Depends(project_context)])
+    @app.get(
+        "/scope-monitorings/{scope_id}",
+        response_model=ScopeResponse,
+        dependencies=[Depends(project_context)],
+    )
     def get_scope_monitoring(scope_id: str) -> ScopeResponse:
         return _scope_to_response(get_scope.execute(scope_id))
 

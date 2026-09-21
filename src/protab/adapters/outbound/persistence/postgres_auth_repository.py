@@ -1,11 +1,11 @@
 """PostgreSQL persistence for projects and login sessions."""
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
 import os
 import secrets
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
 import psycopg
 from psycopg_pool import ConnectionPool
@@ -50,10 +50,15 @@ class PostgresAuthRepository:
 
     def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
         self._pool = ConnectionPool(
-            dsn, min_size=min_size, max_size=max_size, open=False,
+            dsn,
+            min_size=min_size,
+            max_size=max_size,
+            open=False,
             kwargs={"autocommit": False},
         )
-        self.default_project_id = os.getenv("PROTAB_DEFAULT_PROJECT_CODE", "protab").strip()
+        self.default_project_id = os.getenv(
+            "PROTAB_DEFAULT_PROJECT_CODE", "protab"
+        ).strip()
         self.default_project_name = os.getenv(
             "PROTAB_DEFAULT_PROJECT_NAME", "Projet principal"
         ).strip()
@@ -89,7 +94,11 @@ class PostgresAuthRepository:
                 VALUES (%s, %s, %s)
                 ON CONFLICT (id) DO NOTHING
                 """,
-                (self.default_project_id, self.default_project_name, _hash_password(password)),
+                (
+                    self.default_project_id,
+                    self.default_project_name,
+                    _hash_password(password),
+                ),
             )
 
     def close(self) -> None:
@@ -106,7 +115,9 @@ class PostgresAuthRepository:
         project_id = project_id.strip()
         name = name.strip()
         if not project_id or not name or not password:
-            raise ValueError("Le code, le nom et le mot de passe du projet sont obligatoires.")
+            raise ValueError(
+                "Le code, le nom et le mot de passe du projet sont obligatoires."
+            )
         with self._pool.connection() as conn:
             conn.execute(
                 "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s)",
@@ -159,4 +170,6 @@ class PostgresAuthRepository:
     def delete_session(self, token: str) -> None:
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         with self._pool.connection() as conn:
-            conn.execute("DELETE FROM auth_sessions WHERE token_hash = %s", (token_hash,))
+            conn.execute(
+                "DELETE FROM auth_sessions WHERE token_hash = %s", (token_hash,)
+            )

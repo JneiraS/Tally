@@ -7,8 +7,8 @@ aggregate inside one transaction, preserving the atomicity contract that
 the in-memory adapter guarantees.
 """
 
-from datetime import date
 from contextvars import ContextVar
+from datetime import date
 
 import psycopg
 from psycopg_pool import ConnectionPool
@@ -73,6 +73,7 @@ def reset_current_project(token) -> None:
 
 def current_project_id() -> str | None:
     return _CURRENT_PROJECT_ID.get()
+
 
 _SCOPE_SELECT = (
     "SELECT id, name, knowledge_base_id, official_main, official_backup "
@@ -165,7 +166,7 @@ class PostgresScopeMonitoringRepository:
                 with conn.transaction():
                     conn.execute(
                         f"""
-                        INSERT INTO scope_monitorings ({'id, project_id, name, knowledge_base_id, official_main, official_backup'})
+                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup"})
                         VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             project_id = EXCLUDED.project_id,
@@ -190,7 +191,7 @@ class PostgresScopeMonitoringRepository:
                     for activity in scope.daily_activities.values():
                         conn.execute(
                             f"""
-                            INSERT INTO daily_activities ({'scope_id, day, errors_reported, incidents_created, feai, handled, completed'})
+                            INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, handled, completed"})
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
                             """,
                             (
@@ -223,7 +224,8 @@ class PostgresScopeMonitoringRepository:
         with self._pool.connection() as conn:
             project_id = current_project_id()
             row = conn.execute(
-                f"{_SCOPE_SELECT} WHERE id = %s" + (" AND project_id = %s" if project_id else ""),
+                f"{_SCOPE_SELECT} WHERE id = %s"
+                + (" AND project_id = %s" if project_id else ""),
                 (scope_id, project_id) if project_id else (scope_id,),
             ).fetchone()
             if row is None:
@@ -235,7 +237,8 @@ class PostgresScopeMonitoringRepository:
         with self._pool.connection() as conn:
             project_id = current_project_id()
             row = conn.execute(
-                f"{_SCOPE_SELECT} WHERE name = %s" + (" AND project_id = %s" if project_id else ""),
+                f"{_SCOPE_SELECT} WHERE name = %s"
+                + (" AND project_id = %s" if project_id else ""),
                 (name, project_id) if project_id else (name,),
             ).fetchone()
             if row is None:
@@ -247,7 +250,9 @@ class PostgresScopeMonitoringRepository:
         with self._pool.connection() as conn:
             project_id = current_project_id()
             rows = conn.execute(
-                f"{_SCOPE_SELECT}" + (" WHERE project_id = %s" if project_id else "") + " ORDER BY name",
+                f"{_SCOPE_SELECT}"
+                + (" WHERE project_id = %s" if project_id else "")
+                + " ORDER BY name",
                 (project_id,) if project_id else (),
             ).fetchall()
             scopes: list[ScopeMonitoring] = []

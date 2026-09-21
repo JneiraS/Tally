@@ -59,7 +59,7 @@ def test_scope_monitoring_empty_id():
 def test_knowledge_base_id_length():
     with pytest.raises(InvalidKnowledgeBaseIdError) as excinfo:
         KnowledgeBase(id="short")
-    assert "KnowledgeBase id must be at least 10 characters long." in str(excinfo.value)
+    assert "KnowledgeBase id must be at least 9 characters long." in str(excinfo.value)
 
 
 def test_knowledge_base_id_valid_boundary():
