@@ -17,7 +17,7 @@ const scope = {
       day: '2026-09-19',
       errors_reported: 4,
       incidents_created: 2,
-      feai: ['INC0000001'],
+      feai: ['INC000000001'],
       handled: true,
       completed: true,
     },

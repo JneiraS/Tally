@@ -46,7 +46,7 @@ def make_scope_with_activity(
             day=day,
             errors_reported=2,
             incidents_created=1,
-            feai=["INC0000001"],
+            feai=["INC000000001"],
         )
     )
     repo.save(scope)
@@ -219,7 +219,7 @@ def test_update_daily_activity_returns_204(client):
         json={
             "errors_reported": 5,
             "incidents_created": 3,
-            "feai": ["INC0000001", "INC0000002"],
+            "feai": ["INC000000001", "INC000000002"],
         },
     )
 
@@ -227,7 +227,7 @@ def test_update_daily_activity_returns_204(client):
     activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
     assert activity.errors_reported == 5
     assert activity.incidents_created == 3
-    assert activity.feai == ["INC0000001", "INC0000002"]
+    assert activity.feai == ["INC000000001", "INC000000002"]
 
 
 def test_update_unknown_scope_returns_404(client):
@@ -238,7 +238,7 @@ def test_update_unknown_scope_returns_404(client):
         json={
             "errors_reported": 5,
             "incidents_created": 3,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -254,7 +254,7 @@ def test_update_day_without_activity_returns_404(client):
         json={
             "errors_reported": 5,
             "incidents_created": 3,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -270,7 +270,7 @@ def test_update_invalid_invariant_returns_400(client):
         json={
             "errors_reported": 1,
             "incidents_created": 2,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -299,7 +299,7 @@ def test_create_daily_activity_returns_201(client):
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -317,7 +317,7 @@ def test_create_daily_activity_unknown_scope_returns_404(client):
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -331,7 +331,7 @@ def test_create_daily_activity_duplicate_day_returns_409(client):
         "day": "2026-09-19",
         "errors_reported": 2,
         "incidents_created": 1,
-        "feai": ["INC0000001"],
+        "feai": ["INC000000001"],
     }
     assert http.post(f"/scope-monitorings/{scope_id}/activities", json=payload).status_code == 201
 
@@ -350,7 +350,7 @@ def test_create_daily_activity_invalid_invariant_returns_400(client):
             "day": "2026-09-19",
             "errors_reported": 1,
             "incidents_created": 2,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -371,7 +371,7 @@ def test_list_scopes_returns_scopes_with_activities(client):
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -426,7 +426,7 @@ def test_get_daily_activity_returns_detail(client):
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 
@@ -438,7 +438,7 @@ def test_get_daily_activity_returns_detail(client):
     body = response.json()
     assert body["errors_reported"] == 2
     assert body["incidents_created"] == 1
-    assert body["feai"] == ["INC0000001"]
+    assert body["feai"] == ["INC000000001"]
     assert body["handled"] is False
     assert body["completed"] is False
 

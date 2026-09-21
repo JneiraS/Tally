@@ -22,7 +22,7 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
       return;
     }
     if (!isValidFeai(code)) {
-      setItemError('Format attendu : INC suivi de 7 chiffres (ex: INC0000001).');
+      setItemError('Format attendu : INC suivi de 9 chiffres (ex: INC000000001).');
       return;
     }
     onChange([...values, code]);
@@ -73,8 +73,8 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
             if (itemError) setItemError(null);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="INC0000001"
-          maxLength={10}
+          placeholder="INC000000001"
+          maxLength={12}
           aria-label="Ajouter une référence FEAI"
           className={`w-full min-w-0 flex-1 px-1.5 py-0.5 text-[10px] font-mono tracking-wider bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 ${
             itemError

@@ -30,7 +30,7 @@ def test_daily_activity_full_flow_over_http():
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
     assert add_activity.status_code == 201
@@ -40,7 +40,7 @@ def test_daily_activity_full_flow_over_http():
         json={
             "errors_reported": 3,
             "incidents_created": 2,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
     assert update.status_code == 204
@@ -64,6 +64,6 @@ def test_daily_activity_full_flow_over_http():
     assert activity["day"] == "2026-09-19"
     assert activity["errors_reported"] == 3
     assert activity["incidents_created"] == 2
-    assert activity["feai"] == ["INC0000001"]
+    assert activity["feai"] == ["INC000000001"]
     assert activity["completed"] is True
     assert activity["handled"] is True

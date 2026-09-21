@@ -11,7 +11,7 @@ const EXISTING_ACTIVITY: DailyActivity = {
   day: '2026-09-19',
   errors_reported: 4,
   incidents_created: 2,
-  feai: ['INC0000001'],
+  feai: ['INC000000001'],
   handled: false,
   completed: false,
 };
@@ -67,7 +67,7 @@ describe('TodayActivityEditor', () => {
 
     expect(screen.getByLabelText('Erreurs signalées du jour')).toHaveValue(4);
     expect(screen.getByLabelText('Incidents créés du jour')).toHaveValue(2);
-    expect(screen.getByText('INC0000001')).toBeInTheDocument();
+    expect(screen.getByText('INC000000001')).toBeInTheDocument();
   });
 
   it('crée une activité (POST) à la première saisie sans relevé', async () => {
@@ -118,7 +118,7 @@ describe('TodayActivityEditor', () => {
     expect(mockedUpdate).toHaveBeenCalledWith('scope-1', '2026-09-19', {
       errors_reported: 5,
       incidents_created: 2,
-      feai: ['INC0000001'],
+      feai: ['INC000000001'],
     });
     expect(mockedCreate).not.toHaveBeenCalled();
   });

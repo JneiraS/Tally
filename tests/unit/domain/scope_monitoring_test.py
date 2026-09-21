@@ -96,7 +96,7 @@ def test_scope_monitoring_add_daily_activity(fixture_scope_monitoring):
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     monitoring.add_daily_activity(activity)
     assert monitoring.daily_activity_for(date(2026, 9, 19)) is activity
@@ -109,14 +109,14 @@ def test_scope_monitoring_rejects_duplicate_day(fixture_scope_monitoring):
         day=date(2026, 9, 19),
         errors_reported=1,
         incidents_created=0,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     monitoring.add_daily_activity(activity)
     activity2 = DailyActivity(
         day=date(2026, 9, 19),
         errors_reported=1,
         incidents_created=0,
-        feai=["INC0000002"],
+        feai=["INC000000002"],
     )
     with pytest.raises(DuplicateDailyActivityError):
         monitoring.add_daily_activity(activity2)
@@ -129,13 +129,13 @@ def test_scope_monitoring_multiple_activities_different_days(fixture_scope_monit
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     activity2 = DailyActivity(
         day=date(2026, 9, 20),
         errors_reported=3,
         incidents_created=1,
-        feai=["INC0000002"],
+        feai=["INC000000002"],
     )
     monitoring.add_daily_activity(activity1)
     monitoring.add_daily_activity(activity2)
@@ -161,13 +161,13 @@ def test_scope_monitoring_multiple_activities_same_day_different_monitorings(
         day=date(2026, 9, 19),
         errors_reported=1,
         incidents_created=0,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     activity2 = DailyActivity(
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000002"],
+        feai=["INC000000002"],
     )
     monitoring.add_daily_activity(activity2)
     monitoring2.add_daily_activity(activity)

@@ -56,7 +56,7 @@ def make_scope(
                 day=day,
                 errors_reported=2,
                 incidents_created=1,
-                feai=["INC0000001"],
+                feai=["INC000000001"],
             )
         )
     return scope
@@ -106,7 +106,7 @@ def test_save_and_find_by_id_roundtrip(repo):
     activity = loaded.daily_activity_for(date(2026, 9, 19))
     assert activity.errors_reported == 2
     assert activity.incidents_created == 1
-    assert activity.feai == ["INC0000001"]
+    assert activity.feai == ["INC000000001"]
     assert activity.handled is False
     assert activity.completed is False
 
@@ -187,7 +187,7 @@ def test_api_flow_persists_in_postgres(repo):
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
     assert added.status_code == 201
@@ -219,7 +219,7 @@ def test_complete_unknown_day_does_not_partially_persist(repo):
             "day": "2026-09-19",
             "errors_reported": 2,
             "incidents_created": 1,
-            "feai": ["INC0000001"],
+            "feai": ["INC000000001"],
         },
     )
 

@@ -17,12 +17,12 @@ def test_daily_activity_creation_valid():
         day=date(2026, 9, 19),
         errors_reported=3,
         incidents_created=1,
-        feai=["INC0000001", "INC0000002"],
+        feai=["INC000000001", "INC000000002"],
     )
     assert activity.day == date(2026, 9, 19)
     assert activity.errors_reported == 3
     assert activity.incidents_created == 1
-    assert activity.feai == ["INC0000001", "INC0000002"]
+    assert activity.feai == ["INC000000001", "INC000000002"]
     assert activity.handled is False
     assert activity.completed is False
 
@@ -53,7 +53,7 @@ def test_daily_activity_incidents_exceed_errors():
             day=date(2026, 9, 19),
             errors_reported=2,
             incidents_created=3,
-            feai=["INC0000001"],
+            feai=["INC000000001"],
         )
 
 
@@ -62,9 +62,9 @@ def test_daily_activity_valid_feai_accepted():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001", "INC1234567"],
+        feai=["INC000000001", "INC123456789"],
     )
-    assert activity.feai == ["INC0000001", "INC1234567"]
+    assert activity.feai == ["INC000000001", "INC123456789"]
 
 
 def test_daily_activity_invalid_feai_format():
@@ -83,7 +83,7 @@ def test_daily_activity_duplicate_feai_rejected():
             day=date(2026, 9, 19),
             errors_reported=1,
             incidents_created=0,
-            feai=["INC0000001", "INC0000001"],
+            feai=["INC000000001", "INC000000001"],
         )
 
 
@@ -124,16 +124,16 @@ def test_daily_activity_update_valid():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     activity.update(
         errors_reported=5,
         incidents_created=3,
-        feai=["INC0000001", "INC0000002"],
+        feai=["INC000000001", "INC000000002"],
     )
     assert activity.errors_reported == 5
     assert activity.incidents_created == 3
-    assert activity.feai == ["INC0000001", "INC0000002"]
+    assert activity.feai == ["INC000000001", "INC000000002"]
 
 
 def test_daily_activity_update_preserves_day_and_state():
@@ -141,10 +141,10 @@ def test_daily_activity_update_preserves_day_and_state():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     activity.mark_handled()
-    activity.update(errors_reported=4, incidents_created=2, feai=["INC0000001"])
+    activity.update(errors_reported=4, incidents_created=2, feai=["INC000000001"])
     assert activity.day == date(2026, 9, 19)
     assert activity.handled is True
     assert activity.completed is False
@@ -155,10 +155,10 @@ def test_daily_activity_update_negative_errors():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     with pytest.raises(NegativeErrorsCountError):
-        activity.update(errors_reported=-1, incidents_created=1, feai=["INC0000001"])
+        activity.update(errors_reported=-1, incidents_created=1, feai=["INC000000001"])
 
 
 def test_daily_activity_update_negative_incidents():
@@ -166,10 +166,10 @@ def test_daily_activity_update_negative_incidents():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     with pytest.raises(NegativeIncidentsCountError):
-        activity.update(errors_reported=2, incidents_created=-1, feai=["INC0000001"])
+        activity.update(errors_reported=2, incidents_created=-1, feai=["INC000000001"])
 
 
 def test_daily_activity_update_incidents_exceed_errors():
@@ -177,10 +177,10 @@ def test_daily_activity_update_incidents_exceed_errors():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     with pytest.raises(IncidentsExceedErrorsError):
-        activity.update(errors_reported=1, incidents_created=2, feai=["INC0000001"])
+        activity.update(errors_reported=1, incidents_created=2, feai=["INC000000001"])
 
 
 def test_daily_activity_update_invalid_feai():
@@ -188,7 +188,7 @@ def test_daily_activity_update_invalid_feai():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     with pytest.raises(InvalidFeaiReferenceError):
         activity.update(errors_reported=2, incidents_created=1, feai=["BAD"])
@@ -199,11 +199,11 @@ def test_daily_activity_update_duplicate_feai():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     with pytest.raises(DuplicateFeaiReferenceError):
         activity.update(
             errors_reported=2,
             incidents_created=1,
-            feai=["INC0000001", "INC0000001"],
+            feai=["INC000000001", "INC000000001"],
         )

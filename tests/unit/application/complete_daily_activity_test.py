@@ -37,7 +37,7 @@ def test_complete_single_day():
         day=date(2026, 9, 19),
         errors_reported=2,
         incidents_created=1,
-        feai=["INC0000001"],
+        feai=["INC000000001"],
     )
     scope.add_daily_activity(activity)
     repo.save(scope)
@@ -62,7 +62,7 @@ def test_complete_multiple_days():
                 day=day,
                 errors_reported=1,
                 incidents_created=0,
-                feai=["INC0000001"],
+                feai=["INC000000001"],
             )
         )
     repo.save(scope)
@@ -97,7 +97,7 @@ def test_complete_day_without_activity_raises():
             day=date(2026, 9, 19),
             errors_reported=1,
             incidents_created=0,
-            feai=["INC0000001"],
+            feai=["INC000000001"],
         )
     )
     repo.save(scope)
