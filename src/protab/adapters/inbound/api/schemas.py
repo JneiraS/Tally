@@ -31,6 +31,27 @@ class CreatedResponse(BaseModel):
     ids: list[str]
 
 
+class ProjectResponse(BaseModel):
+    id: str
+    name: str
+
+
+class LoginRequest(BaseModel):
+    project_id: str
+    quadrigramme: str = Field(min_length=2, max_length=20)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class LoginResponse(BaseModel):
+    project: ProjectResponse
+    quadrigramme: str
+
+
+class SessionResponse(BaseModel):
+    project: ProjectResponse
+    quadrigramme: str
+
+
 class ActivityResponse(BaseModel):
     day: date
     errors_reported: int

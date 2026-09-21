@@ -1,13 +1,14 @@
-import pytest
 from datetime import date
+
+import pytest
 
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.exceptions import (
-    NegativeErrorsCountError,
-    NegativeIncidentsCountError,
+    DuplicateFeaiReferenceError,
     IncidentsExceedErrorsError,
     InvalidFeaiReferenceError,
-    DuplicateFeaiReferenceError,
+    NegativeErrorsCountError,
+    NegativeIncidentsCountError,
 )
 
 

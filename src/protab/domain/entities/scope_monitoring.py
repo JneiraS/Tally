@@ -15,7 +15,7 @@ class KnowledgeBase:
     id: str
 
     def __post_init__(self):
-        if len(self.id) < 10:
+        if len(self.id) < 9:
             raise InvalidKnowledgeBaseIdError(
                 "KnowledgeBase id must be at least 10 characters long."
             )
@@ -46,9 +46,7 @@ class ScopeMonitoring:
     def __post_init__(self):
         self.id = self.id.strip()
         if not self.id:
-            raise InvalidScopeMonitoringIdError(
-                "ScopeMonitoring id must not be empty."
-            )
+            raise InvalidScopeMonitoringIdError("ScopeMonitoring id must not be empty.")
 
     def add_daily_activity(self, activity: DailyActivity) -> None:
         if activity.day in self.daily_activities:

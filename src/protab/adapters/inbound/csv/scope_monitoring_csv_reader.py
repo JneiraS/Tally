@@ -14,7 +14,9 @@ class ScopeMonitoringCsvError(Exception):
     pass
 
 
-def parse_scope_monitorings_csv(rows: list[list[str]]) -> list[CreateScopeMonitoringCommand]:
+def parse_scope_monitorings_csv(
+    rows: list[list[str]],
+) -> list[CreateScopeMonitoringCommand]:
     """Convert raw CSV rows (already split, header first) into commands.
 
     Only structural checks live here: required headers and column count.

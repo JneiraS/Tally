@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Navbar } from "./components/Navbar";
 import { ToastProvider } from "./hooks/useToast";
@@ -7,14 +7,38 @@ import { ThemeProvider } from "./hooks/useTheme";
 import { ScopeListPage } from "./pages/ScopeListPage";
 import { ScopeDetailPage } from "./pages/ScopeDetailPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { LoginPage } from "./pages/LoginPage";
 import { ScopeFormModal } from "./components/ScopeFormModal";
 import { CsvImportModal } from "./components/CsvImportModal";
 import { ExternalLink, Terminal } from "lucide-react";
+import { AuthSession, protabApi } from "./services/api";
 
 export default function App() {
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [isCreateScopeOpen, setIsCreateScopeOpen] = useState(false);
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    protabApi.getSession()
+      .then(setSession)
+      .catch(() => setSession(null))
+      .finally(() => setCheckingSession(false));
+  }, []);
+
+  if (checkingSession) {
+    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500 dark:bg-nord-0 dark:text-nord-4">Chargement...</div>;
+  }
+
+  if (!session) {
+    return <LoginPage onAuthenticated={setSession} />;
+  }
+
+  const handleLogout = async () => {
+    await protabApi.logout().catch(() => undefined);
+    setSession(null);
+  };
 
   const handleScopeCreated = () => {
     setRefreshTrigger((prev) => prev + 1);
@@ -33,6 +57,9 @@ export default function App() {
             <Navbar
               onOpenCreateScope={() => setIsCreateScopeOpen(true)}
               onOpenImportCsv={() => setIsImportCsvOpen(true)}
+              projectName={session.project.name}
+              quadrigramme={session.quadrigramme}
+              onLogout={handleLogout}
             />
 
             {/* Contenu principal */}
@@ -54,34 +81,7 @@ export default function App() {
             </main>
 
             {/* Pied de page informatif */}
-            <footer className="border-t border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 py-6 mt-12 text-xs text-slate-500 dark:text-nord-4 transition-colors">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-700 dark:text-nord-6">
-                    ProTab Scope Monitoring
-                  </span>
-                  <span>•</span>
-                  <span>Projection et supervision d'activité quotidienne</span>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <a
-                    href="http://localhost:8000/docs"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-slate-600 dark:text-nord-4 hover:text-blue-600 dark:hover:text-nord-8 transition-colors"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    <span>Swagger Backend (localhost:8000/docs)</span>
-                  </a>
-                  <span className="text-slate-300 dark:text-nord-3">|</span>
-                  <span className="inline-flex items-center gap-1 text-slate-400 dark:text-nord-3 font-mono">
-                    <Terminal className="w-3 h-3" />
-                    make run
-                  </span>
-                </div>
-              </div>
-            </footer>
+            <footer className="border-t border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 py-6 mt-12 text-xs text-slate-500 dark:text-nord-4 transition-colors"></footer>
 
             {/* Modales globales de création et d'import */}
             <ScopeFormModal

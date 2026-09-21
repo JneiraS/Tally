@@ -25,6 +25,9 @@ services:
       context: .
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-protab}:${POSTGRES_PASSWORD:-protab}@db:5432/${POSTGRES_DB:-protab}
+      PROTAB_DEFAULT_PROJECT_CODE: ${PROTAB_DEFAULT_PROJECT_CODE:-protab}
+      PROTAB_DEFAULT_PROJECT_NAME: ${PROTAB_DEFAULT_PROJECT_NAME:-Projet principal}
+      PROTAB_DEFAULT_PROJECT_PASSWORD: ${PROTAB_DEFAULT_PROJECT_PASSWORD:-protab}
     ports:
       - "8874:8000"
     depends_on:
