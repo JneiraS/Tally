@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { DailyActivity } from '../types';
-import { protabApi, ApiError } from '../services/api';
-import { validateActivityForm } from '../utils/validation';
-import { FeaiTagInput } from './FeaiTagInput';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { DailyActivity } from "../types";
+import { protabApi, ApiError } from "../services/api";
+import { validateActivityForm } from "../utils/validation";
+import { FeaiTagInput } from "./FeaiTagInput";
 
 const DEBOUNCE_MS = 800;
 
-type SaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
+type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
 interface TodayActivityEditorProps {
   scopeId: string;
@@ -29,20 +29,26 @@ export function TodayActivityEditor({
   onChanged,
 }: TodayActivityEditorProps) {
   const [errorsReported, setErrorsReported] = useState<string>(
-    String(initialActivity?.errors_reported ?? 0)
+    String(initialActivity?.errors_reported ?? 0),
   );
   const [incidentsCreated, setIncidentsCreated] = useState<string>(
-    String(initialActivity?.incidents_created ?? 0)
+    String(initialActivity?.incidents_created ?? 0),
   );
   const [feai, setFeai] = useState<string[]>(initialActivity?.feai ?? []);
-  const [status, setStatus] = useState<SaveStatus>(initialActivity ? 'saved' : 'idle');
+  const [status, setStatus] = useState<SaveStatus>(
+    initialActivity ? "saved" : "idle",
+  );
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const valuesRef = useRef<ValueSnapshot>({ errorsReported, incidentsCreated, feai });
+  const valuesRef = useRef<ValueSnapshot>({
+    errorsReported,
+    incidentsCreated,
+    feai,
+  });
   valuesRef.current = { errorsReported, incidentsCreated, feai };
 
   const existsRef = useRef<boolean>(!!initialActivity);
-  const lastSavedRef = useRef<string>('');
+  const lastSavedRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef<boolean>(false);
   const needsSaveRef = useRef<boolean>(false);
@@ -51,7 +57,7 @@ export function TodayActivityEditor({
   const snapshot = (): string => JSON.stringify(valuesRef.current);
 
   // Snapshot initial des valeurs déjà persistées côté serveur
-  if (lastSavedRef.current === '') {
+  if (lastSavedRef.current === "") {
     lastSavedRef.current = snapshot();
   }
 
@@ -65,7 +71,7 @@ export function TodayActivityEditor({
         incidents_created: values.incidentsCreated,
         feai: values.feai,
       },
-      { isCreation: false }
+      { isCreation: false },
     );
 
     if (!normalized.isValid) {
@@ -78,7 +84,7 @@ export function TodayActivityEditor({
     }
 
     if (!mountedRef.current) return;
-    setStatus('saving');
+    setStatus("saving");
 
     const payload = {
       errors_reported: Number(values.errorsReported),
@@ -109,7 +115,7 @@ export function TodayActivityEditor({
 
       if (mountedRef.current) {
         setSaveError(null);
-        setStatus(needsSaveRef.current ? 'dirty' : 'saved');
+        setStatus(needsSaveRef.current ? "dirty" : "saved");
         onChanged?.(scopeId, {
           day,
           errors_reported: payload.errors_reported,
@@ -124,9 +130,9 @@ export function TodayActivityEditor({
         setSaveError(
           err instanceof ApiError
             ? err.message
-            : (err as Error)?.message || 'Échec de la sauvegarde.'
+            : (err as Error)?.message || "Échec de la sauvegarde.",
         );
-        setStatus('error');
+        setStatus("error");
       }
     } finally {
       savingRef.current = false;
@@ -143,7 +149,7 @@ export function TodayActivityEditor({
 
   const scheduleSave = () => {
     setSaveError(null);
-    setStatus('dirty');
+    setStatus("dirty");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       void doSave();
@@ -173,21 +179,23 @@ export function TodayActivityEditor({
           incidents_created: incidentsCreated,
           feai,
         },
-        { isCreation: false }
+        { isCreation: false },
       ),
-    [day, errorsReported, incidentsCreated, feai]
+    [day, errorsReported, incidentsCreated, feai],
   );
 
   const isValidLive = validation.isValid;
   const isDirty =
-    status === 'dirty' || status === 'saving' || lastSavedRef.current !== snapshot();
+    status === "dirty" ||
+    status === "saving" ||
+    lastSavedRef.current !== snapshot();
 
   const statusLabel = {
-    idle: 'En attente de saisie',
-    dirty: 'Enregistrement…',
-    saving: 'Enregistrement…',
-    saved: 'Enregistré',
-    error: 'Erreur',
+    idle: "En attente de saisie",
+    dirty: "Enregistrement…",
+    saving: "Enregistrement…",
+    saved: "Enregistré",
+    error: "Erreur",
   }[status];
 
   return (
@@ -195,7 +203,9 @@ export function TodayActivityEditor({
       {/* Compteurs erreurs / incidents */}
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-medium text-slate-500 dark:text-nord-4 uppercase tracking-wider">Erreurs</span>
+          <span className="text-[10px] font-medium text-slate-500 dark:text-nord-4 uppercase tracking-wider">
+            Erreurs
+          </span>
           <input
             type="number"
             min="0"
@@ -208,14 +218,16 @@ export function TodayActivityEditor({
             aria-label="Erreurs signalées du jour"
             className={`w-full px-2 py-1 text-xs text-center font-semibold bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 transition-all ${
               validation.errors.errors_reported
-                ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500'
-                : 'border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
+                ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500"
+                : "border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8"
             }`}
           />
         </label>
 
         <label className="flex flex-col gap-0.5">
-          <span className="text-[10px] font-medium text-slate-500 dark:text-nord-4 uppercase tracking-wider">Incidents</span>
+          <span className="text-[10px] font-medium text-slate-500 dark:text-nord-4 uppercase tracking-wider">
+            Incidents
+          </span>
           <input
             type="number"
             min="0"
@@ -226,11 +238,11 @@ export function TodayActivityEditor({
               setIncidentsCreated(e.target.value);
               scheduleSave();
             }}
-            aria-label="Incidents créés du jour"
+            aria-label="Incidents créés aujourd'hui"
             className={`w-full px-2 py-1 text-xs text-center font-semibold bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 transition-all ${
               validation.errors.incidents_created
-                ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500'
-                : 'border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
+                ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500"
+                : "border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8"
             }`}
           />
         </label>
@@ -248,27 +260,28 @@ export function TodayActivityEditor({
 
       {/* Statut d'enregistrement */}
       <div className="flex items-center gap-1.5 min-h-4">
-        {status === 'saving' && (
+        {status === "saving" && (
           <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-nord-8">
             <Loader2 className="w-3 h-3 animate-spin" />
             {statusLabel}
           </span>
         )}
-        {status === 'saved' && !isDirty && (
+        {status === "saved" && !isDirty && (
           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-nord-14">
             <CheckCircle2 className="w-3 h-3" />
             {statusLabel}
           </span>
         )}
-        {status !== 'saved' && status !== 'saving' && !isValidLive && (
+        {status !== "saved" && status !== "saving" && !isValidLive && (
           <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-nord-13">
             <AlertTriangle className="w-3 h-3" />
-            {validation.errors.incidents_created && !validation.errors.errors_reported
-              ? 'Incidents ≤ erreurs'
-              : 'Valeurs invalides'}
+            {validation.errors.incidents_created &&
+            !validation.errors.errors_reported
+              ? "Incidents ≤ erreurs"
+              : "Valeurs invalides"}
           </span>
         )}
-        {status === 'error' && saveError && (
+        {status === "error" && saveError && (
           <span
             className="text-[10px] text-rose-600 dark:text-nord-11 line-clamp-1"
             title={saveError}

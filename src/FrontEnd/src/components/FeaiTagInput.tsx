@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { X, Plus, CheckCircle2 } from 'lucide-react';
-import { isValidFeai } from '../utils/validation';
+import { useState } from "react";
+import { X, Plus, CheckCircle2 } from "lucide-react";
+import { isValidFeai } from "../utils/validation";
 
 interface FeaiTagInputProps {
   values: string[];
@@ -8,13 +8,17 @@ interface FeaiTagInputProps {
   errorMessage?: string;
 }
 
-export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputProps) {
-  const [draft, setDraft] = useState('');
+export function FeaiTagInput({
+  values,
+  onChange,
+  errorMessage,
+}: FeaiTagInputProps) {
+  const [draft, setDraft] = useState("");
   const [itemError, setItemError] = useState<string | null>(null);
 
   const addCode = (raw: string) => {
     const code = raw.trim().toUpperCase();
-    setDraft('');
+    setDraft("");
     setItemError(null);
     if (!code) return;
     if (values.includes(code)) {
@@ -22,17 +26,19 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
       return;
     }
     if (!isValidFeai(code)) {
-      setItemError('Format attendu : INC suivi de 9 chiffres (ex: INC000000001).');
+      setItemError(
+        "Format attendu : INC suivi de 9 chiffres (ex: INC000000001).",
+      );
       return;
     }
     onChange([...values, code]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addCode(draft);
-    } else if (e.key === 'Backspace' && draft === '' && values.length > 0) {
+    } else if (e.key === "Backspace" && draft === "" && values.length > 0) {
       onChange(values.slice(0, -1));
     }
   };
@@ -45,7 +51,9 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
     <div className="space-y-1.5">
       <div className="flex flex-wrap gap-1">
         {values.length === 0 && (
-          <span className="text-[11px] text-slate-400 dark:text-nord-3 italic py-0.5">Aucun FEAI</span>
+          <span className="text-[11px] text-slate-400 dark:text-nord-3 italic py-0.5">
+            Aucun FEAI/FE
+          </span>
         )}
         {values.map((code) => (
           <span
@@ -65,7 +73,7 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
       </div>
 
       <div className="flex items-center gap-1.5">
-          <input
+        <input
           type="text"
           value={draft}
           onChange={(e) => {
@@ -78,8 +86,8 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
           aria-label="Ajouter une référence FEAI"
           className={`w-full min-w-0 flex-1 px-1.5 py-0.5 text-[10px] font-mono tracking-wider bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded focus:outline-none focus:ring-1 ${
             itemError
-              ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500'
-              : 'border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
+              ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500"
+              : "border-slate-200 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8"
           }`}
         />
         <button
@@ -92,15 +100,22 @@ export function FeaiTagInput({ values, onChange, errorMessage }: FeaiTagInputPro
         </button>
       </div>
 
-      {itemError && <p className="text-[11px] text-rose-600 dark:text-nord-11">{itemError}</p>}
+      {itemError && (
+        <p className="text-[11px] text-rose-600 dark:text-nord-11">
+          {itemError}
+        </p>
+      )}
       {errorMessage && !itemError && (
-        <p className="text-[11px] text-rose-600 dark:text-nord-11">{errorMessage}</p>
+        <p className="text-[11px] text-rose-600 dark:text-nord-11">
+          {errorMessage}
+        </p>
       )}
 
       {values.length > 0 && !itemError && !errorMessage && (
         <p className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-nord-14">
           <CheckCircle2 className="w-3 h-3" />
-          {values.length} référence{values.length > 1 ? 's' : ''} valide{values.length > 1 ? 's' : ''}
+          {values.length} référence{values.length > 1 ? "s" : ""} valide
+          {values.length > 1 ? "s" : ""}
         </p>
       )}
     </div>

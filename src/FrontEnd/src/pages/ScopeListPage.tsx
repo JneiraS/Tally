@@ -46,7 +46,7 @@ export function ScopeListPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "in_progress" | "completed"
+    "all" | "in_progress" | "completed" | "none"
   >("all");
   const [completingIds, setCompletingIds] = useState<string[]>([]);
 
@@ -191,6 +191,9 @@ export function ScopeListPage({
       if (statusFilter === "in_progress") {
         return scope.status === "in_progress";
       }
+      if (statusFilter === "none") {
+        return scope.status === "none";
+      }
       return true;
     });
   }, [enrichedScopes, searchQuery, statusFilter]);
@@ -277,8 +280,8 @@ export function ScopeListPage({
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
               {isSelectedDayToday
-                ? "Aujourd'hui validé"
-                : `Validé ${selectedDayValidationLabel}`}
+                ? "validé aujourd'hui"
+                : `Terminé ${selectedDayValidationLabel}`}
             </span>
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-nord-14" />
           </div>
@@ -372,6 +375,18 @@ export function ScopeListPage({
             >
               En cours (
               {enrichedScopes.filter((s) => s.status === "in_progress").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter("none")}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                statusFilter === "none"
+                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
+                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
+              }`}
+            >
+              Non saisi (
+              {enrichedScopes.filter((s) => s.status === "none").length})
             </button>
             <button
               type="button"

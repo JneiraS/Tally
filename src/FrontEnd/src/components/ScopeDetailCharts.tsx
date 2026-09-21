@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -8,9 +8,9 @@ import {
   Tooltip,
   XAxis,
   YAxis,
-} from 'recharts';
-import { ScopeMonitoring } from '../types';
-import { formatDateFr } from '../utils/date';
+} from "recharts";
+import { ScopeMonitoring } from "../types";
+import { formatDateFr } from "../utils/date";
 
 interface ScopeDetailChartsProps {
   scope: ScopeMonitoring;
@@ -26,7 +26,7 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
           erreurs: activity.errors_reported,
           incidents: activity.incidents_created,
         })),
-    [scope.daily_activities]
+    [scope.daily_activities],
   );
 
   return (
@@ -47,19 +47,29 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
           </p>
         </div>
         <span className="text-[11px] text-slate-400 dark:text-nord-3">
-          {trendData.length} journée{trendData.length > 1 ? 's' : ''} enregistrée{trendData.length > 1 ? 's' : ''}
+          {trendData.length} journée{trendData.length > 1 ? "s" : ""}{" "}
+          enregistrée{trendData.length > 1 ? "s" : ""}
         </span>
       </div>
 
       <div className="h-64 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={trendData} margin={{ top: 4, right: 8, left: -16, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" opacity={0.3} />
+          <LineChart
+            data={trendData}
+            margin={{ top: 4, right: 8, left: -16, bottom: 4 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--chart-grid)"
+              opacity={0.3}
+            />
             <XAxis
               dataKey="day"
               stroke="var(--chart-axis)"
               tick={{ fontSize: 10 }}
-              tickFormatter={(day: string) => formatDateFr(day).replace(/\s+\d{4}$/, '')}
+              tickFormatter={(day: string) =>
+                formatDateFr(day).replace(/\s+\d{4}$/, "")
+              }
               minTickGap={24}
             />
             <YAxis
@@ -70,11 +80,14 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
             />
             <Tooltip
               labelFormatter={(day) => formatDateFr(String(day))}
-              contentStyle={{ backgroundColor: '#2e3440', borderColor: '#434c5e' }}
-              labelStyle={{ color: '#eceff4', fontSize: '12px' }}
-              itemStyle={{ fontSize: '12px' }}
+              contentStyle={{
+                backgroundColor: "#2e3440",
+                borderColor: "#434c5e",
+              }}
+              labelStyle={{ color: "#eceff4", fontSize: "12px" }}
+              itemStyle={{ fontSize: "12px" }}
             />
-            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            <Legend wrapperStyle={{ fontSize: "12px" }} />
             <Line
               type="monotone"
               dataKey="erreurs"
@@ -88,7 +101,7 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
               type="monotone"
               dataKey="incidents"
               name="Incidents"
-              stroke="#ebcb8b"
+              stroke="#f6ae2d"
               strokeWidth={2}
               dot={{ r: 3, strokeWidth: 1 }}
               activeDot={{ r: 5 }}

@@ -157,6 +157,82 @@ describe('ScopeListPage Component', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('le filtre "Non saisi" n\'affiche que les périmètres sans activité', async () => {
+    const mockScopes = [
+      {
+        id: '111e4567-e89b-12d3-a456-426614174001',
+        name: 'Scope En Cours Filtre',
+        knowledge_base_id: 'KB-FILTRE-01',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+      {
+        id: '222e4567-e89b-12d3-a456-426614174002',
+        name: 'Scope Non Saisi Filtre',
+        knowledge_base_id: 'KB-FILTRE-02',
+        official_main: 'Carol',
+        official_backup: 'Dave',
+        daily_activities: [],
+      },
+      {
+        id: '333e4567-e89b-12d3-a456-426614174003',
+        name: 'Scope Terminé Filtre',
+        knowledge_base_id: 'KB-FILTRE-03',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Scope En Cours Filtre')).toBeInTheDocument();
+      expect(screen.getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
+      expect(screen.getByText('Scope Terminé Filtre')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Non saisi/ }));
+
+    expect(screen.getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Scope En Cours Filtre')
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Scope Terminé Filtre')
+    ).not.toBeInTheDocument();
+  });
+
   it('marque le périmètre "En cours" comme terminé via le bouton', async () => {
     const mockScopes = [
       {
