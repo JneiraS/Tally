@@ -7,11 +7,7 @@ export function AuditShortcut() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (
-        event.ctrlKey &&
-        event.altKey &&
-        event.key.toLowerCase() === "a"
-      ) {
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "l") {
         event.preventDefault();
         if (pathname !== "/audit") {
           navigate("/audit");

@@ -93,7 +93,7 @@ describe('Validation des invariants métier ProTab', () => {
   });
 
   describe('Validation des périmètres (Scope)', () => {
-    it('valide un périmètre complet avec KB >= 10 caractères', () => {
+    it('valide un périmètre complet avec KB >= 9 caractères', () => {
       const result = validateScopeForm({
         name: 'Scope A',
         knowledge_base_id: 'KB-00000001', // 13 chars
@@ -104,7 +104,7 @@ describe('Validation des invariants métier ProTab', () => {
       expect(result.isValid).toBe(true);
     });
 
-    it('rejette un identifiant de base de connaissances inférieur à 10 caractères', () => {
+    it('rejette un identifiant de base de connaissances inférieur à 9 caractères', () => {
       const result = validateScopeForm({
         name: 'Scope A',
         knowledge_base_id: 'KB-1234', // 7 chars
@@ -113,7 +113,7 @@ describe('Validation des invariants métier ProTab', () => {
       });
 
       expect(result.isValid).toBe(false);
-      expect(result.errors.knowledge_base_id).toContain('au moins 10 caractères');
+       expect(result.errors.knowledge_base_id).toContain('au moins 9 caractères');
     });
 
     it('rejette les champs vides', () => {

@@ -15,9 +15,9 @@ class KnowledgeBase:
     id: str
 
     def __post_init__(self):
-        if len(self.id) < 10:
+        if len(self.id) < 9:
             raise InvalidKnowledgeBaseIdError(
-                "KnowledgeBase id must be at least 10 characters long."
+                "KnowledgeBase id must be at least 9 characters long."
             )
 
 

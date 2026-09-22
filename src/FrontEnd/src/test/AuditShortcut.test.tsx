@@ -1,11 +1,11 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import '@testing-library/jest-dom/vitest';
-import { render, fireEvent } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
-import { AuditShortcut } from '../components/AuditShortcut';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
+import { render, fireEvent } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { AuditShortcut } from "../components/AuditShortcut";
 
 function LocationProbe() {
   const { pathname } = useLocation();
@@ -17,7 +17,7 @@ function renderWithShortcut(initialPath: string) {
     <MemoryRouter initialEntries={[initialPath]}>
       <AuditShortcut />
       <LocationProbe />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -25,43 +25,43 @@ const getPath = () =>
   document.querySelector('[data-testid="pathname"]')?.textContent;
 
 function pressKeys(init: KeyboardEventInit) {
-  fireEvent.keyDown(window, { key: 'a', ...init });
+  fireEvent.keyDown(window, { key: "l", ...init });
 }
 
-describe('AuditShortcut Component', () => {
+describe("AuditShortcut Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('navigue vers /audit avec Ctrl+Alt+A', () => {
-    renderWithShortcut('/');
+  it("navigue vers /audit avec Ctrl+Alt+L", () => {
+    renderWithShortcut("/");
 
     pressKeys({ ctrlKey: true, altKey: true });
 
-    expect(getPath()).toBe('/audit');
+    expect(getPath()).toBe("/audit");
   });
 
   it("ne fait rien quand on est déjà sur /audit", () => {
-    renderWithShortcut('/audit');
+    renderWithShortcut("/audit");
 
     pressKeys({ ctrlKey: true, altKey: true });
 
-    expect(getPath()).toBe('/audit');
+    expect(getPath()).toBe("/audit");
   });
 
   it("ignore une simple touche A", () => {
-    renderWithShortcut('/');
+    renderWithShortcut("/");
 
     pressKeys({});
 
-    expect(getPath()).toBe('/');
+    expect(getPath()).toBe("/");
   });
 
   it("ignore une combinaison différente", () => {
-    renderWithShortcut('/');
+    renderWithShortcut("/");
 
     pressKeys({ ctrlKey: true, shiftKey: true });
 
-    expect(getPath()).toBe('/');
+    expect(getPath()).toBe("/");
   });
 });
