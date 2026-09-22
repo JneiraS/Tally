@@ -15,6 +15,7 @@ import { AuditAction, AuditEvent } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { formatDateFr } from "../utils/date";
 import { useToast } from "../hooks/useToast";
+import { AuditActivityHeatmap } from "../components/AuditActivityHeatmap";
 
 const ACTION_LABELS: Record<AuditAction, string> = {
   scope_created: "Création de périmètre",
@@ -155,6 +156,8 @@ export function AuditLogPage() {
           ))}
         </select>
       </div>
+
+      {!isLoading && events.length > 0 && <AuditActivityHeatmap events={events} />}
 
       {/* État d'erreur */}
       {errorMessage && (

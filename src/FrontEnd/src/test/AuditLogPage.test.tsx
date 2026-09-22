@@ -70,6 +70,9 @@ describe('AuditLogPage Component', () => {
       expect(screen.getAllByText('Création de périmètre').length).toBeGreaterThanOrEqual(1);
     });
     expect(screen.getByText(/Voir le détail/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Activité par heure de la semaine/i }),
+    ).toBeInTheDocument();
   });
 
   it('déplie le détail du diff avant/après', async () => {

@@ -5,6 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { ScopeMonitoring, DailyActivity } from '../types';
 import {
   baselineDelta,
+  buildCumulativeTrend,
   buildDailyTrend,
   coverageRate,
   isWorkingDay,
@@ -182,5 +183,25 @@ describe('coverageRate', () => {
   it('renvoie 0 sans périmètre ou sans jours', () => {
     expect(coverageRate([], [TODAY])).toBe(0);
     expect(coverageRate([scope('a', 'A', [])], [])).toBe(0);
+  });
+});
+
+describe('buildCumulativeTrend', () => {
+  it('trie les activités et calcule les cumuls ainsi que l’arriéré', () => {
+    const activities = [
+      activity('2026-09-19', 2, 2),
+      activity('2026-09-17', 5, 1),
+      activity('2026-09-18', 3, 2),
+    ];
+
+    expect(buildCumulativeTrend(activities)).toEqual([
+      { day: '2026-09-17', erreurs: 5, incidents: 1, gap: 4 },
+      { day: '2026-09-18', erreurs: 8, incidents: 3, gap: 5 },
+      { day: '2026-09-19', erreurs: 10, incidents: 5, gap: 5 },
+    ]);
+  });
+
+  it('renvoie une série vide sans activité', () => {
+    expect(buildCumulativeTrend([])).toEqual([]);
   });
 });

@@ -18,6 +18,13 @@ export interface DailyTrendPoint {
   incidents: number;
 }
 
+export interface CumulativeTrendPoint {
+  day: string;
+  erreurs: number;
+  incidents: number;
+  gap: number;
+}
+
 export function lastNDays(today: string, n: number): string[] {
   const days: string[] = [];
   const date = new Date(today);
@@ -87,6 +94,26 @@ export function buildDailyTrend(
   });
 
   return days.map((date) => dailyMap.get(date)!);
+}
+
+export function buildCumulativeTrend(
+  activities: ScopeMonitoring["daily_activities"],
+): CumulativeTrendPoint[] {
+  let erreurs = 0;
+  let incidents = 0;
+
+  return [...activities]
+    .sort((a, b) => a.day.localeCompare(b.day))
+    .map((activity) => {
+      erreurs += activity.errors_reported;
+      incidents += activity.incidents_created;
+      return {
+        day: activity.day,
+        erreurs,
+        incidents,
+        gap: Math.max(erreurs - incidents, 0),
+      };
+    });
 }
 
 export function sumFeai(scopes: ScopeMonitoring[], day: string): number {
