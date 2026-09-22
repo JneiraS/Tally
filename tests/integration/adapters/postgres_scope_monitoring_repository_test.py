@@ -201,6 +201,61 @@ def test_find_all_scope_names_returns_id_to_name(repo):
     }
 
 
+def test_connect_creates_project_name_index(repo):
+    with repo._pool.connection() as conn:
+        row = conn.execute(
+            "SELECT indexdef FROM pg_indexes "
+            "WHERE schemaname = current_schema() "
+            "AND tablename = 'scope_monitorings' "
+            "AND indexname = 'idx_scope_monitorings_project_name'"
+        ).fetchone()
+
+    assert row is not None
+    assert "(project_id, name)" in row[0]
+
+
+def test_connect_is_idempotent_for_project_name_index(repo):
+    repo.connect()
+
+    with repo._pool.connection() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM pg_indexes "
+            "WHERE schemaname = current_schema() "
+            "AND tablename = 'scope_monitorings' "
+            "AND indexname = 'idx_scope_monitorings_project_name'"
+        ).fetchone()[0]
+
+    assert count == 1
+
+
+def test_pool_applies_tuned_parameters(repo):
+    assert repo._pool.min_size == 2
+    assert repo._pool.max_size == 10
+    assert repo._pool.timeout == 30.0
+    assert repo._pool.max_lifetime == 1800.0
+    assert repo._pool.max_idle == 600.0
+    assert repo._pool._check is not None
+    assert repo._pool.kwargs["connect_timeout"] == 5
+    assert repo._pool.kwargs["application_name"] == "protab-scope"
+
+
+def test_pool_recovers_after_backend_termination(repo):
+    scope = make_scope()
+    repo.save(scope)
+
+    with repo._pool.connection() as conn:
+        conn.execute(
+            "SELECT pg_terminate_backend(pid) "
+            "FROM pg_stat_activity "
+            "WHERE datname = current_database() AND pid <> pg_backend_pid()"
+        ).fetchall()
+
+    loaded = repo.find_by_id(scope.id)
+
+    assert loaded is not None
+    assert loaded.name == scope.name
+
+
 def test_find_by_id_returns_none_when_absent(repo):
     assert repo.find_by_id("missing") is None
 

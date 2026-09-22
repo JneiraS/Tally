@@ -132,9 +132,12 @@ L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables 
 `scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`) et
 `daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
 `feai TEXT[]`, `handled`, `completed`). Le schéma est créé de façon **idempotente au démarrage**
-(`CREATE TABLE IF NOT EXISTS`, aucun outil de migration). Un `save()` remplace tout l'agrégat dans une
+(`CREATE TABLE IF NOT EXISTS`, index `scope_monitorings(project_id, name)`, aucun outil de migration).
+L'index couvre le filtrage par projet et l'ordre par nom des listes de périmètres. Un `save()` remplace tout l'agrégat dans une
 **transaction** (atomicité préservée) ; les contraintes DB (nom unique, jour unique) traduisent les erreurs
 en exceptions de domaine (→ `409`).
+Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
+avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
 
 ## Docker
 

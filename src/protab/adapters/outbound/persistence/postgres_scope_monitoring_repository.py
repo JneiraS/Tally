@@ -11,8 +11,12 @@ from contextvars import ContextVar
 from datetime import date
 
 import psycopg
-from psycopg_pool import ConnectionPool
 
+from protab.adapters.outbound.persistence.postgres_pool import (
+    POOL_MAX_SIZE,
+    POOL_MIN_SIZE,
+    build_connection_pool,
+)
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
@@ -101,14 +105,19 @@ class PostgresScopeMonitoringRepository:
     existing in-memory adapter.
     """
 
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = POOL_MIN_SIZE,
+        max_size: int = POOL_MAX_SIZE,
+    ) -> None:
         self._dsn = dsn
-        self._pool = ConnectionPool(
+        self._pool = build_connection_pool(
             dsn,
+            name="protab-scope",
             min_size=min_size,
             max_size=max_size,
-            open=False,
-            kwargs={"autocommit": False},
         )
 
     def connect(self) -> None:
@@ -132,6 +141,10 @@ class PostgresScopeMonitoringRepository:
         )
         conn.execute(
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scope_monitorings_project_name "
+            "ON scope_monitorings (project_id, name)"
         )
 
     @staticmethod

@@ -157,6 +157,9 @@ def create_app(
     auth_repository: PostgresAuthRepository | None = None,
     audit_repository: AuditTrailRepository | None = None,
 ) -> FastAPI:
+    owns_repository = repository is None
+    owns_auth_repository = auth_repository is None and repository is None
+    owns_audit_repository = audit_repository is None and repository is None
     repo = repository if repository is not None else build_repository()
     auth = auth_repository
     if auth is None and repository is None:
@@ -173,6 +176,15 @@ def create_app(
             audit.connect()
         else:
             audit = InMemoryAuditTrailRepository()
+    managed_repositories = [
+        persistence
+        for persistence, owned in (
+            (repo, owns_repository),
+            (auth, owns_auth_repository),
+            (audit, owns_audit_repository),
+        )
+        if owned and persistence is not None
+    ]
     create_scope_monitoring = CreateScopeMonitoringUseCase(repo, audit)
     create_daily_activity = CreateDailyActivityUseCase(repo, audit)
     complete_daily_activity = CompleteDailyActivityUseCase(repo, audit)
@@ -184,6 +196,13 @@ def create_app(
 
     app = FastAPI(title="ProTab API")
     register_exception_handlers(app)
+
+    def close_persistence() -> None:
+        for persistence in managed_repositories:
+            if persistence is not None and hasattr(persistence, "close"):
+                persistence.close()
+
+    app.router.on_shutdown.append(close_persistence)
 
     async def project_context(request: Request):
         if auth is None:

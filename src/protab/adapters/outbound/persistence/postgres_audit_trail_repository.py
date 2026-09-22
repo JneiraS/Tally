@@ -9,10 +9,14 @@ from dataclasses import replace
 
 import psycopg
 from psycopg.types.json import Jsonb
-from psycopg_pool import ConnectionPool
 
 from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
     current_project_id,
+)
+from protab.adapters.outbound.persistence.postgres_pool import (
+    POOL_MAX_SIZE,
+    POOL_MIN_SIZE,
+    build_connection_pool,
 )
 from protab.domain.entities.audit_event import AuditEvent
 from protab.ports.outbound.audit_trail_repository import AuditEventQuery
@@ -49,13 +53,18 @@ _AUDIT_SELECT = (
 
 
 class PostgresAuditTrailRepository:
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
-        self._pool = ConnectionPool(
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = POOL_MIN_SIZE,
+        max_size: int = POOL_MAX_SIZE,
+    ) -> None:
+        self._pool = build_connection_pool(
             dsn,
+            name="protab-audit",
             min_size=min_size,
             max_size=max_size,
-            open=False,
-            kwargs={"autocommit": False},
         )
 
     def connect(self) -> None:

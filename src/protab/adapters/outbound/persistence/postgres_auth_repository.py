@@ -8,8 +8,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 import psycopg
-from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
+
+from protab.adapters.outbound.persistence.postgres_pool import (
+    POOL_MAX_SIZE,
+    POOL_MIN_SIZE,
+    build_connection_pool,
+)
 
 DEFAULT_NON_WORKING_DAYS = {
     "excluded_weekdays": [6, 7],
@@ -83,13 +88,18 @@ def _backup_codes(official_backup: str | None) -> set[str]:
 class PostgresAuthRepository:
     """Store project credentials and opaque, expiring session tokens."""
 
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
-        self._pool = ConnectionPool(
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = POOL_MIN_SIZE,
+        max_size: int = POOL_MAX_SIZE,
+    ) -> None:
+        self._pool = build_connection_pool(
             dsn,
+            name="protab-auth",
             min_size=min_size,
             max_size=max_size,
-            open=False,
-            kwargs={"autocommit": False},
         )
         self.default_project_id = os.getenv(
             "PROTAB_DEFAULT_PROJECT_CODE", "protab"
