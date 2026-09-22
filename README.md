@@ -77,6 +77,11 @@ Les périmètres et activités sont filtrés côté backend par le projet authen
 Routes publiques : `GET /projects`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
 Les routes de supervision nécessitent une session valide.
 
+Restriction du quadrigramme : une fois qu'un projet possède au moins un périmètre, le quadrigramme fourni au
+login doit correspondre exactement au `official_main` d'un périmètre du projet, ou faire partie du ou des
+`official_backup` (un ou plusieurs quadrigrammes séparés par `/`, ex. `MLOZ/MRAM`). Tant qu'un projet n'a encore
+aucun périmètre (bootstrap), tout quadrigramme est accepté afin de permettre la création du premier périmètre.
+
 Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
 `PROTAB_DEFAULT_PROJECT_NAME` et `PROTAB_DEFAULT_PROJECT_PASSWORD`. Les projets suivants se créent avec :
 

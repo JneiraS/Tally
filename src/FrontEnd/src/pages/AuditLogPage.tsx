@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   History,
   Search,
@@ -230,9 +230,13 @@ export function AuditLogPage() {
                 {events.map((event) => {
                   const ActionIcon = ACTION_ICONS[event.action];
                   const isExpanded = expandedId === event.id;
+                  const changes =
+                    event.changes && Object.keys(event.changes).length > 0
+                      ? event.changes
+                      : null;
                   return (
+                    <Fragment key={event.id}>
                     <tr
-                      key={event.id}
                       className="hover:bg-slate-50/70 dark:hover:bg-nord-2/50 transition-colors"
                     >
                       <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-nord-4 font-mono">
@@ -257,7 +261,7 @@ export function AuditLogPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-xs font-mono text-slate-500 dark:text-nord-4">
-                          {event.scope_id ?? "—"}
+                          {event.scope_name ?? event.scope_id ?? "—"}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right">
@@ -278,42 +282,39 @@ export function AuditLogPage() {
                         )}
                       </td>
                     </tr>
+                    {isExpanded && changes && (
+                      <tr className="border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40">
+                        <td colSpan={5} className="px-5 py-4">
+                          <div className="space-y-2">
+                            {Object.entries(changes).map(([field, diff]) => (
+                              <div
+                                key={field}
+                                className="text-xs grid grid-cols-1 sm:grid-cols-[180px_1fr_auto_1fr] gap-x-3 gap-y-1 items-center"
+                              >
+                                <span className="font-mono font-semibold text-slate-700 dark:text-nord-5">
+                                  {field}
+                                </span>
+                                <span className="line-through text-rose-600 dark:text-nord-11">
+                                  {formatValue(diff.old)}
+                                </span>
+                                <span className="hidden sm:inline text-slate-400 dark:text-nord-3">
+                                  →
+                                </span>
+                                <span className="text-emerald-700 dark:text-nord-14">
+                                  {formatValue(diff.new)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
-
-          {/* Détails du diff (ligne dépliée) */}
-          {expandedId && (
-            <div className="border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 px-5 py-4">
-              {events
-                .filter((event) => event.id === expandedId)
-                .map((event) => (
-                  <div key={event.id} className="space-y-2">
-                    {Object.entries(event.changes || {}).map(([field, diff]) => (
-                      <div
-                        key={field}
-                        className="text-xs grid grid-cols-1 sm:grid-cols-[180px_1fr_auto_1fr] gap-x-3 gap-y-1 items-center"
-                      >
-                        <span className="font-mono font-semibold text-slate-700 dark:text-nord-5">
-                          {field}
-                        </span>
-                        <span className="line-through text-rose-600 dark:text-nord-11">
-                          {formatValue(diff.old)}
-                        </span>
-                        <span className="hidden sm:inline text-slate-400 dark:text-nord-3">
-                          →
-                        </span>
-                        <span className="text-emerald-700 dark:text-nord-14">
-                          {formatValue(diff.new)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-            </div>
-          )}
 
           <div className="px-5 py-3 border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 text-xs text-slate-500 dark:text-nord-4 flex items-center justify-between">
             <span>

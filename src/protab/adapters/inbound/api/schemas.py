@@ -75,6 +75,7 @@ class AuditEventResponse(BaseModel):
     actor: str | None
     action: str
     scope_id: str | None
+    scope_name: str | None
     day: date | None
     created_at: datetime
     changes: dict

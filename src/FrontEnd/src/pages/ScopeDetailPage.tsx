@@ -19,6 +19,7 @@ import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
 import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } from '../utils/date';
+import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
 import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
 import { useToast } from '../hooks/useToast';
@@ -226,9 +227,15 @@ export function ScopeDetailPage() {
           <div>
             <div className="flex items-center gap-2.5">
               <h1 className="text-2xl font-bold text-slate-900 dark:text-nord-6">{scope.name}</h1>
-              <span className="text-xs font-mono font-semibold bg-blue-50 dark:bg-nord-10/25 text-blue-700 dark:text-nord-8 border border-blue-200 dark:border-nord-9/40 px-2 py-0.5 rounded-md">
+              <a
+                href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ouvrir l'article KB"
+                className="text-xs font-mono font-semibold bg-blue-50 dark:bg-nord-10/25 text-blue-700 dark:text-nord-8 border border-blue-200 dark:border-nord-9/40 px-2 py-0.5 rounded-md hover:bg-blue-100 dark:hover:bg-nord-10/40 hover:border-blue-400 dark:hover:border-nord-8/60 transition-colors"
+              >
                 {scope.knowledge_base_id}
-              </span>
+              </a>
             </div>
             <p className="text-xs text-slate-400 dark:text-nord-3 font-mono mt-1">ID: {scope.id}</p>
           </div>

@@ -13,8 +13,9 @@ from protab.adapters.outbound.persistence.postgres_auth_repository import (
 
 
 class FakeAuthRepository:
-    def __init__(self) -> None:
+    def __init__(self, known_codes: set[str] | None = None) -> None:
         self.sessions: dict[str, AuthSession] = {}
+        self.known_codes = known_codes or set()
 
     def list_projects(self) -> list[Project]:
         return [Project("alpha", "Projet Alpha")]
@@ -23,7 +24,9 @@ class FakeAuthRepository:
         return Project("alpha", "Projet Alpha") if project_id == "alpha" else None
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:
-        return project_id == "alpha" and password == "secret"
+        if not (project_id == "alpha" and password == "secret"):
+            return False
+        return not self.known_codes or quadrigramme.strip().upper() in self.known_codes
 
     def create_session(self, project_id: str, quadrigramme: str) -> AuthSession:
         session = AuthSession(
@@ -62,3 +65,22 @@ def test_authenticated_routes_require_a_valid_session():
 def test_in_memory_application_remains_unauthenticated_for_existing_fixtures():
     client = TestClient(create_app(InMemoryScopeMonitoringRepository()))
     assert client.get("/scope-monitorings").status_code == 200
+
+
+def test_login_rejects_invented_quadrigramme_when_known_codes_exist():
+    client = TestClient(
+        create_app(
+            InMemoryScopeMonitoringRepository(),
+            FakeAuthRepository(known_codes={"ABCD"}),
+        )
+    )
+
+    assert client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "abcd", "password": "secret"},
+    ).status_code == 200
+
+    assert client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "ZZZZ", "password": "secret"},
+    ).status_code == 401

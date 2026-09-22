@@ -45,6 +45,13 @@ def _check_password(password: str, encoded: str) -> bool:
         return False
 
 
+def _backup_codes(official_backup: str | None) -> set[str]:
+    """Quadrigrammes valides d'une colonne official_backup (format « A/B »)."""
+    if not official_backup:
+        return set()
+    return {part.strip().upper() for part in official_backup.split("/") if part.strip()}
+
+
 class PostgresAuthRepository:
     """Store project credentials and opaque, expiring session tokens."""
 
@@ -131,7 +138,24 @@ class PostgresAuthRepository:
                 "SELECT password_hash FROM projects WHERE id = %s AND active = TRUE",
                 (project_id,),
             ).fetchone()
-        return row is not None and _check_password(password, row[0])
+            if row is None or not _check_password(password, row[0]):
+                return False
+
+            scopes = conn.execute(
+                "SELECT official_main, official_backup FROM scope_monitorings WHERE project_id = %s",
+                (project_id,),
+            ).fetchall()
+
+        # Bootstrap : tant que le projet n'a aucun périmètre, l'accès reste ouvert.
+        if not scopes:
+            return True
+
+        code = (quadrigramme or "").strip().upper()
+        return any(
+            code == (official_main or "").strip().upper()
+            or code in _backup_codes(official_backup)
+            for official_main, official_backup in scopes
+        )
 
     def get_project(self, project_id: str) -> Project | None:
         with self._pool.connection() as conn:
