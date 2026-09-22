@@ -11,8 +11,12 @@ from contextvars import ContextVar
 from datetime import date
 
 import psycopg
-from psycopg_pool import ConnectionPool
 
+from protab.adapters.outbound.persistence.postgres_pool import (
+    POOL_MAX_SIZE,
+    POOL_MIN_SIZE,
+    build_connection_pool,
+)
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
@@ -31,6 +35,7 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         name TEXT NOT NULL,
         password_hash TEXT NOT NULL,
         active BOOLEAN NOT NULL DEFAULT TRUE,
+        non_working_days JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
     """,
@@ -85,6 +90,11 @@ _ACTIVITIES_SELECT = (
     "FROM daily_activities"
 )
 
+_ACTIVITIES_BATCH_SELECT = (
+    "SELECT scope_id, day, errors_reported, incidents_created, feai, handled, completed "
+    "FROM daily_activities"
+)
+
 
 class PostgresScopeMonitoringRepository:
     """Persist ``ScopeMonitoring`` aggregates in PostgreSQL.
@@ -95,14 +105,19 @@ class PostgresScopeMonitoringRepository:
     existing in-memory adapter.
     """
 
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = POOL_MIN_SIZE,
+        max_size: int = POOL_MAX_SIZE,
+    ) -> None:
         self._dsn = dsn
-        self._pool = ConnectionPool(
+        self._pool = build_connection_pool(
             dsn,
+            name="protab-scope",
             min_size=min_size,
             max_size=max_size,
-            open=False,
-            kwargs={"autocommit": False},
         )
 
     def connect(self) -> None:
@@ -123,6 +138,13 @@ class PostgresScopeMonitoringRepository:
         )
         conn.execute(
             "UPDATE scope_monitorings SET project_id = 'protab' WHERE project_id IS NULL"
+        )
+        conn.execute(
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scope_monitorings_project_name "
+            "ON scope_monitorings (project_id, name)"
         )
 
     @staticmethod
@@ -158,6 +180,36 @@ class PostgresScopeMonitoringRepository:
             )
             for day, errors_reported, incidents_created, feai, handled, completed in rows
         }
+
+    def _load_activities_batched(
+        self, conn: psycopg.Connection, scope_ids: list[str]
+    ) -> dict[str, dict[date, DailyActivity]]:
+        if not scope_ids:
+            return {}
+
+        rows = conn.execute(
+            f"{_ACTIVITIES_BATCH_SELECT} WHERE scope_id = ANY(%s) ORDER BY day",
+            (scope_ids,),
+        ).fetchall()
+        activities_by_scope = {scope_id: {} for scope_id in scope_ids}
+        for (
+            scope_id,
+            day,
+            errors_reported,
+            incidents_created,
+            feai,
+            handled,
+            completed,
+        ) in rows:
+            activities_by_scope[scope_id][day] = DailyActivity(
+                day=day,
+                errors_reported=errors_reported,
+                incidents_created=incidents_created,
+                feai=feai,
+                handled=handled,
+                completed=completed,
+            )
+        return activities_by_scope
 
     def save(self, scope: ScopeMonitoring) -> None:
         project_id = current_project_id() or "protab"
@@ -255,8 +307,20 @@ class PostgresScopeMonitoringRepository:
                 + " ORDER BY name",
                 (project_id,) if project_id else (),
             ).fetchall()
-            scopes: list[ScopeMonitoring] = []
-            for row in rows:
-                activities = self._load_activities(conn, row[0])
-                scopes.append(self._scope_from_row(row, activities))
-            return scopes
+            activities_by_scope = self._load_activities_batched(
+                conn, [row[0] for row in rows]
+            )
+            return [
+                self._scope_from_row(row, activities_by_scope[row[0]])
+                for row in rows
+            ]
+
+    def find_all_scope_names(self) -> dict[str, str]:
+        with self._pool.connection() as conn:
+            project_id = current_project_id()
+            rows = conn.execute(
+                "SELECT id, name FROM scope_monitorings"
+                + (" WHERE project_id = %s" if project_id else ""),
+                (project_id,) if project_id else (),
+            ).fetchall()
+            return {scope_id: name for scope_id, name in rows}

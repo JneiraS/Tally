@@ -204,7 +204,7 @@ export function CsvImportModal({ isOpen, onClose, onSuccess }: CsvImportModalPro
             name,knowledge_base_id,official_main,official_backup
           </code>
           <ul className="list-disc pl-4 space-y-1 text-slate-500 dark:text-nord-4">
-            <li>L'identifiant de base de connaissances doit comporter au moins 10 caractères.</li>
+            <li>L'identifiant de base de connaissances doit comporter au moins 9 caractères.</li>
             <li>Tous les champs sont requis sur chaque ligne.</li>
             <li>Séparateur pris en charge : virgule (,) ou point-virgule (;).</li>
           </ul>

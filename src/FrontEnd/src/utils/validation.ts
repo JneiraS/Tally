@@ -116,8 +116,8 @@ export function validateScopeForm(data: {
 
   if (!data.knowledge_base_id || data.knowledge_base_id.trim() === '') {
     errors.knowledge_base_id = 'L\'identifiant de base de connaissances est obligatoire.';
-  } else if (data.knowledge_base_id.trim().length < 10) {
-    errors.knowledge_base_id = `L'identifiant doit comporter au moins 10 caractères (actuellement : ${data.knowledge_base_id.trim().length}).`;
+  } else if (data.knowledge_base_id.trim().length < 9) {
+    errors.knowledge_base_id = `L'identifiant doit comporter au moins 9 caractères (actuellement : ${data.knowledge_base_id.trim().length}).`;
   }
 
   if (!data.official_main || data.official_main.trim() === '') {

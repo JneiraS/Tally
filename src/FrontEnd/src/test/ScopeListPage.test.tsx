@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { ScopeListPage } from '../pages/ScopeListPage';
 import { ToastProvider } from '../hooks/useToast';
@@ -74,15 +74,61 @@ describe('ScopeListPage Component', () => {
     expect(screen.getByText(/Chargement des périmètres en cours/i)).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText('Scope Alpha Test')).toBeInTheDocument();
-      expect(screen.getByText('KB-TEST-0001')).toBeInTheDocument();
-      expect(screen.getByText('Alice')).toBeInTheDocument();
-      expect(screen.getByText('Bob')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Alpha Test')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('KB-TEST-0001')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Alice')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Bob')).toBeInTheDocument();
     });
 
-    const kbLink = screen.getByText('KB-TEST-0001').closest('a');
+    const kbLink = within(screen.getByRole('table')).getByText('KB-TEST-0001').closest('a');
     expect(kbLink).toHaveAttribute('href', `${KNOWLEDGE_BASE_URL}KB-TEST-0001`);
     expect(kbLink).toHaveAttribute('target', '_blank');
+  });
+
+  it('affiche les KPI compacts (couverture, baseline, transformation, FEAI)', async () => {
+    const mockScopes = [
+      {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Scope Alpha Test',
+        knowledge_base_id: 'KB-TEST-0001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope Alpha Test')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Couverture 7 j ouvrés : 0 %/)).toBeInTheDocument();
+    expect(screen.getByText(/Δ baseline \(7 j ouvrés\) : —/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/50 % des erreurs · 1 non transformée/)
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Σ FEAI : 1/)).toBeInTheDocument();
   });
 
   it('affiche un message d\'erreur lorsque l\'API échoue', async () => {
@@ -150,15 +196,15 @@ describe('ScopeListPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Scope En Cours Filtre')).toBeInTheDocument();
-      expect(screen.getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /^En cours/ }));
 
-    expect(screen.getByText('Scope En Cours Filtre')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
     expect(
-      screen.queryByText('Scope Non Saisi Filtre')
+      within(screen.getByRole('table')).queryByText('Scope Non Saisi Filtre')
     ).not.toBeInTheDocument();
   });
 
@@ -222,19 +268,19 @@ describe('ScopeListPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Scope En Cours Filtre')).toBeInTheDocument();
-      expect(screen.getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
-      expect(screen.getByText('Scope Terminé Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Terminé Filtre')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /^Non saisi/ }));
 
-    expect(screen.getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
     expect(
-      screen.queryByText('Scope En Cours Filtre')
+      within(screen.getByRole('table')).queryByText('Scope En Cours Filtre')
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByText('Scope Terminé Filtre')
+      within(screen.getByRole('table')).queryByText('Scope Terminé Filtre')
     ).not.toBeInTheDocument();
   });
 
@@ -274,7 +320,7 @@ describe('ScopeListPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Scope En Cours')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope En Cours')).toBeInTheDocument();
       expect(screen.getByText('En cours')).toBeInTheDocument();
     });
 
@@ -324,7 +370,7 @@ describe('ScopeListPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Scope Non Saisi')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Non Saisi')).toBeInTheDocument();
       expect(screen.getByText('Non saisi')).toBeInTheDocument();
     });
 
@@ -384,7 +430,7 @@ describe('ScopeListPage Component', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Scope Erreur')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Erreur')).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: /Marquer Terminé/i }));

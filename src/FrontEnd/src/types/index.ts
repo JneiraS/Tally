@@ -15,10 +15,15 @@ export interface DailyActivity {
 export interface ScopeMonitoring {
   id: string; // UUID v4
   name: string;
-  knowledge_base_id: string; // Doit contenir au moins 10 caractères
+  knowledge_base_id: string; // Doit contenir au moins 9 caractères
   official_main: string;
   official_backup: string;
   daily_activities: DailyActivity[];
+}
+
+export interface NonWorkingDays {
+  excluded_weekdays: number[];
+  excluded_dates: string[];
 }
 
 export interface CreateScopeInput {

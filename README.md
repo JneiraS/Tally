@@ -37,12 +37,12 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
 (`ports/outbound/`) — la persistance concrète est branchée par un adapter.
 
-| Use case | Commande | Comportement |
-|---|---|---|
-| `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté. |
-| `CreateDailyActivityUseCase` | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)` | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`. |
-| `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)` | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
-| `UpdateDailyActivityUseCase` | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)` | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués. |
+| Use case                       | Commande                                                                                | Comportement                                                                                                                         |
+| ------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté.               |
+| `CreateDailyActivityUseCase`   | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`.                                               |
+| `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)`                                          | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
+| `UpdateDailyActivityUseCase`   | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués.                                               |
 
 Lectures (`application/queries/`) : `ListScopesUseCase`, `GetScopeUseCase`, `GetDailyActivityUseCase`,
 `ListAuditEventsUseCase` — retournent les entités ; les erreurs `*NotFoundError` sont levées côté application.
@@ -76,6 +76,9 @@ Les périmètres et activités sont filtrés côté backend par le projet authen
 
 Routes publiques : `GET /projects`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
 Les routes de supervision nécessitent une session valide.
+Les jours non travaillés sont configurables par projet via `GET /project/settings` et
+`PUT /project/settings`. Par défaut, samedi et dimanche sont exclus ; les dates ponctuelles
+peuvent également être ajoutées.
 
 Restriction du quadrigramme : une fois qu'un projet possède au moins un périmètre, le quadrigramme fourni au
 login doit correspondre exactement au `official_main` d'un périmètre du projet, ou faire partie du ou des
@@ -89,17 +92,19 @@ Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
 uv run protab-project projet-alpha "Projet Alpha"
 ```
 
-| Méthode & path | Body | Succès | Erreurs |
-|---|---|---|---|
-| `POST /scope-monitorings` | `[{name, knowledge_base_id, official_main, official_backup}]` | `201 {ids: [...]}` | `409` nom existant, `400` validation domaine |
-| `POST /scope-monitorings/import-csv` | multipart, champ `csv_file` | `201 {ids: [...]}` | `400` CSV invalide ou ligne non conforme |
-| `POST /scope-monitorings/{id}/activities` | `{day, errors_reported, incidents_created, feai}` | `201` | `404` périmètre inconnu, `409` jour déjà enregistré, `400` invariant violé |
-| `POST /scope-monitorings/{id}/activities/complete` | `{days: ["YYYY-MM-DD"]}` | `204` | `404` périmètre ou jour inconnu |
-| `PATCH /scope-monitorings/{id}/activities/{day}` | `{errors_reported, incidents_created, feai}` | `204` | `404` périmètre ou jour inconnu, `400` invariant violé |
-| `GET /scope-monitorings` | — | `200` liste des périmètres (id, name, knowledge, officials, activities) | — |
-| `GET /scope-monitorings/{id}` | — | `200` périmètre| `404` |
-| `GET /scope-monitorings/{id}/activities/{day}` | — | `200` activité | `404` périmètre ou jour inconnu |
-| `GET /audit-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | — |
+| Méthode & path                                                                                              | Body                                                                                        | Succès                                                                     | Erreurs                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `POST /scope-monitorings`                                                                                   | `[{name, knowledge_base_id, official_main, official_backup}]`                               | `201 {ids: [...]}`                                                         | `409` nom existant, `400` validation domaine                               |
+| `POST /scope-monitorings/import-csv`                                                                        | multipart, champ `csv_file`                                                                 | `201 {ids: [...]}`                                                         | `400` CSV invalide ou ligne non conforme                                   |
+| `POST /scope-monitorings/{id}/activities`                                                                   | `{day, errors_reported, incidents_created, feai}`                                           | `201`                                                                      | `404` périmètre inconnu, `409` jour déjà enregistré, `400` invariant violé |
+| `POST /scope-monitorings/{id}/activities/complete`                                                          | `{days: ["YYYY-MM-DD"]}`                                                                    | `204`                                                                      | `404` périmètre ou jour inconnu                                            |
+| `PATCH /scope-monitorings/{id}/activities/{day}`                                                            | `{errors_reported, incidents_created, feai}`                                                | `204`                                                                      | `404` périmètre ou jour inconnu, `400` invariant violé                     |
+| `GET /scope-monitorings`                                                                                    | —                                                                                           | `200` liste des périmètres (id, name, knowledge, officials, activities)    | —                                                                          |
+| `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
+| `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
+| `GET /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
+| `GET /project/settings`                                                                                     | —                                                                                           | `200` réglages du projet courant                                           | `401` session absente                                                      |
+| `PUT /project/settings`                                                                                     | `{excluded_weekdays: [1..7], excluded_dates: ["YYYY-MM-DD"]}`                               | `200` réglages mis à jour                                                  | `401` session absente, `422` payload invalide                              |
 
 Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/errors.py`) :
 `ScopeMonitoringNotFoundError`/`DailyActivityNotFoundError` → **404**, `ScopeMonitoringNameAlreadyExistsError`/
@@ -111,25 +116,28 @@ Chaque mutation (création/import de périmètre, création/mise à jour/validat
 journal `audit_log` : acteur (quadrigramme de session), action, périmètre, jour concerné et diff avant/après
 (`changes`, champ par champ). Les modifications sans changement effectif ne sont pas journalisées. L'écriture
 du journal est best-effort : un échec d'audit ne fait pas échouer la requête métier. Lecture via
-`GET /audit-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/audit`.
+`GET /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9`.
 
 ## Persistance
 
 Le port outbound `ScopeMonitoringRepository` possède un adapter PostgreSQL pour l'exécution de l'API.
 Le repository mémoire reste disponible pour l'injection explicite dans les tests :
 
-| Adapter | Fichier | Sélection |
-|---|---|---|
-| Mémoire | `adapters/outbound/persistence/in_memory_scope_monitoring_repository.py` | Tests uniquement, injecté explicitement |
-| PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py` | Obligatoire pour l'API |
+| Adapter    | Fichier                                                                  | Sélection                               |
+| ---------- | ------------------------------------------------------------------------ | --------------------------------------- |
+| Mémoire    | `adapters/outbound/persistence/in_memory_scope_monitoring_repository.py` | Tests uniquement, injecté explicitement |
+| PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py`  | Obligatoire pour l'API                  |
 
 L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables :
 `scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`) et
 `daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
 `feai TEXT[]`, `handled`, `completed`). Le schéma est créé de façon **idempotente au démarrage**
-(`CREATE TABLE IF NOT EXISTS`, aucun outil de migration). Un `save()` remplace tout l'agrégat dans une
+(`CREATE TABLE IF NOT EXISTS`, index `scope_monitorings(project_id, name)`, aucun outil de migration).
+L'index couvre le filtrage par projet et l'ordre par nom des listes de périmètres. Un `save()` remplace tout l'agrégat dans une
 **transaction** (atomicité préservée) ; les contraintes DB (nom unique, jour unique) traduisent les erreurs
 en exceptions de domaine (→ `409`).
+Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
+avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
 
 ## Docker
 
@@ -143,12 +151,12 @@ make docker-up    # docker compose up -d --build
 # → Frontend : http://localhost:5173
 ```
 
-| Cible Makefile | Effet |
-|---|---|
-| `db-up` / `db-down` | Démarre / arrête uniquement le service PostgreSQL |
-| `docker-up` / `docker-down` | Construit et démarre / arrête toute la stack |
-| `db-shell` | Shell `psql` dans le conteneur Postgres |
-| `test-db` | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
+| Cible Makefile              | Effet                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------ |
+| `db-up` / `db-down`         | Démarre / arrête uniquement le service PostgreSQL                              |
+| `docker-up` / `docker-down` | Construit et démarre / arrête toute la stack                                   |
+| `db-shell`                  | Shell `psql` dans le conteneur Postgres                                        |
+| `test-db`                   | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
 
 Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
 via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).

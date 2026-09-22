@@ -63,9 +63,9 @@ def test_knowledge_base_id_length():
 
 
 def test_knowledge_base_id_valid_boundary():
-    # exactly 10 chars should pass
-    kb = KnowledgeBase(id="a" * 10)
-    assert kb.id == "a" * 10
+    # exactly 9 chars should pass
+    kb = KnowledgeBase(id="a" * 9)
+    assert kb.id == "a" * 9
 
 
 def test_officials_empty_main():

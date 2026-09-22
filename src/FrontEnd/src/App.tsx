@@ -12,6 +12,9 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ScopeFormModal } from "./components/ScopeFormModal";
 import { CsvImportModal } from "./components/CsvImportModal";
+import { WorkingDaysModal } from "./components/WorkingDaysModal";
+import { NonWorkingDays } from "./types";
+import { DEFAULT_NON_WORKING_DAYS } from "./utils/kpi";
 import { ExternalLink, Terminal } from "lucide-react";
 import { AuthSession, protabApi } from "./services/api";
 
@@ -21,16 +24,22 @@ export default function App() {
   const [isCreateScopeOpen, setIsCreateScopeOpen] = useState(false);
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isWorkingDaysOpen, setIsWorkingDaysOpen] = useState(false);
 
   useEffect(() => {
-    protabApi.getSession()
+    protabApi
+      .getSession()
       .then(setSession)
       .catch(() => setSession(null))
       .finally(() => setCheckingSession(false));
   }, []);
 
   if (checkingSession) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500 dark:bg-nord-0 dark:text-nord-4">Chargement...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500 dark:bg-nord-0 dark:text-nord-4">
+        Chargement...
+      </div>
+    );
   }
 
   if (!session) {
@@ -62,6 +71,7 @@ export default function App() {
               projectName={session.project.name}
               quadrigramme={session.quadrigramme}
               onLogout={handleLogout}
+              onOpenSettings={() => setIsWorkingDaysOpen(true)}
             />
             <AuditShortcut />
 
@@ -75,11 +85,18 @@ export default function App() {
                       onOpenCreateScope={() => setIsCreateScopeOpen(true)}
                       onOpenImportCsv={() => setIsImportCsvOpen(true)}
                       refreshTrigger={refreshTrigger}
+                      nonWorkingDays={
+                        session.project.non_working_days ??
+                        DEFAULT_NON_WORKING_DAYS
+                      }
                     />
                   }
                 />
                 <Route path="/scopes/:id" element={<ScopeDetailPage />} />
-                <Route path="/audit" element={<AuditLogPage />} />
+                <Route
+                  path="/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9"
+                  element={<AuditLogPage />}
+                />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>
@@ -98,6 +115,27 @@ export default function App() {
               isOpen={isImportCsvOpen}
               onClose={() => setIsImportCsvOpen(false)}
               onSuccess={handleCsvImported}
+            />
+
+            <WorkingDaysModal
+              isOpen={isWorkingDaysOpen}
+              settings={
+                session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS
+              }
+              onClose={() => setIsWorkingDaysOpen(false)}
+              onSaved={(settings: NonWorkingDays) =>
+                setSession((current) =>
+                  current
+                    ? {
+                        ...current,
+                        project: {
+                          ...current.project,
+                          non_working_days: settings,
+                        },
+                      }
+                    : current,
+                )
+              }
             />
 
             {/* Notifications Toast */}

@@ -1086,3 +1086,5 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
 - Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `test-db`.
 - Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.
+- La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
+  `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.

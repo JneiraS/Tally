@@ -38,5 +38,10 @@ describe('ScopeDetailCharts', () => {
 
     expect(screen.getByRole('heading', { name: /Tendance des erreurs et incidents/i })).toBeInTheDocument();
     expect(screen.getByText('2 journées enregistrées')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: /Cumul : erreurs \/ incidents — arriéré non transformées/i,
+      }),
+    ).toBeInTheDocument();
   });
 });

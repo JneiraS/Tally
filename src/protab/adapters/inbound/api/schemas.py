@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CreateScopeItem(BaseModel):
@@ -34,6 +34,19 @@ class CreatedResponse(BaseModel):
 class ProjectResponse(BaseModel):
     id: str
     name: str
+    non_working_days: dict[str, list]
+
+
+class NonWorkingDaysRequest(BaseModel):
+    excluded_weekdays: list[int] = Field(default_factory=list)
+    excluded_dates: list[date] = Field(default_factory=list)
+
+    @field_validator("excluded_weekdays")
+    @classmethod
+    def validate_weekdays(cls, values: list[int]) -> list[int]:
+        if any(day < 1 or day > 7 for day in values):
+            raise ValueError("Les jours doivent être compris entre 1 et 7.")
+        return sorted(set(values))
 
 
 class LoginRequest(BaseModel):

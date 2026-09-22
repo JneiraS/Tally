@@ -4,17 +4,50 @@ import hashlib
 import hmac
 import os
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 import psycopg
-from psycopg_pool import ConnectionPool
+from psycopg.types.json import Jsonb
+
+from protab.adapters.outbound.persistence.postgres_pool import (
+    POOL_MAX_SIZE,
+    POOL_MIN_SIZE,
+    build_connection_pool,
+)
+
+DEFAULT_NON_WORKING_DAYS = {
+    "excluded_weekdays": [6, 7],
+    "excluded_dates": [],
+}
+
+
+def _normalize_non_working_days(value: object) -> dict[str, list]:
+    if not isinstance(value, dict):
+        return {
+            "excluded_weekdays": [6, 7],
+            "excluded_dates": [],
+        }
+    weekdays = sorted({
+        int(day) for day in value.get("excluded_weekdays", [])
+        if str(day).isdigit() and 1 <= int(day) <= 7
+    })
+    dates = sorted({
+        str(day) for day in value.get("excluded_dates", []) if str(day)
+    })
+    return {"excluded_weekdays": weekdays, "excluded_dates": dates}
 
 
 @dataclass(frozen=True)
 class Project:
     id: str
     name: str
+    non_working_days: dict[str, list] = field(
+        default_factory=lambda: {
+            "excluded_weekdays": [6, 7],
+            "excluded_dates": [],
+        }
+    )
 
 
 @dataclass(frozen=True)
@@ -55,13 +88,18 @@ def _backup_codes(official_backup: str | None) -> set[str]:
 class PostgresAuthRepository:
     """Store project credentials and opaque, expiring session tokens."""
 
-    def __init__(self, dsn: str, *, min_size: int = 1, max_size: int = 10) -> None:
-        self._pool = ConnectionPool(
+    def __init__(
+        self,
+        dsn: str,
+        *,
+        min_size: int = POOL_MIN_SIZE,
+        max_size: int = POOL_MAX_SIZE,
+    ) -> None:
+        self._pool = build_connection_pool(
             dsn,
+            name="protab-auth",
             min_size=min_size,
             max_size=max_size,
-            open=False,
-            kwargs={"autocommit": False},
         )
         self.default_project_id = os.getenv(
             "PROTAB_DEFAULT_PROJECT_CODE", "protab"
@@ -80,9 +118,13 @@ class PostgresAuthRepository:
                     name TEXT NOT NULL,
                     password_hash TEXT NOT NULL,
                     active BOOLEAN NOT NULL DEFAULT TRUE,
+                    non_working_days JSONB,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
                 """
+            )
+            conn.execute(
+                "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
             )
             conn.execute(
                 """
@@ -114,9 +156,13 @@ class PostgresAuthRepository:
     def list_projects(self) -> list[Project]:
         with self._pool.connection() as conn:
             rows = conn.execute(
-                "SELECT id, name FROM projects WHERE active = TRUE ORDER BY name"
+                "SELECT id, name, non_working_days FROM projects "
+                "WHERE active = TRUE ORDER BY name"
             ).fetchall()
-        return [Project(id=row[0], name=row[1]) for row in rows]
+        return [
+            Project(id=row[0], name=row[1], non_working_days=_normalize_non_working_days(row[2]))
+            for row in rows
+        ]
 
     def create_project(self, project_id: str, name: str, password: str) -> Project:
         project_id = project_id.strip()
@@ -130,7 +176,7 @@ class PostgresAuthRepository:
                 "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s)",
                 (project_id, name, _hash_password(password)),
             )
-        return Project(project_id, name)
+        return Project(project_id, name, _normalize_non_working_days(None))
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:
         with self._pool.connection() as conn:
@@ -160,10 +206,35 @@ class PostgresAuthRepository:
     def get_project(self, project_id: str) -> Project | None:
         with self._pool.connection() as conn:
             row = conn.execute(
-                "SELECT id, name FROM projects WHERE id = %s AND active = TRUE",
+                "SELECT id, name, non_working_days FROM projects "
+                "WHERE id = %s AND active = TRUE",
                 (project_id,),
             ).fetchone()
-        return Project(id=row[0], name=row[1]) if row else None
+        return (
+            Project(id=row[0], name=row[1], non_working_days=_normalize_non_working_days(row[2]))
+            if row
+            else None
+        )
+
+    def update_non_working_days(
+        self,
+        project_id: str,
+        excluded_weekdays: list[int],
+        excluded_dates: list[str],
+    ) -> Project | None:
+        config = _normalize_non_working_days(
+            {
+                "excluded_weekdays": excluded_weekdays,
+                "excluded_dates": excluded_dates,
+            }
+        )
+        with self._pool.connection() as conn:
+            conn.execute(
+                "UPDATE projects SET non_working_days = %s "
+                "WHERE id = %s AND active = TRUE",
+                (Jsonb(config), project_id),
+            )
+        return self.get_project(project_id)
 
     def create_session(self, project_id: str, quadrigramme: str) -> AuthSession:
         token = secrets.token_urlsafe(32)

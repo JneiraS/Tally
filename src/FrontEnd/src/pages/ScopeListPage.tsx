@@ -14,13 +14,20 @@ import {
   Users,
   Activity as ActivityIcon,
 } from "lucide-react";
-import { ScopeMonitoring, DailyActivity } from "../types";
+import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
 import { TodayActivityEditor } from "../components/TodayActivityEditor";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
+import {
+  baselineDelta,
+  coverageRate,
+  lastWorkingDays,
+  trailingErrors,
+  transformationRate,
+} from "../utils/kpi";
 import { useToast } from "../hooks/useToast";
 import { DateNavigator } from "../components/DateNavigator";
 
@@ -34,12 +41,14 @@ interface ScopeListPageProps {
   onOpenCreateScope: () => void;
   onOpenImportCsv: () => void;
   refreshTrigger?: number;
+  nonWorkingDays?: NonWorkingDays;
 }
 
 export function ScopeListPage({
   onOpenCreateScope,
   onOpenImportCsv,
   refreshTrigger,
+  nonWorkingDays,
 }: ScopeListPageProps) {
   const { success: toastSuccess, error: toastError } = useToast();
   const [scopes, setScopes] = useState<ScopeMonitoring[]>([]);
@@ -214,6 +223,12 @@ export function ScopeListPage({
       (acc, s) => acc + (s.selectedActivity?.incidents_created || 0),
       0,
     );
+    const selectedDayFeai = enrichedScopes.reduce(
+      (acc, s) => acc + (s.selectedActivity?.feai.length || 0),
+      0,
+    );
+    const rate = transformationRate(selectedDayIncidents, selectedDayErrors);
+    const trailing = trailingErrors(selectedDayErrors, selectedDayIncidents);
 
     return {
       total,
@@ -221,8 +236,16 @@ export function ScopeListPage({
       pendingCount,
       selectedDayErrors,
       selectedDayIncidents,
+      selectedDayFeai,
+      rate,
+      trailing,
+      delta: baselineDelta(scopes, selectedDay, nonWorkingDays),
+      coverage: coverageRate(
+        scopes,
+        lastWorkingDays(selectedDay, 7, nonWorkingDays),
+      ),
     };
-  }, [scopes, enrichedScopes]);
+  }, [scopes, enrichedScopes, selectedDay, nonWorkingDays]);
 
   return (
     <div className="space-y-6">
@@ -273,7 +296,7 @@ export function ScopeListPage({
             {stats.total}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            Supervisés activement
+            Couverture 7 j ouvrés : {stats.coverage} %
           </p>
         </div>
 
@@ -304,8 +327,25 @@ export function ScopeListPage({
           <p className="text-2xl font-bold text-amber-600 dark:text-nord-13 mt-2">
             {stats.selectedDayErrors}
           </p>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            Signalées sur le périmètre
+          <p className="text-xs mt-1">
+            {stats.delta.deltaPct === null ? (
+              <span className="text-slate-400 dark:text-nord-3">
+                Δ baseline (7 j ouvrés) : —
+              </span>
+            ) : (
+              <span
+                className={
+                  stats.delta.direction === "up"
+                    ? "text-rose-600 dark:text-nord-11"
+                    : stats.delta.direction === "down"
+                      ? "text-emerald-600 dark:text-nord-14"
+                      : "text-slate-400 dark:text-nord-3"
+                }
+              >
+                Δ baseline (7 j ouvrés) : {stats.delta.direction === "up" ? "▲" : "▼"}{" "}
+                {Math.abs(stats.delta.deltaPct)} %
+              </span>
+            )}
           </p>
         </div>
 
@@ -320,7 +360,9 @@ export function ScopeListPage({
             {stats.selectedDayIncidents}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            Hors FEAI/FE
+            {stats.rate === null
+              ? "Aucune erreur du jour"
+              : `${stats.rate} % des erreurs · ${stats.trailing} non transformée${stats.trailing > 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
@@ -335,7 +377,11 @@ export function ScopeListPage({
             </div>
           }
         >
-          <DashboardCharts scopes={scopes} day={selectedDay} />
+          <DashboardCharts
+            scopes={scopes}
+            day={selectedDay}
+            nonWorkingDays={nonWorkingDays}
+          />
         </Suspense>
       )}
 
@@ -492,7 +538,8 @@ export function ScopeListPage({
                   <th scope="col" className="px-3 py-3.5 text-left w-80">
                     {`Activité ${selectedDayLabel}`}
                     <span className="block text-[10px] font-medium text-slate-400 dark:text-nord-3 normal-case tracking-normal mt-0.5">
-                      Saisie en ligne — sauvegarde auto
+                      Saisie en ligne — sauvegarde auto • Σ FEAI :{' '}
+                      {stats.selectedDayFeai}
                     </span>
                   </th>
                   <th scope="col" className="px-5 py-3.5 text-center">

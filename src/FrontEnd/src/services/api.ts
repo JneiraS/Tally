@@ -14,9 +14,10 @@ import {
   FastApiErrorResponse,
   FastApiValidationErrorItem,
   ImportCsvResponse,
+  NonWorkingDays,
   ScopeMonitoring,
   UpdateActivityInput,
-} from '../types';
+} from "../types";
 
 /**
  * Erreur personnalisée pour les retours API non réussis
@@ -25,9 +26,13 @@ export class ApiError extends Error {
   public status: number;
   public details?: string | FastApiValidationErrorItem[];
 
-  constructor(status: number, message: string, details?: string | FastApiValidationErrorItem[]) {
+  constructor(
+    status: number,
+    message: string,
+    details?: string | FastApiValidationErrorItem[],
+  ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.status = status;
     this.details = details;
   }
@@ -35,11 +40,12 @@ export class ApiError extends Error {
 
 // Configuration de l'URL de base
 // Par défaut utilise le proxy Vite (/scope-monitorings) ou l'URL spécifiée via variable d'environnement
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 export interface Project {
   id: string;
   name: string;
+  non_working_days: NonWorkingDays;
 }
 
 export interface AuthSession {
@@ -50,35 +56,41 @@ export interface AuthSession {
 /**
  * Traduit et formate les erreurs FastAPI (dont 422) en français clair
  */
-function parseFastApiErrorMessage(status: number, data: FastApiErrorResponse | null, defaultMsg: string): string {
+function parseFastApiErrorMessage(
+  status: number,
+  data: FastApiErrorResponse | null,
+  defaultMsg: string,
+): string {
   if (!data) return defaultMsg;
 
-  if (typeof data.detail === 'string') {
+  if (typeof data.detail === "string") {
     return data.detail;
   }
 
   if (Array.isArray(data.detail) && data.detail.length > 0) {
     const errorMessages = data.detail.map((err) => {
-      const field = err.loc ? err.loc.filter((part) => part !== 'body').join('.') : 'champ';
-      let msg = err.msg || 'Valeur invalide';
-      if (msg.includes('field required')) msg = 'Ce champ est obligatoire';
-      if (msg.includes('greater than')) msg = 'La valeur doit être plus grande';
-      return `${field ? `[${field}] ` : ''}${msg}`;
+      const field = err.loc
+        ? err.loc.filter((part) => part !== "body").join(".")
+        : "champ";
+      let msg = err.msg || "Valeur invalide";
+      if (msg.includes("field required")) msg = "Ce champ est obligatoire";
+      if (msg.includes("greater than")) msg = "La valeur doit être plus grande";
+      return `${field ? `[${field}] ` : ""}${msg}`;
     });
-    return errorMessages.join(' — ');
+    return errorMessages.join(" — ");
   }
 
   switch (status) {
     case 400:
-      return 'Données invalides ou règle métier violée.';
+      return "Données invalides ou règle métier violée.";
     case 404:
-      return 'Périmètre ou ressource demandée introuvable.';
+      return "Périmètre ou ressource demandée introuvable.";
     case 409:
-      return 'Conflit : cette ressource ou cette date existe déjà.';
+      return "Conflit : cette ressource ou cette date existe déjà.";
     case 422:
-      return 'Erreur de validation des données envoyées.';
+      return "Erreur de validation des données envoyées.";
     case 500:
-      return 'Erreur interne du serveur backend.';
+      return "Erreur interne du serveur backend.";
     default:
       return defaultMsg;
   }
@@ -87,22 +99,29 @@ function parseFastApiErrorMessage(status: number, data: FastApiErrorResponse | n
 /**
  * Envoie une requête fetch typée avec gestion des erreurs
  */
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = new Headers(options.headers || {});
 
-  if (!headers.has('Accept')) {
-    headers.set('Accept', 'application/json');
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
   }
 
-  if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
+  if (
+    options.body &&
+    !(options.body instanceof FormData) &&
+    !headers.has("Content-Type")
+  ) {
+    headers.set("Content-Type", "application/json");
   }
 
   try {
     const response = await fetch(url, {
       ...options,
-      credentials: 'include',
+      credentials: "include",
       headers,
     });
 
@@ -112,8 +131,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     }
 
     let data: unknown = null;
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
       data = await response.json();
     } else {
       const text = await response.text();
@@ -129,7 +148,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       const message = parseFastApiErrorMessage(
         response.status,
         errorDetail,
-        `Erreur serveur (${response.status})`
+        `Erreur serveur (${response.status})`,
       );
       throw new ApiError(response.status, message, errorDetail?.detail);
     }
@@ -144,18 +163,21 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     // Erreur réseau (backend non démarré, CORS, etc.)
     const isNetworkError =
       err instanceof TypeError &&
-      (err.message.includes('Failed to fetch') ||
-        err.message.includes('NetworkError') ||
-        err.message.includes('fetch'));
+      (err.message.includes("Failed to fetch") ||
+        err.message.includes("NetworkError") ||
+        err.message.includes("fetch"));
 
     if (isNetworkError) {
       throw new ApiError(
         0,
-        "Impossible de joindre le backend FastAPI (http://localhost:8000). Vérifiez que le serveur est lancé (make run)."
+        "Impossible de joindre le backend FastAPI (http://localhost:8000). Vérifiez que le serveur est lancé (make run).",
       );
     }
 
-    throw new ApiError(500, (err as Error)?.message || 'Une erreur inattendue est survenue.');
+    throw new ApiError(
+      500,
+      (err as Error)?.message || "Une erreur inattendue est survenue.",
+    );
   }
 }
 
@@ -169,8 +191,8 @@ export const protabApi = {
   async checkBackendHealth(): Promise<boolean> {
     try {
       const res = await fetch(`${API_BASE_URL}/healthz`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
+        method: "GET",
+        headers: { Accept: "application/json" },
       });
       return res.ok;
     } catch {
@@ -179,22 +201,33 @@ export const protabApi = {
   },
 
   async listProjects(): Promise<Project[]> {
-    return request<Project[]>('/projects');
+    return request<Project[]>("/projects");
   },
 
-  async login(projectId: string, quadrigramme: string, password: string): Promise<AuthSession> {
-    return request<AuthSession>('/auth/login', {
-      method: 'POST',
+  async login(
+    projectId: string,
+    quadrigramme: string,
+    password: string,
+  ): Promise<AuthSession> {
+    return request<AuthSession>("/auth/login", {
+      method: "POST",
       body: JSON.stringify({ project_id: projectId, quadrigramme, password }),
     });
   },
 
   async getSession(): Promise<AuthSession> {
-    return request<AuthSession>('/auth/me');
+    return request<AuthSession>("/auth/me");
+  },
+
+  async updateProjectSettings(settings: NonWorkingDays): Promise<Project> {
+    return request<Project>("/project/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    });
   },
 
   async logout(): Promise<void> {
-    await request<void>('/auth/logout', { method: 'POST' });
+    await request<void>("/auth/logout", { method: "POST" });
   },
 
   /**
@@ -202,7 +235,7 @@ export const protabApi = {
    * Liste tous les périmètres avec leurs activités quotidiennes
    */
   async getScopeMonitorings(): Promise<ScopeMonitoring[]> {
-    return request<ScopeMonitoring[]>('/scope-monitorings');
+    return request<ScopeMonitoring[]>("/scope-monitorings");
   },
 
   /**
@@ -219,9 +252,11 @@ export const protabApi = {
    * Corps: [{ name, knowledge_base_id, official_main, official_backup }]
    * Réponse 201: { ids: [uuid...] }
    */
-  async createScopeMonitorings(payload: CreateScopeInput[]): Promise<CreateScopeResponse> {
-    return request<CreateScopeResponse>('/scope-monitorings', {
-      method: 'POST',
+  async createScopeMonitorings(
+    payload: CreateScopeInput[],
+  ): Promise<CreateScopeResponse> {
+    return request<CreateScopeResponse>("/scope-monitorings", {
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
@@ -234,10 +269,10 @@ export const protabApi = {
    */
   async importCsv(file: File): Promise<ImportCsvResponse> {
     const formData = new FormData();
-    formData.append('csv_file', file);
+    formData.append("csv_file", file);
 
-    return request<ImportCsvResponse>('/scope-monitorings/import-csv', {
-      method: 'POST',
+    return request<ImportCsvResponse>("/scope-monitorings/import-csv", {
+      method: "POST",
       body: formData,
     });
   },
@@ -247,9 +282,12 @@ export const protabApi = {
    * Crée une activité pour un jour donné
    * Réponse 201
    */
-  async createActivity(scopeId: string, payload: CreateActivityInput): Promise<void> {
+  async createActivity(
+    scopeId: string,
+    payload: CreateActivityInput,
+  ): Promise<void> {
     await request<void>(`/scope-monitorings/${scopeId}/activities`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
@@ -259,7 +297,9 @@ export const protabApi = {
    * Récupère le détail d'une activité pour un jour précis
    */
   async getActivity(scopeId: string, day: string): Promise<DailyActivity> {
-    return request<DailyActivity>(`/scope-monitorings/${scopeId}/activities/${day}`);
+    return request<DailyActivity>(
+      `/scope-monitorings/${scopeId}/activities/${day}`,
+    );
   },
 
   /**
@@ -267,9 +307,13 @@ export const protabApi = {
    * Met à jour les erreurs, incidents et références FEAI d'un jour
    * Réponse 204
    */
-  async updateActivity(scopeId: string, day: string, payload: UpdateActivityInput): Promise<void> {
+  async updateActivity(
+    scopeId: string,
+    day: string,
+    payload: UpdateActivityInput,
+  ): Promise<void> {
     await request<void>(`/scope-monitorings/${scopeId}/activities/${day}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },
@@ -280,26 +324,31 @@ export const protabApi = {
    * Corps: { days: ["YYYY-MM-DD", ...] }
    * Réponse 204
    */
-  async completeActivities(scopeId: string, payload: CompleteActivitiesInput): Promise<void> {
+  async completeActivities(
+    scopeId: string,
+    payload: CompleteActivitiesInput,
+  ): Promise<void> {
     await request<void>(`/scope-monitorings/${scopeId}/activities/complete`, {
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
   /**
-   * GET /audit-log
+   * GET /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log
    * Liste les événements du journal d'audit, du plus récent au plus ancien.
    * Paramètres filtres optionnels : scope_id, actor, action, from_date, to_date, limit.
    */
   async getAuditLog(params: AuditLogQuery = {}): Promise<AuditEvent[]> {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
+      if (value !== undefined && value !== null && value !== "") {
         qs.set(key, String(value));
       }
     });
     const query = qs.toString();
-    return request<AuditEvent[]>(`/audit-log${query ? `?${query}` : ''}`);
+    return request<AuditEvent[]>(
+      `/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log${query ? `?${query}` : ""}`,
+    );
   },
 };

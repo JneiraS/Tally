@@ -25,6 +25,12 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
+    "httpx2>=2.13.0",
     "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # Starlette 1.6.0 accesses this deprecated anyio alias while importing TestClient.
+    "ignore:The anyio.abc.BlockingPortal alias is deprecated.*:DeprecationWarning",
 ]

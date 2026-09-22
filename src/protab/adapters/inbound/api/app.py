@@ -19,6 +19,7 @@ from protab.adapters.inbound.api.schemas import (
     CreateScopeItem,
     LoginRequest,
     LoginResponse,
+    NonWorkingDaysRequest,
     ProjectResponse,
     ScopeResponse,
     SessionResponse,
@@ -106,6 +107,18 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
     )
 
 
+def _project_to_response(project) -> ProjectResponse:
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        non_working_days=getattr(
+            project,
+            "non_working_days",
+            {"excluded_weekdays": [6, 7], "excluded_dates": []},
+        ),
+    )
+
+
 def _audit_event_to_response(
     event: AuditEvent, scope_name: str | None = None
 ) -> AuditEventResponse:
@@ -144,6 +157,9 @@ def create_app(
     auth_repository: PostgresAuthRepository | None = None,
     audit_repository: AuditTrailRepository | None = None,
 ) -> FastAPI:
+    owns_repository = repository is None
+    owns_auth_repository = auth_repository is None and repository is None
+    owns_audit_repository = audit_repository is None and repository is None
     repo = repository if repository is not None else build_repository()
     auth = auth_repository
     if auth is None and repository is None:
@@ -160,6 +176,15 @@ def create_app(
             audit.connect()
         else:
             audit = InMemoryAuditTrailRepository()
+    managed_repositories = [
+        persistence
+        for persistence, owned in (
+            (repo, owns_repository),
+            (auth, owns_auth_repository),
+            (audit, owns_audit_repository),
+        )
+        if owned and persistence is not None
+    ]
     create_scope_monitoring = CreateScopeMonitoringUseCase(repo, audit)
     create_daily_activity = CreateDailyActivityUseCase(repo, audit)
     complete_daily_activity = CompleteDailyActivityUseCase(repo, audit)
@@ -171,6 +196,13 @@ def create_app(
 
     app = FastAPI(title="ProTab API")
     register_exception_handlers(app)
+
+    def close_persistence() -> None:
+        for persistence in managed_repositories:
+            if persistence is not None and hasattr(persistence, "close"):
+                persistence.close()
+
+    app.router.on_shutdown.append(close_persistence)
 
     async def project_context(request: Request):
         if auth is None:
@@ -193,7 +225,7 @@ def create_app(
     def list_projects() -> list[ProjectResponse]:
         if auth is None:
             return []
-        return [ProjectResponse(id=p.id, name=p.name) for p in auth.list_projects()]
+        return [_project_to_response(project) for project in auth.list_projects()]
 
     @app.post("/auth/login", response_model=LoginResponse)
     def login(payload: LoginRequest, response: Response) -> LoginResponse:
@@ -210,7 +242,7 @@ def create_app(
         assert project is not None
         set_session_cookie(response, session.token)
         return LoginResponse(
-            project=ProjectResponse(id=project.id, name=project.name),
+            project=_project_to_response(project),
             quadrigramme=session.quadrigramme,
         )
 
@@ -222,9 +254,51 @@ def create_app(
             raise HTTPException(status_code=401, detail="Authentification requise.")
         user = current_user(request, auth)
         return SessionResponse(
-            project=ProjectResponse(id=user.project.id, name=user.project.name),
+            project=_project_to_response(user.project),
             quadrigramme=user.session.quadrigramme,
         )
+
+    @app.get(
+        "/project/settings",
+        response_model=ProjectResponse,
+        dependencies=[Depends(project_context)],
+    )
+    def get_project_settings(request: Request) -> ProjectResponse:
+        if auth is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Authentification requise.")
+        user = current_user(request, auth)
+        project = auth.get_project(user.project.id)
+        if project is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Projet introuvable.")
+        return _project_to_response(project)
+
+    @app.put(
+        "/project/settings",
+        response_model=ProjectResponse,
+        dependencies=[Depends(project_context)],
+    )
+    def update_project_settings(
+        request: Request, payload: NonWorkingDaysRequest
+    ) -> ProjectResponse:
+        if auth is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Authentification requise.")
+        user = current_user(request, auth)
+        project = auth.update_non_working_days(
+            user.project.id,
+            payload.excluded_weekdays,
+            [day.isoformat() for day in payload.excluded_dates],
+        )
+        if project is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Projet introuvable.")
+        return _project_to_response(project)
 
     @app.post("/auth/logout", status_code=204)
     def logout(request: Request, response: Response) -> None:
@@ -337,7 +411,7 @@ def create_app(
         return _activity_to_response(get_daily_activity.execute(scope_id, day))
 
     @app.get(
-        "/audit-log",
+        "/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log",
         response_model=list[AuditEventResponse],
         dependencies=[Depends(project_context)],
     )
@@ -359,11 +433,9 @@ def create_app(
                 limit=max(1, min(limit, 1000)),
             )
         )
-        scope_names = {scope.id: scope.name for scope in repo.find_all()}
+        scope_names = repo.find_all_scope_names()
         return [
-            _audit_event_to_response(
-                event, scope_name=scope_names.get(event.scope_id)
-            )
+            _audit_event_to_response(event, scope_name=scope_names.get(event.scope_id))
             for event in events
         ]
 
