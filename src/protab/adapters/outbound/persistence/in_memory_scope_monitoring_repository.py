@@ -19,3 +19,6 @@ class InMemoryScopeMonitoringRepository:
 
     def find_all(self) -> list[ScopeMonitoring]:
         return list(self._by_id.values())
+
+    def find_all_scope_names(self) -> dict[str, str]:
+        return {scope.id: scope.name for scope in self._by_id.values()}

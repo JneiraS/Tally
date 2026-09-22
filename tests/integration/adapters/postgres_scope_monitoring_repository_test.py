@@ -148,6 +148,59 @@ def test_find_all_returns_scopes_ordered_by_name(repo):
     assert [s.name for s in scopes] == ["A-First", "B-Step"]
 
 
+def test_find_all_loads_activities_for_all_scopes(repo):
+    first = make_scope(scope_id="scope-first", name="First")
+    first.add_daily_activity(
+        DailyActivity(
+            day=date(2026, 9, 18),
+            errors_reported=1,
+            incidents_created=0,
+            feai=[],
+        )
+    )
+    first.add_daily_activity(
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=2,
+            incidents_created=1,
+            feai=["INC000000001"],
+        )
+    )
+    second = make_scope(scope_id="scope-second", name="Second")
+    second.add_daily_activity(
+        DailyActivity(
+            day=date(2026, 9, 20),
+            errors_reported=3,
+            incidents_created=2,
+            feai=["INC000000002"],
+        )
+    )
+    repo.save(first)
+    repo.save(second)
+
+    scopes = repo.find_all()
+
+    assert [scope.name for scope in scopes] == ["First", "Second"]
+    assert list(scopes[0].daily_activities) == [
+        date(2026, 9, 18),
+        date(2026, 9, 19),
+    ]
+    assert scopes[0].daily_activity_for(date(2026, 9, 19)).feai == [
+        "INC000000001"
+    ]
+    assert scopes[1].daily_activity_for(date(2026, 9, 20)).errors_reported == 3
+
+
+def test_find_all_scope_names_returns_id_to_name(repo):
+    repo.save(make_scope(scope_id="scope-b", name="B-Step"))
+    repo.save(make_scope(scope_id="scope-a", name="A-First"))
+
+    assert repo.find_all_scope_names() == {
+        "scope-a": "A-First",
+        "scope-b": "B-Step",
+    }
+
+
 def test_find_by_id_returns_none_when_absent(repo):
     assert repo.find_by_id("missing") is None
 

@@ -19,3 +19,7 @@ class ScopeMonitoringRepository(Protocol):
     def find_all(self) -> list[ScopeMonitoring]:
         """Return all ScopeMonitorings."""
         ...
+
+    def find_all_scope_names(self) -> dict[str, str]:
+        """Return a mapping of scope ids to names."""
+        ...

@@ -414,7 +414,7 @@ def create_app(
                 limit=max(1, min(limit, 1000)),
             )
         )
-        scope_names = {scope.id: scope.name for scope in repo.find_all()}
+        scope_names = repo.find_all_scope_names()
         return [
             _audit_event_to_response(event, scope_name=scope_names.get(event.scope_id))
             for event in events

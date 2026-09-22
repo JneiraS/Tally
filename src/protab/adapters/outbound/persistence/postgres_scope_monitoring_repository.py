@@ -86,6 +86,11 @@ _ACTIVITIES_SELECT = (
     "FROM daily_activities"
 )
 
+_ACTIVITIES_BATCH_SELECT = (
+    "SELECT scope_id, day, errors_reported, incidents_created, feai, handled, completed "
+    "FROM daily_activities"
+)
+
 
 class PostgresScopeMonitoringRepository:
     """Persist ``ScopeMonitoring`` aggregates in PostgreSQL.
@@ -162,6 +167,36 @@ class PostgresScopeMonitoringRepository:
             )
             for day, errors_reported, incidents_created, feai, handled, completed in rows
         }
+
+    def _load_activities_batched(
+        self, conn: psycopg.Connection, scope_ids: list[str]
+    ) -> dict[str, dict[date, DailyActivity]]:
+        if not scope_ids:
+            return {}
+
+        rows = conn.execute(
+            f"{_ACTIVITIES_BATCH_SELECT} WHERE scope_id = ANY(%s) ORDER BY day",
+            (scope_ids,),
+        ).fetchall()
+        activities_by_scope = {scope_id: {} for scope_id in scope_ids}
+        for (
+            scope_id,
+            day,
+            errors_reported,
+            incidents_created,
+            feai,
+            handled,
+            completed,
+        ) in rows:
+            activities_by_scope[scope_id][day] = DailyActivity(
+                day=day,
+                errors_reported=errors_reported,
+                incidents_created=incidents_created,
+                feai=feai,
+                handled=handled,
+                completed=completed,
+            )
+        return activities_by_scope
 
     def save(self, scope: ScopeMonitoring) -> None:
         project_id = current_project_id() or "protab"
@@ -259,8 +294,20 @@ class PostgresScopeMonitoringRepository:
                 + " ORDER BY name",
                 (project_id,) if project_id else (),
             ).fetchall()
-            scopes: list[ScopeMonitoring] = []
-            for row in rows:
-                activities = self._load_activities(conn, row[0])
-                scopes.append(self._scope_from_row(row, activities))
-            return scopes
+            activities_by_scope = self._load_activities_batched(
+                conn, [row[0] for row in rows]
+            )
+            return [
+                self._scope_from_row(row, activities_by_scope[row[0]])
+                for row in rows
+            ]
+
+    def find_all_scope_names(self) -> dict[str, str]:
+        with self._pool.connection() as conn:
+            project_id = current_project_id()
+            rows = conn.execute(
+                "SELECT id, name FROM scope_monitorings"
+                + (" WHERE project_id = %s" if project_id else ""),
+                (project_id,) if project_id else (),
+            ).fetchall()
+            return {scope_id: name for scope_id, name in rows}
