@@ -20,6 +20,7 @@ import { Badge } from "../components/Badge";
 import { TodayActivityEditor } from "../components/TodayActivityEditor";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
+import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
 import { useToast } from "../hooks/useToast";
 import { DateNavigator } from "../components/DateNavigator";
 
@@ -519,9 +520,15 @@ export function ScopeListPage({
                         >
                           {scope.name}
                         </Link>
-                        <span className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2">
+                        <a
+                          href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Ouvrir l'article KB"
+                          className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2 hover:text-blue-600 dark:hover:text-nord-8 hover:border-blue-400 dark:hover:border-nord-9/60 transition-colors"
+                        >
                           {scope.knowledge_base_id}
-                        </span>
+                        </a>
                       </td>
 
                       {/* Responsable Principal */}

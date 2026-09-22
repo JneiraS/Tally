@@ -7,6 +7,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { ScopeListPage } from '../pages/ScopeListPage';
 import { ToastProvider } from '../hooks/useToast';
+import { KNOWLEDGE_BASE_URL } from '../utils/knowledgeBase';
 import { protabApi } from '../services/api';
 
 vi.mock('../services/api', async (importOriginal) => {
@@ -78,6 +79,10 @@ describe('ScopeListPage Component', () => {
       expect(screen.getByText('Alice')).toBeInTheDocument();
       expect(screen.getByText('Bob')).toBeInTheDocument();
     });
+
+    const kbLink = screen.getByText('KB-TEST-0001').closest('a');
+    expect(kbLink).toHaveAttribute('href', `${KNOWLEDGE_BASE_URL}KB-TEST-0001`);
+    expect(kbLink).toHaveAttribute('target', '_blank');
   });
 
   it('affiche un message d\'erreur lorsque l\'API échoue', async () => {
