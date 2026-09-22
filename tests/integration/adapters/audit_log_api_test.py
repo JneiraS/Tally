@@ -158,6 +158,7 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
     events = get_body.json()
     assert len(events) == 1
     assert events[0]["action"] == "scope_created"
+    assert events[0]["scope_name"] == "Scope Alpha"
     assert {"scope_id", "action", "actor", "day", "changes", "created_at", "id"} <= set(
         events[0].keys()
     )

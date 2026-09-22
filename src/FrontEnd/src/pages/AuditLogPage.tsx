@@ -261,7 +261,7 @@ export function AuditLogPage() {
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-xs font-mono text-slate-500 dark:text-nord-4">
-                          {event.scope_id ?? "—"}
+                          {event.scope_name ?? event.scope_id ?? "—"}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right">

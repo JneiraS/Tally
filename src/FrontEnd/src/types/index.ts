@@ -65,6 +65,7 @@ export interface AuditEvent {
   actor: string | null; // Quadrigramme de l'utilisateur
   action: AuditAction;
   scope_id: string | null; // Périmètre concerné
+  scope_name: string | null; // Nom du périmètre concerné (si connu)
   day: string | null; // "YYYY-MM-DD" associé si pertinent
   created_at: string; // Horodatage ISO 8601 de l'événement
   changes: Record<string, { old: unknown; new: unknown }> | null; // Diff avant/après

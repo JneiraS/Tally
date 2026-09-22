@@ -106,12 +106,15 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
     )
 
 
-def _audit_event_to_response(event: AuditEvent) -> AuditEventResponse:
+def _audit_event_to_response(
+    event: AuditEvent, scope_name: str | None = None
+) -> AuditEventResponse:
     return AuditEventResponse(
         id=event.id,
         actor=event.actor,
         action=event.action,
         scope_id=event.scope_id,
+        scope_name=scope_name,
         day=event.day,
         created_at=event.created_at,
         changes=event.changes,
@@ -356,7 +359,13 @@ def create_app(
                 limit=max(1, min(limit, 1000)),
             )
         )
-        return [_audit_event_to_response(event) for event in events]
+        scope_names = {scope.id: scope.name for scope in repo.find_all()}
+        return [
+            _audit_event_to_response(
+                event, scope_name=scope_names.get(event.scope_id)
+            )
+            for event in events
+        ]
 
     return app
 

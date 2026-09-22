@@ -31,6 +31,7 @@ describe('AuditLogPage Component', () => {
       actor: 'ABCD',
       action: 'activity_updated',
       scope_id: '123e4567-e89b-12d3-a456-426614174000',
+      scope_name: 'Scope Alpha',
       day: '2026-09-19',
       created_at: '2026-09-19T14:32:00Z',
       changes: {
@@ -43,6 +44,7 @@ describe('AuditLogPage Component', () => {
       actor: null,
       action: 'scope_created',
       scope_id: '123e4567-e89b-12d3-a456-426614174000',
+      scope_name: 'Scope Alpha',
       day: null,
       created_at: '2026-09-18T09:05:00Z',
       changes: null,
@@ -63,6 +65,7 @@ describe('AuditLogPage Component', () => {
     await waitFor(() => {
       expect(screen.getByText('ABCD')).toBeInTheDocument();
       expect(screen.getByText('Système')).toBeInTheDocument();
+      expect(screen.getAllByText('Scope Alpha').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('Modification d\'activité').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('Création de périmètre').length).toBeGreaterThanOrEqual(1);
     });
