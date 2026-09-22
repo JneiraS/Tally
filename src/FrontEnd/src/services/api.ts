@@ -14,6 +14,7 @@ import {
   FastApiErrorResponse,
   FastApiValidationErrorItem,
   ImportCsvResponse,
+  NonWorkingDays,
   ScopeMonitoring,
   UpdateActivityInput,
 } from '../types';
@@ -40,6 +41,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 export interface Project {
   id: string;
   name: string;
+  non_working_days: NonWorkingDays;
 }
 
 export interface AuthSession {
@@ -191,6 +193,13 @@ export const protabApi = {
 
   async getSession(): Promise<AuthSession> {
     return request<AuthSession>('/auth/me');
+  },
+
+  async updateProjectSettings(settings: NonWorkingDays): Promise<Project> {
+    return request<Project>('/project/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
   },
 
   async logout(): Promise<void> {

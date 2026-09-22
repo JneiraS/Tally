@@ -21,6 +21,11 @@ export interface ScopeMonitoring {
   daily_activities: DailyActivity[];
 }
 
+export interface NonWorkingDays {
+  excluded_weekdays: number[];
+  excluded_dates: string[];
+}
+
 export interface CreateScopeInput {
   name: string;
   knowledge_base_id: string;

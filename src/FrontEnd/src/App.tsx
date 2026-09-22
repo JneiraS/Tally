@@ -12,6 +12,9 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ScopeFormModal } from "./components/ScopeFormModal";
 import { CsvImportModal } from "./components/CsvImportModal";
+import { WorkingDaysModal } from "./components/WorkingDaysModal";
+import { NonWorkingDays } from "./types";
+import { DEFAULT_NON_WORKING_DAYS } from "./utils/kpi";
 import { ExternalLink, Terminal } from "lucide-react";
 import { AuthSession, protabApi } from "./services/api";
 
@@ -21,6 +24,7 @@ export default function App() {
   const [isCreateScopeOpen, setIsCreateScopeOpen] = useState(false);
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isWorkingDaysOpen, setIsWorkingDaysOpen] = useState(false);
 
   useEffect(() => {
     protabApi.getSession()
@@ -62,6 +66,7 @@ export default function App() {
               projectName={session.project.name}
               quadrigramme={session.quadrigramme}
               onLogout={handleLogout}
+              onOpenSettings={() => setIsWorkingDaysOpen(true)}
             />
             <AuditShortcut />
 
@@ -75,6 +80,7 @@ export default function App() {
                       onOpenCreateScope={() => setIsCreateScopeOpen(true)}
                       onOpenImportCsv={() => setIsImportCsvOpen(true)}
                       refreshTrigger={refreshTrigger}
+                      nonWorkingDays={session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS}
                     />
                   }
                 />
@@ -98,6 +104,19 @@ export default function App() {
               isOpen={isImportCsvOpen}
               onClose={() => setIsImportCsvOpen(false)}
               onSuccess={handleCsvImported}
+            />
+
+            <WorkingDaysModal
+              isOpen={isWorkingDaysOpen}
+              settings={session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS}
+              onClose={() => setIsWorkingDaysOpen(false)}
+              onSaved={(settings: NonWorkingDays) =>
+                setSession((current) =>
+                  current
+                    ? { ...current, project: { ...current.project, non_working_days: settings } }
+                    : current,
+                )
+              }
             />
 
             {/* Notifications Toast */}

@@ -96,6 +96,10 @@ export function ScopeDetailPage() {
     return sortedActivities.reduce((acc, a) => acc + a.incidents_created, 0);
   }, [sortedActivities]);
 
+  const totalFeai = useMemo(() => {
+    return sortedActivities.reduce((acc, a) => acc + a.feai.length, 0);
+  }, [sortedActivities]);
+
   const completedActivitiesCount = useMemo(() => {
     return sortedActivities.filter((a) => a.completed).length;
   }, [sortedActivities]);
@@ -600,7 +604,7 @@ export function ScopeDetailPage() {
             <div className="px-5 py-3 border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 text-xs text-slate-500 dark:text-nord-4 flex flex-col sm:flex-row items-center justify-between gap-2">
               <span>
                 Total : {sortedActivities.length} relevé(s) d'activité • {totalErrors} erreur(s) •{' '}
-                {totalIncidents} incident(s)
+                {totalIncidents} incident(s) • {totalFeai} réf(s) FEAI
               </span>
               <span className="text-slate-400 dark:text-nord-3">
                 Règle : Un jour complété (completed) est forcément traité (handled)

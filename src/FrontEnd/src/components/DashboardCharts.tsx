@@ -12,42 +12,25 @@ import {
   Pie,
   Cell,
 } from "recharts";
-import { ScopeMonitoring } from "../types";
+import { NonWorkingDays, ScopeMonitoring } from "../types";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
+import { buildDailyTrend } from "../utils/kpi";
 
 interface DashboardChartsProps {
   scopes: ScopeMonitoring[];
   day?: string;
+  nonWorkingDays?: NonWorkingDays;
 }
 
 export function DashboardCharts({
   scopes,
   day = getTodayIsoDate(),
+  nonWorkingDays,
 }: DashboardChartsProps) {
-  // Agrégation pour le graphique de tendance (7 derniers jours)
+  // Agrégation sur les 7 derniers jours ouvrés, selon le jour sélectionné.
   const trendData = useMemo(() => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      return d.toISOString().split("T")[0];
-    });
-
-    const dailyMap = new Map(
-      last7Days.map((d) => [d, { day: d, erreurs: 0, incidents: 0 }]),
-    );
-
-    scopes.forEach((s) => {
-      s.daily_activities.forEach((a) => {
-        if (dailyMap.has(a.day)) {
-          const entry = dailyMap.get(a.day)!;
-          entry.erreurs += a.errors_reported;
-          entry.incidents += a.incidents_created;
-        }
-      });
-    });
-
-    return Array.from(dailyMap.values());
-  }, [scopes]);
+    return buildDailyTrend(scopes, day, nonWorkingDays);
+  }, [scopes, day, nonWorkingDays]);
 
   // Agrégation pour le graphique de statut (aujourd'hui)
   const statusData = useMemo(() => {
@@ -80,7 +63,7 @@ export function DashboardCharts({
       {/* Tendance sur 7 jours */}
       <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
         <h3 className="text-sm font-semibold text-slate-800 dark:text-nord-5 mb-4">
-          Tendance hebdomadaire (Erreurs / Incidents)
+          Tendance hebdomadaire (7 jours ouvrés : Erreurs / Incidents)
         </h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">

@@ -76,6 +76,9 @@ Les périmètres et activités sont filtrés côté backend par le projet authen
 
 Routes publiques : `GET /projects`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
 Les routes de supervision nécessitent une session valide.
+Les jours non travaillés sont configurables par projet via `GET /project/settings` et
+`PUT /project/settings`. Par défaut, samedi et dimanche sont exclus ; les dates ponctuelles
+peuvent également être ajoutées.
 
 Restriction du quadrigramme : une fois qu'un projet possède au moins un périmètre, le quadrigramme fourni au
 login doit correspondre exactement au `official_main` d'un périmètre du projet, ou faire partie du ou des
@@ -100,6 +103,8 @@ uv run protab-project projet-alpha "Projet Alpha"
 | `GET /scope-monitorings/{id}` | — | `200` périmètre| `404` |
 | `GET /scope-monitorings/{id}/activities/{day}` | — | `200` activité | `404` périmètre ou jour inconnu |
 | `GET /audit-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | — |
+| `GET /project/settings` | — | `200` réglages du projet courant | `401` session absente |
+| `PUT /project/settings` | `{excluded_weekdays: [1..7], excluded_dates: ["YYYY-MM-DD"]}` | `200` réglages mis à jour | `401` session absente, `422` payload invalide |
 
 Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/errors.py`) :
 `ScopeMonitoringNotFoundError`/`DailyActivityNotFoundError` → **404**, `ScopeMonitoringNameAlreadyExistsError`/

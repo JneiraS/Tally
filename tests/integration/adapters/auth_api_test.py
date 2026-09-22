@@ -16,12 +16,24 @@ class FakeAuthRepository:
     def __init__(self, known_codes: set[str] | None = None) -> None:
         self.sessions: dict[str, AuthSession] = {}
         self.known_codes = known_codes or set()
+        self.settings = {"excluded_weekdays": [6, 7], "excluded_dates": []}
 
     def list_projects(self) -> list[Project]:
         return [Project("alpha", "Projet Alpha")]
 
     def get_project(self, project_id: str) -> Project | None:
-        return Project("alpha", "Projet Alpha") if project_id == "alpha" else None
+        if project_id != "alpha":
+            return None
+        return Project("alpha", "Projet Alpha", self.settings)
+
+    def update_non_working_days(
+        self, project_id: str, excluded_weekdays: list[int], excluded_dates: list[str]
+    ) -> Project | None:
+        self.settings = {
+            "excluded_weekdays": excluded_weekdays,
+            "excluded_dates": excluded_dates,
+        }
+        return self.get_project(project_id)
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:
         if not (project_id == "alpha" and password == "secret"):
@@ -50,7 +62,11 @@ def test_authenticated_routes_require_a_valid_session():
         create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository())
     )
 
-    assert client.get("/projects").json() == [{"id": "alpha", "name": "Projet Alpha"}]
+    assert client.get("/projects").json() == [{
+        "id": "alpha",
+        "name": "Projet Alpha",
+        "non_working_days": {"excluded_weekdays": [6, 7], "excluded_dates": []},
+    }]
     assert client.get("/scope-monitorings").status_code == 401
     assert client.post(
         "/auth/login",
@@ -84,3 +100,41 @@ def test_login_rejects_invented_quadrigramme_when_known_codes_exist():
         "/auth/login",
         json={"project_id": "alpha", "quadrigramme": "ZZZZ", "password": "secret"},
     ).status_code == 401
+
+
+def test_project_settings_are_authenticated_and_project_scoped():
+    auth = FakeAuthRepository()
+    client = TestClient(create_app(InMemoryScopeMonitoringRepository(), auth))
+
+    assert client.get("/project/settings").status_code == 401
+    client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+
+    response = client.put(
+        "/project/settings",
+        json={"excluded_weekdays": [5, 6], "excluded_dates": ["2026-12-25"]},
+    )
+    assert response.status_code == 200
+    assert response.json()["non_working_days"] == {
+        "excluded_weekdays": [5, 6],
+        "excluded_dates": ["2026-12-25"],
+    }
+    assert client.get("/project/settings").json()["non_working_days"] == response.json()[
+        "non_working_days"
+    ]
+
+
+def test_project_settings_reject_invalid_weekday():
+    client = TestClient(create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository()))
+    client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+
+    response = client.put(
+        "/project/settings",
+        json={"excluded_weekdays": [0], "excluded_dates": []},
+    )
+    assert response.status_code == 422

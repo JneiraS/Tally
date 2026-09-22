@@ -123,3 +123,21 @@ def test_main_does_not_split(auth, scopes):
 
     assert auth.authenticate(PROJECT_ID, "ABCD", "secret") is False
     assert auth.authenticate(PROJECT_ID, "EFGH", "secret") is False
+
+
+def test_project_non_working_days_default_and_update(auth):
+    project = auth.get_project(PROJECT_ID)
+    assert project is not None
+    assert project.non_working_days == {
+        "excluded_weekdays": [6, 7],
+        "excluded_dates": [],
+    }
+
+    updated = auth.update_non_working_days(
+        PROJECT_ID, [7, 6, 6], ["2026-12-25", "2026-12-25"]
+    )
+    assert updated is not None
+    assert updated.non_working_days == {
+        "excluded_weekdays": [6, 7],
+        "excluded_dates": ["2026-12-25"],
+    }

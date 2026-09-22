@@ -31,6 +31,7 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         name TEXT NOT NULL,
         password_hash TEXT NOT NULL,
         active BOOLEAN NOT NULL DEFAULT TRUE,
+        non_working_days JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
     """,
@@ -123,6 +124,9 @@ class PostgresScopeMonitoringRepository:
         )
         conn.execute(
             "UPDATE scope_monitorings SET project_id = 'protab' WHERE project_id IS NULL"
+        )
+        conn.execute(
+            "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
         )
 
     @staticmethod

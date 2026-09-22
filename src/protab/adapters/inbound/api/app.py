@@ -19,6 +19,7 @@ from protab.adapters.inbound.api.schemas import (
     CreateScopeItem,
     LoginRequest,
     LoginResponse,
+    NonWorkingDaysRequest,
     ProjectResponse,
     ScopeResponse,
     SessionResponse,
@@ -103,6 +104,18 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
             _activity_to_response(activity)
             for activity in scope.daily_activities.values()
         ],
+    )
+
+
+def _project_to_response(project) -> ProjectResponse:
+    return ProjectResponse(
+        id=project.id,
+        name=project.name,
+        non_working_days=getattr(
+            project,
+            "non_working_days",
+            {"excluded_weekdays": [6, 7], "excluded_dates": []},
+        ),
     )
 
 
@@ -193,7 +206,7 @@ def create_app(
     def list_projects() -> list[ProjectResponse]:
         if auth is None:
             return []
-        return [ProjectResponse(id=p.id, name=p.name) for p in auth.list_projects()]
+        return [_project_to_response(project) for project in auth.list_projects()]
 
     @app.post("/auth/login", response_model=LoginResponse)
     def login(payload: LoginRequest, response: Response) -> LoginResponse:
@@ -210,7 +223,7 @@ def create_app(
         assert project is not None
         set_session_cookie(response, session.token)
         return LoginResponse(
-            project=ProjectResponse(id=project.id, name=project.name),
+            project=_project_to_response(project),
             quadrigramme=session.quadrigramme,
         )
 
@@ -222,9 +235,51 @@ def create_app(
             raise HTTPException(status_code=401, detail="Authentification requise.")
         user = current_user(request, auth)
         return SessionResponse(
-            project=ProjectResponse(id=user.project.id, name=user.project.name),
+            project=_project_to_response(user.project),
             quadrigramme=user.session.quadrigramme,
         )
+
+    @app.get(
+        "/project/settings",
+        response_model=ProjectResponse,
+        dependencies=[Depends(project_context)],
+    )
+    def get_project_settings(request: Request) -> ProjectResponse:
+        if auth is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Authentification requise.")
+        user = current_user(request, auth)
+        project = auth.get_project(user.project.id)
+        if project is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Projet introuvable.")
+        return _project_to_response(project)
+
+    @app.put(
+        "/project/settings",
+        response_model=ProjectResponse,
+        dependencies=[Depends(project_context)],
+    )
+    def update_project_settings(
+        request: Request, payload: NonWorkingDaysRequest
+    ) -> ProjectResponse:
+        if auth is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=401, detail="Authentification requise.")
+        user = current_user(request, auth)
+        project = auth.update_non_working_days(
+            user.project.id,
+            payload.excluded_weekdays,
+            [day.isoformat() for day in payload.excluded_dates],
+        )
+        if project is None:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=404, detail="Projet introuvable.")
+        return _project_to_response(project)
 
     @app.post("/auth/logout", status_code=204)
     def logout(request: Request, response: Response) -> None:

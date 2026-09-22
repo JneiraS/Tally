@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Activity, Plus, UploadCloud, Sun, Moon } from "lucide-react";
+import { Activity, Plus, UploadCloud, Sun, Moon, Settings } from "lucide-react";
 import { protabApi } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import { useTheme } from "../hooks/useTheme";
@@ -11,9 +11,10 @@ interface NavbarProps {
   projectName: string;
   quadrigramme: string;
   onLogout: () => void;
+  onOpenSettings: () => void;
 }
 
-export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadrigramme, onLogout }: NavbarProps) {
+export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadrigramme, onLogout, onOpenSettings }: NavbarProps) {
   const { info, success } = useToast();
   const { isNord, toggleTheme } = useTheme();
   const [isCheckingServer, setIsCheckingServer] = useState(false);
@@ -77,6 +78,16 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadri
               className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-nord-2 dark:text-nord-5 dark:hover:bg-nord-2"
             >
               Déconnexion
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-nord-2 dark:text-nord-5 dark:hover:bg-nord-2"
+              title="Configurer les jours non travaillés"
+              aria-label="Configurer les jours non travaillés"
+            >
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Jours ouvrés</span>
             </button>
             <button
               type="button"
