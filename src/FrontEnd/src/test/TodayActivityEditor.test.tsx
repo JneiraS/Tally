@@ -142,7 +142,7 @@ describe("TodayActivityEditor", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("validé aujourd'hui"), {
+    fireEvent.change(screen.getByLabelText("Incidents créés aujourd'hui"), {
       target: { value: "9" },
     });
 
