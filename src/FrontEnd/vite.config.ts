@@ -1,33 +1,33 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
-import path from 'path';
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import path from "path";
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      "@": path.resolve(__dirname, "./src"),
     },
   },
   server: {
     port: 5173,
     // Configuration du proxy dev pour éviter tout problème CORS avec le backend FastAPI (port 8000)
     proxy: {
-      '/scope-monitorings': {
-        target: 'http://localhost:8000',
+      "/scope-monitorings": {
+        target: "http://localhost:8000",
         changeOrigin: true,
         secure: false,
       },
-      '/audit-log': {
-        target: 'http://localhost:8000',
+      "/audit-log": {
+        target: "http://localhost:8000",
         changeOrigin: true,
         secure: false,
       },
-      '/project/settings': {
-        target: 'http://localhost:8000',
+      "/project/settings": {
+        target: "http://localhost:8000",
         changeOrigin: true,
         secure: false,
       },
@@ -35,7 +35,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
-    setupFiles: './src/test/setup.ts',
+    environment: "jsdom",
+    setupFiles: "./src/test/setup.ts",
   },
 });

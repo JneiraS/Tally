@@ -79,7 +79,8 @@ export function AuditLogPage() {
       const msg =
         err instanceof ApiError
           ? err.message
-          : (err as Error)?.message || "Erreur lors du chargement de l'historique.";
+          : (err as Error)?.message ||
+            "Erreur lors du chargement de l'historique.";
       setErrorMessage(msg);
       toastError("Erreur de chargement", msg);
     } finally {
@@ -236,79 +237,80 @@ export function AuditLogPage() {
                       : null;
                   return (
                     <Fragment key={event.id}>
-                    <tr
-                      className="hover:bg-slate-50/70 dark:hover:bg-nord-2/50 transition-colors"
-                    >
-                      <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-nord-4 font-mono">
-                        {formatCreatedAt(event.created_at)}
-                        {event.day ? (
-                          <span className="block mt-0.5">
-                            Jour : {formatDateFr(event.day)}
+                      <tr className="hover:bg-slate-50/70 dark:hover:bg-nord-2/50 transition-colors">
+                        <td className="px-5 py-4 whitespace-nowrap text-xs text-slate-500 dark:text-nord-4 font-mono">
+                          {formatCreatedAt(event.created_at)}
+                          {event.day ? (
+                            <span className="block mt-0.5">
+                              Jour : {formatDateFr(event.day)}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="inline-flex items-center gap-1.5 font-mono font-medium text-slate-800 dark:text-nord-5">
+                            <UserRound className="w-3.5 h-3.5 text-slate-400 dark:text-nord-3" />
+                            {event.actor ?? "Système"}
                           </span>
-                        ) : null}
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="inline-flex items-center gap-1.5 font-mono font-medium text-slate-800 dark:text-nord-5">
-                          <UserRound className="w-3.5 h-3.5 text-slate-400 dark:text-nord-3" />
-                          {event.actor ?? "Système"}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="inline-flex items-center gap-1.5 text-slate-800 dark:text-nord-5">
-                          <ActionIcon className="w-4 h-4 text-blue-600 dark:text-nord-9" />
-                          {ACTION_LABELS[event.action]}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className="text-xs font-mono text-slate-500 dark:text-nord-4">
-                          {event.scope_name ?? event.scope_id ?? "—"}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        {event.changes && Object.keys(event.changes).length > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedId(isExpanded ? null : event.id)
-                            }
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-nord-8 hover:text-blue-800 dark:hover:text-nord-7 transition-colors"
-                          >
-                            <span>{isExpanded ? "Masquer" : "Voir le détail"}</span>
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400 dark:text-nord-3">
-                            —
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="inline-flex items-center gap-1.5 text-slate-800 dark:text-nord-5">
+                            <ActionIcon className="w-4 h-4 text-blue-600 dark:text-nord-9" />
+                            {ACTION_LABELS[event.action]}
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                    {isExpanded && changes && (
-                      <tr className="border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40">
-                        <td colSpan={5} className="px-5 py-4">
-                          <div className="space-y-2">
-                            {Object.entries(changes).map(([field, diff]) => (
-                              <div
-                                key={field}
-                                className="text-xs grid grid-cols-1 sm:grid-cols-[180px_1fr_auto_1fr] gap-x-3 gap-y-1 items-center"
-                              >
-                                <span className="font-mono font-semibold text-slate-700 dark:text-nord-5">
-                                  {field}
-                                </span>
-                                <span className="line-through text-rose-600 dark:text-nord-11">
-                                  {formatValue(diff.old)}
-                                </span>
-                                <span className="hidden sm:inline text-slate-400 dark:text-nord-3">
-                                  →
-                                </span>
-                                <span className="text-emerald-700 dark:text-nord-14">
-                                  {formatValue(diff.new)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="text-xs font-mono text-slate-500 dark:text-nord-4">
+                            {event.scope_name ?? event.scope_id ?? "—"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-right">
+                          {event.changes &&
+                          Object.keys(event.changes).length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedId(isExpanded ? null : event.id)
+                              }
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-nord-8 hover:text-blue-800 dark:hover:text-nord-7 transition-colors"
+                            >
+                              <span>
+                                {isExpanded ? "Masquer" : "Voir le détail"}
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400 dark:text-nord-3">
+                              —
+                            </span>
+                          )}
                         </td>
                       </tr>
-                    )}
+                      {isExpanded && changes && (
+                        <tr className="border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40">
+                          <td colSpan={5} className="px-5 py-4">
+                            <div className="space-y-2">
+                              {Object.entries(changes).map(([field, diff]) => (
+                                <div
+                                  key={field}
+                                  className="text-xs grid grid-cols-1 sm:grid-cols-[180px_1fr_auto_1fr] gap-x-3 gap-y-1 items-center"
+                                >
+                                  <span className="font-mono font-semibold text-slate-700 dark:text-nord-5">
+                                    {field}
+                                  </span>
+                                  <span className="line-through text-rose-600 dark:text-nord-11">
+                                    {formatValue(diff.old)}
+                                  </span>
+                                  <span className="hidden sm:inline text-slate-400 dark:text-nord-3">
+                                    →
+                                  </span>
+                                  <span className="text-emerald-700 dark:text-nord-14">
+                                    {formatValue(diff.new)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </Fragment>
                   );
                 })}

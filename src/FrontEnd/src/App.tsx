@@ -27,14 +27,19 @@ export default function App() {
   const [isWorkingDaysOpen, setIsWorkingDaysOpen] = useState(false);
 
   useEffect(() => {
-    protabApi.getSession()
+    protabApi
+      .getSession()
       .then(setSession)
       .catch(() => setSession(null))
       .finally(() => setCheckingSession(false));
   }, []);
 
   if (checkingSession) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500 dark:bg-nord-0 dark:text-nord-4">Chargement...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-slate-500 dark:bg-nord-0 dark:text-nord-4">
+        Chargement...
+      </div>
+    );
   }
 
   if (!session) {
@@ -80,7 +85,10 @@ export default function App() {
                       onOpenCreateScope={() => setIsCreateScopeOpen(true)}
                       onOpenImportCsv={() => setIsImportCsvOpen(true)}
                       refreshTrigger={refreshTrigger}
-                      nonWorkingDays={session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS}
+                      nonWorkingDays={
+                        session.project.non_working_days ??
+                        DEFAULT_NON_WORKING_DAYS
+                      }
                     />
                   }
                 />
@@ -108,12 +116,20 @@ export default function App() {
 
             <WorkingDaysModal
               isOpen={isWorkingDaysOpen}
-              settings={session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS}
+              settings={
+                session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS
+              }
               onClose={() => setIsWorkingDaysOpen(false)}
               onSaved={(settings: NonWorkingDays) =>
                 setSession((current) =>
                   current
-                    ? { ...current, project: { ...current.project, non_working_days: settings } }
+                    ? {
+                        ...current,
+                        project: {
+                          ...current.project,
+                          non_working_days: settings,
+                        },
+                      }
                     : current,
                 )
               }

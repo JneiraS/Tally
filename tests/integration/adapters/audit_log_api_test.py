@@ -95,29 +95,41 @@ def test_activity_flow_records_audit_via_api(env):
         "incidents_created": 2,
         "feai": ["INC000000001", "INC000000002"],
     }
-    assert http.patch(
-        "/scope-monitorings/scope-001/activities/2026-09-19", json=payload
-    ).status_code == 204
-    assert http.patch(
-        "/scope-monitorings/scope-001/activities/2026-09-19", json=payload
-    ).status_code == 204
+    assert (
+        http.patch(
+            "/scope-monitorings/scope-001/activities/2026-09-19", json=payload
+        ).status_code
+        == 204
+    )
+    assert (
+        http.patch(
+            "/scope-monitorings/scope-001/activities/2026-09-19", json=payload
+        ).status_code
+        == 204
+    )
 
     # Création d'une activité sur un autre jour
-    assert http.post(
-        "/scope-monitorings/scope-001/activities",
-        json={
-            "day": "2026-09-20",
-            "errors_reported": 1,
-            "incidents_created": 0,
-            "feai": [],
-        },
-    ).status_code == 201
+    assert (
+        http.post(
+            "/scope-monitorings/scope-001/activities",
+            json={
+                "day": "2026-09-20",
+                "errors_reported": 1,
+                "incidents_created": 0,
+                "feai": [],
+            },
+        ).status_code
+        == 201
+    )
 
     # Complétion d'un jour
-    assert http.post(
-        "/scope-monitorings/scope-001/activities/complete",
-        json={"days": ["2026-09-19"]},
-    ).status_code == 204
+    assert (
+        http.post(
+            "/scope-monitorings/scope-001/activities/complete",
+            json={"days": ["2026-09-19"]},
+        ).status_code
+        == 204
+    )
 
     events = all_events(audit)
     actions = [event.action for event in events]
@@ -163,11 +175,20 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
         events[0].keys()
     )
 
-    filtered = http.get("/audit-log", params={"action": "activity_created"})
+    filtered = http.get(
+        "/audit-log",
+        params={"action": "activity_created"},
+    )
     assert filtered.status_code == 200
     assert filtered.json() == []
 
-    assert http.get("/audit-log", params={"actor": "ZZZZ"}).json() == []
+    assert (
+        http.get(
+            "/audit-log",
+            params={"actor": "ZZZZ"},
+        ).json()
+        == []
+    )
 
 
 def test_get_audit_log_limit(env):
@@ -185,5 +206,8 @@ def test_get_audit_log_limit(env):
             ],
         )
 
-    events = http.get("/audit-log", params={"limit": 2}).json()
+    events = http.get(
+        "/audit-log",
+        params={"limit": 2},
+    ).json()
     assert len(events) == 2
