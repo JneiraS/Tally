@@ -21,11 +21,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/audit-log": {
-        target: "http://localhost:8000",
-        changeOrigin: true,
-        secure: false,
-      },
+      "/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log":
+        {
+          target: "http://localhost:8000",
+          changeOrigin: true,
+          secure: false,
+        },
       "/project/settings": {
         target: "http://localhost:8000",
         changeOrigin: true,
