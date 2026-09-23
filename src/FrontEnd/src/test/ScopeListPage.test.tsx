@@ -18,6 +18,7 @@ vi.mock('../services/api', async (importOriginal) => {
       ...actual.protabApi,
       getScopeMonitorings: vi.fn(),
       createActivity: vi.fn(),
+      updateActivity: vi.fn(),
       completeActivities: vi.fn(),
       checkBackendHealth: vi.fn().mockResolvedValue(true),
     },
@@ -83,9 +84,17 @@ describe('ScopeListPage Component', () => {
     const kbLink = within(screen.getByRole('table')).getByText('KB-TEST-0001').closest('a');
     expect(kbLink).toHaveAttribute('href', `${KNOWLEDGE_BASE_URL}KB-TEST-0001`);
     expect(kbLink).toHaveAttribute('target', '_blank');
+
+    const nameLink = within(screen.getByRole('table')).getByRole('link', { name: 'Scope Alpha Test' });
+    expect(nameLink).toHaveAttribute('href', '/scopes/123e4567-e89b-12d3-a456-426614174000');
+
+    const detailRow = within(screen.getByRole('table')).getByRole('link', {
+      name: 'Ouvrir le détail de Scope Alpha Test',
+    });
+    expect(detailRow).toBeInTheDocument();
   });
 
-  it('affiche les KPI compacts (couverture, baseline, transformation, FEAI)', async () => {
+  it('affiche les KPI action-first (à traiter, terminés, erreurs, incidents)', async () => {
     const mockScopes = [
       {
         id: '123e4567-e89b-12d3-a456-426614174000',
@@ -123,12 +132,14 @@ describe('ScopeListPage Component', () => {
       expect(within(screen.getByRole('table')).getByText('Scope Alpha Test')).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/Couverture 7 j ouvrés : 0 %/)).toBeInTheDocument();
-    expect(screen.getByText(/Δ baseline \(7 j ouvrés\) : —/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/50 % des erreurs · 1 non transformée/)
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Σ FEAI : 1/)).toBeInTheDocument();
+    expect(screen.getByText('1 en cours · 0 non saisis')).toBeInTheDocument();
+    expect(screen.getByText('0 / 1')).toBeInTheDocument();
+    expect(screen.getByText('Erreurs du jour')).toBeInTheDocument();
+    expect(screen.getByText('Incidents à suivre')).toBeInTheDocument();
+    expect(screen.getByText(/vs baseline \(7 j\) : —/)).toBeInTheDocument();
+    expect(screen.getByText('1 non transformé')).toBeInTheDocument();
+    expect(screen.queryByText(/Couverture 7 j ouvrés/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Σ FEAI : 1/)).not.toBeInTheDocument();
   });
 
   it('affiche un message d\'erreur lorsque l\'API échoue', async () => {
@@ -153,62 +164,7 @@ describe('ScopeListPage Component', () => {
     });
   });
 
-  it('le filtre "En cours" n\'affiche pas les périmètres "Non saisi"', async () => {
-    const mockScopes = [
-      {
-        id: '111e4567-e89b-12d3-a456-426614174001',
-        name: 'Scope En Cours Filtre',
-        knowledge_base_id: 'KB-FILTRE-01',
-        official_main: 'Alice',
-        official_backup: 'Bob',
-        daily_activities: [
-          {
-            day: '2026-09-19',
-            errors_reported: 2,
-            incidents_created: 1,
-            feai: ['INC000000001'],
-            handled: false,
-            completed: false,
-          },
-        ],
-      },
-      {
-        id: '222e4567-e89b-12d3-a456-426614174002',
-        name: 'Scope Non Saisi Filtre',
-        knowledge_base_id: 'KB-FILTRE-02',
-        official_main: 'Carol',
-        official_backup: 'Dave',
-        daily_activities: [],
-      },
-    ];
-
-    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
-
-    render(
-      <BrowserRouter>
-        <ToastProvider>
-          <ScopeListPage
-            onOpenCreateScope={vi.fn()}
-            onOpenImportCsv={vi.fn()}
-          />
-        </ToastProvider>
-      </BrowserRouter>
-    );
-
-    await waitFor(() => {
-      expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
-      expect(within(screen.getByRole('table')).getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /^En cours/ }));
-
-    expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
-    expect(
-      within(screen.getByRole('table')).queryByText('Scope Non Saisi Filtre')
-    ).not.toBeInTheDocument();
-  });
-
-  it('le filtre "Non saisi" n\'affiche que les périmètres sans activité', async () => {
+  it('le filtre "À traiter" conserve "En cours" et "Non saisi" mais masque "Terminé"', async () => {
     const mockScopes = [
       {
         id: '111e4567-e89b-12d3-a456-426614174001',
@@ -273,14 +229,150 @@ describe('ScopeListPage Component', () => {
       expect(within(screen.getByRole('table')).getByText('Scope Terminé Filtre')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /^Non saisi/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^À traiter/ }));
 
+    expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
     expect(within(screen.getByRole('table')).getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
     expect(
-      within(screen.getByRole('table')).queryByText('Scope En Cours Filtre')
-    ).not.toBeInTheDocument();
-    expect(
       within(screen.getByRole('table')).queryByText('Scope Terminé Filtre')
+    ).not.toBeInTheDocument();
+  });
+
+  it('le filtre "Erreurs" n\'affiche que les périmètres avec erreurs signalées', async () => {
+    const mockScopes = [
+      {
+        id: '111e4567-e89b-12d3-a456-426614174001',
+        name: 'Scope Avec Erreurs',
+        knowledge_base_id: 'KB-FILTRE-01',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+      {
+        id: '222e4567-e89b-12d3-a456-426614174002',
+        name: 'Scope Non Saisi Filtre',
+        knowledge_base_id: 'KB-FILTRE-02',
+        official_main: 'Carol',
+        official_backup: 'Dave',
+        daily_activities: [],
+      },
+      {
+        id: '333e4567-e89b-12d3-a456-426614174003',
+        name: 'Scope Terminé Filtre',
+        knowledge_base_id: 'KB-FILTRE-03',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope Avec Erreurs')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Non Saisi Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Terminé Filtre')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Erreurs/ }));
+
+    expect(within(screen.getByRole('table')).getByText('Scope Avec Erreurs')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Scope Terminé Filtre')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('table')).queryByText('Scope Non Saisi Filtre')
+    ).not.toBeInTheDocument();
+  });
+
+  it('le filtre "Terminés" n\'affiche que les périmètres complétés', async () => {
+    const mockScopes = [
+      {
+        id: '111e4567-e89b-12d3-a456-426614174001',
+        name: 'Scope En Cours Filtre',
+        knowledge_base_id: 'KB-FILTRE-01',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+      {
+        id: '333e4567-e89b-12d3-a456-426614174003',
+        name: 'Scope Terminé Filtre',
+        knowledge_base_id: 'KB-FILTRE-03',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope En Cours Filtre')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Scope Terminé Filtre')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Terminés/ }));
+
+    expect(within(screen.getByRole('table')).getByText('Scope Terminé Filtre')).toBeInTheDocument();
+    expect(
+      within(screen.getByRole('table')).queryByText('Scope En Cours Filtre')
     ).not.toBeInTheDocument();
   });
 
@@ -321,10 +413,10 @@ describe('ScopeListPage Component', () => {
 
     await waitFor(() => {
       expect(within(screen.getByRole('table')).getByText('Scope En Cours')).toBeInTheDocument();
-      expect(screen.getByText('En cours')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('En cours')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Marquer Terminé/i }));
+    fireEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /Marquer Terminé/i }));
 
     await waitFor(() => {
       expect(protabApi.completeActivities).toHaveBeenCalledWith(
@@ -335,9 +427,9 @@ describe('ScopeListPage Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Terminé')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Terminé')).toBeInTheDocument();
       expect(
-        screen.queryByRole('button', { name: /Marquer Terminé/i })
+        within(screen.getByRole('table')).queryByRole('button', { name: /Marquer Terminé/i })
       ).not.toBeInTheDocument();
     });
   });
@@ -371,10 +463,10 @@ describe('ScopeListPage Component', () => {
 
     await waitFor(() => {
       expect(within(screen.getByRole('table')).getByText('Scope Non Saisi')).toBeInTheDocument();
-      expect(screen.getByText('Non saisi')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Non saisi')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Marquer Terminé/i }));
+    fireEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /Marquer Terminé/i }));
 
     await waitFor(() => {
       expect(protabApi.createActivity).toHaveBeenCalledWith(
@@ -388,7 +480,7 @@ describe('ScopeListPage Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Terminé')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Terminé')).toBeInTheDocument();
     });
   });
 
@@ -433,7 +525,7 @@ describe('ScopeListPage Component', () => {
       expect(within(screen.getByRole('table')).getByText('Scope Erreur')).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /Marquer Terminé/i }));
+    fireEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /Marquer Terminé/i }));
 
     await waitFor(() => {
       expect(protabApi.completeActivities).toHaveBeenCalledWith(
@@ -443,10 +535,126 @@ describe('ScopeListPage Component', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('En cours')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('En cours')).toBeInTheDocument();
       expect(
-        screen.getByRole('button', { name: /Marquer Terminé/i })
+        within(screen.getByRole('table')).getByRole('button', { name: /Marquer Terminé/i })
       ).toBeInTheDocument();
     });
+  });
+
+  it('saisit des erreurs/incidents sur une ligne "Non saisi" et crée l\'activité en autosave', async () => {
+    const mockScopes = [
+      {
+        id: '987e6543-e21b-23c4-a456-426614174000',
+        name: 'Scope Nouvelle Saisie',
+        knowledge_base_id: 'KB-SAISIE-01',
+        official_main: 'Charlie',
+        official_backup: 'Dana',
+        daily_activities: [],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+    vi.mocked(protabApi.createActivity).mockResolvedValueOnce(undefined);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope Nouvelle Saisie')).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      within(screen.getByRole('table')).getByLabelText(/Erreurs signalées/),
+      { target: { value: '3' } }
+    );
+    fireEvent.change(
+      within(screen.getByRole('table')).getByLabelText(/Incidents créés/),
+      { target: { value: '1' } }
+    );
+
+    await waitFor(
+      () => {
+        expect(protabApi.createActivity).toHaveBeenCalledWith(
+          '987e6543-e21b-23c4-a456-426614174000',
+          { day: '2026-09-19', errors_reported: 3, incidents_created: 1, feai: [] }
+        );
+      },
+      { timeout: 3000 }
+    );
+    expect(protabApi.updateActivity).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Enregistré')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('En cours')).toBeInTheDocument();
+    });
+  });
+
+  it('modifie les erreurs d\'un jour existant via updateActivity en autosave', async () => {
+    const mockScopes = [
+      {
+        id: 'acbd1234-e21b-23c4-a456-426614174000',
+        name: 'Scope Existant',
+        knowledge_base_id: 'KB-EXISTANT-01',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+    vi.mocked(protabApi.updateActivity).mockResolvedValueOnce(undefined);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope Existant')).toBeInTheDocument();
+    });
+
+    fireEvent.change(
+      within(screen.getByRole('table')).getByLabelText(/Erreurs signalées/),
+      { target: { value: '5' } }
+    );
+
+    await waitFor(
+      () => {
+        expect(protabApi.updateActivity).toHaveBeenCalledWith(
+          'acbd1234-e21b-23c4-a456-426614174000',
+          '2026-09-19',
+          { errors_reported: 5, incidents_created: 1, feai: ['INC000000001'] }
+        );
+      },
+      { timeout: 3000 }
+    );
+    expect(
+      within(screen.getByRole('table')).queryByText('Scope Nouvelle Saisie')
+    ).not.toBeInTheDocument();
+    expect(protabApi.createActivity).not.toHaveBeenCalled();
   });
 });

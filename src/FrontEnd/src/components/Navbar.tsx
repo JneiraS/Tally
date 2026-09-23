@@ -1,6 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Activity, Plus, UploadCloud, Sun, Moon, Settings } from "lucide-react";
+import {
+  Activity,
+  Plus,
+  UploadCloud,
+  Sun,
+  Moon,
+  Settings,
+  ChevronDown,
+  LogOut,
+  UserRound,
+} from "lucide-react";
 import { protabApi } from "../services/api";
 import { useToast } from "../hooks/useToast";
 import { useTheme } from "../hooks/useTheme";
@@ -14,11 +24,20 @@ interface NavbarProps {
   onOpenSettings: () => void;
 }
 
-export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadrigramme, onLogout, onOpenSettings }: NavbarProps) {
+export function Navbar({
+  onOpenCreateScope,
+  onOpenImportCsv,
+  projectName,
+  quadrigramme,
+  onLogout,
+  onOpenSettings,
+}: NavbarProps) {
   const { info, success } = useToast();
   const { isNord, toggleTheme } = useTheme();
   const [isCheckingServer, setIsCheckingServer] = useState(false);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const checkStatus = async () => {
     setIsCheckingServer(true);
@@ -38,6 +57,28 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadri
   useEffect(() => {
     checkStatus();
   }, []);
+
+  // Fermeture du menu utilisateur (clic extérieur ou touche Échap)
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsUserMenuOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isUserMenuOpen]);
 
   return (
     <header className="bg-white dark:bg-nord-0/95 border-b border-slate-200 dark:border-nord-2 sticky top-0 z-40 transition-colors backdrop-blur-md">
@@ -66,19 +107,51 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadri
             </Link>
           </div>
 
-          {/* Actions & Indicateur API */}
+          {/* Actions & Menu utilisateur */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden lg:block text-right text-xs">
-              <p className="font-semibold text-slate-700 dark:text-nord-5">{projectName}</p>
-              <p className="text-slate-500 dark:text-nord-4">{quadrigramme}</p>
+            {/* Utilisateur connecté */}
+            <div className="relative" ref={userMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsUserMenuOpen((open) => !open)}
+                aria-expanded={isUserMenuOpen}
+                aria-haspopup="menu"
+                className="inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1.5 text-xs sm:text-sm font-medium text-slate-700 dark:text-nord-5 bg-white dark:bg-nord-1 hover:bg-slate-50 dark:hover:bg-nord-2 border border-slate-300 dark:border-nord-2 rounded-lg shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8"
+              >
+                <span className="inline-flex items-center justify-center w-7 h-7 rounded-md bg-blue-600 dark:bg-nord-9 text-white text-[10px] font-bold uppercase truncate max-w-[4.5rem]">
+                  {quadrigramme || <UserRound className="w-4 h-4" />}
+                </span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 dark:text-nord-3 transition-transform ${isUserMenuOpen ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {isUserMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-60 bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-lg overflow-hidden z-50"
+                >
+                  <div className="px-4 py-3 border-b border-slate-100 dark:border-nord-2">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-nord-6 truncate">
+                      {projectName}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-nord-4 font-mono uppercase truncate">
+                      {quadrigramme}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={onLogout}
+                    className="w-full inline-flex items-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-medium text-rose-700 dark:text-nord-11 hover:bg-rose-50 dark:hover:bg-nord-2 transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Déconnexion
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={onLogout}
-              className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-nord-2 dark:text-nord-5 dark:hover:bg-nord-2"
-            >
-              Déconnexion
-            </button>
+
             <button
               type="button"
               onClick={onOpenSettings}
@@ -89,6 +162,7 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadri
               <Settings className="h-4 w-4" />
               <span className="hidden sm:inline">Jours ouvrés</span>
             </button>
+
             <button
               type="button"
               onClick={toggleTheme}
@@ -105,16 +179,11 @@ export function Navbar({ onOpenCreateScope, onOpenImportCsv, projectName, quadri
               }
             >
               {isNord ? (
-                <>
-                  <Sun className="w-4 h-4 text-nord-13" />
-                  <span className="hidden sm:inline">Clair</span>
-                </>
+                <Sun className="w-4 h-4 text-nord-13" />
               ) : (
-                <>
-                  <Moon className="w-4 h-4 text-nord-10" />
-                  <span className="hidden sm:inline">Nord</span>
-                </>
+                <Moon className="w-4 h-4 text-nord-10" />
               )}
+              <span className="hidden sm:inline">Thème</span>
             </button>
 
             {/* Boutons d'action rapides */}

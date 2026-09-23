@@ -1,5 +1,5 @@
 import { Calendar, ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
-import { formatDateFr } from '../utils/date';
+import { isValidIsoDate } from '../utils/date';
 
 interface DateNavigatorProps {
   value: string;
@@ -15,13 +15,41 @@ function shiftDay(day: string, amount: number): string {
     .join('-');
 }
 
+function formatDayMonthFr(isoDate: string): string {
+  if (!isValidIsoDate(isoDate)) return isoDate;
+  const [year, month, date] = isoDate.split('-').map(Number);
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, date));
+}
+
+function formatWeekdayFr(isoDate: string): string {
+  if (!isValidIsoDate(isoDate)) return isoDate;
+  const [year, month, date] = isoDate.split('-').map(Number);
+  const weekday = new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'long',
+  }).format(new Date(year, month - 1, date));
+  return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+}
+
 export function DateNavigator({ value, today, onChange }: DateNavigatorProps) {
   const isToday = value === today;
+  const isYesterday = !isToday && value === shiftDay(today, -1);
   const changeDay = (day: string) => {
     if (/^\d{4}-\d{2}-\d{2}$/.test(day) && day <= today) {
       onChange(day);
     }
   };
+
+  const mainLabel = isToday
+    ? "Aujourd'hui"
+    : isYesterday
+      ? 'Hier'
+      : formatWeekdayFr(value);
+  const subLabel = formatDayMonthFr(value);
+  const fullLabel = `${mainLabel} · ${subLabel}`;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 p-1 shadow-2xs">
@@ -35,16 +63,27 @@ export function DateNavigator({ value, today, onChange }: DateNavigatorProps) {
         <ChevronLeft className="h-4 w-4" />
       </button>
 
-      <label className="inline-flex items-center gap-1.5 px-1 text-xs font-semibold text-slate-700 dark:text-nord-5">
-        <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-nord-8" aria-hidden="true" />
+      <label className="relative inline-flex items-center gap-1.5 rounded-md py-1 pl-2 pr-3 text-left focus-within:ring-2 focus-within:ring-blue-500 dark:focus-within:ring-nord-8 cursor-pointer">
+        <Calendar
+          className="h-3.5 w-3.5 text-blue-600 dark:text-nord-8"
+          aria-hidden="true"
+        />
         <span className="sr-only">Jour affiché</span>
+        <span className="flex flex-col leading-tight">
+          <span className="text-xs font-semibold text-slate-700 dark:text-nord-5">
+            {mainLabel}
+          </span>
+          <span className="text-[10px] text-slate-500 dark:text-nord-4">
+            {subLabel}
+          </span>
+        </span>
         <input
           type="date"
           value={value}
           max={today}
           onChange={(event) => changeDay(event.target.value)}
-          className="min-w-[8.5rem] bg-transparent text-xs font-semibold text-slate-700 dark:text-nord-5 focus:outline-none"
-          aria-label={`Jour affiché : ${formatDateFr(value)}`}
+          aria-label={`Jour affiché : ${fullLabel}`}
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         />
       </label>
 

@@ -22,6 +22,8 @@ import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } 
 import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
 import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
+import { TodayActivityEditor } from '../components/TodayActivityEditor';
+import { DateNavigator } from '../components/DateNavigator';
 import { useToast } from '../hooks/useToast';
 
 const ScopeDetailCharts = lazy(() =>
@@ -48,6 +50,24 @@ export function ScopeDetailPage() {
   const [isCompletingBatch, setIsCompletingBatch] = useState(false);
 
   const todayIso = getTodayIsoDate();
+
+  // Jour affiché dans l'éditeur d'activité en ligne
+  const [editorDay, setEditorDay] = useState(todayIso);
+
+  const editorActivity = useMemo(() => {
+    return scope?.daily_activities.find((a) => a.day === editorDay) ?? null;
+  }, [scope?.daily_activities, editorDay]);
+
+  const handleActivityChanged = (
+    _scopeId: string,
+    activity: DailyActivity,
+  ) => {
+    setScope((prev) => {
+      if (!prev) return prev;
+      const others = prev.daily_activities.filter((a) => a.day !== activity.day);
+      return { ...prev, daily_activities: [...others, activity] };
+    });
+  };
 
   const fetchScopeDetail = async () => {
     if (!id) return;
@@ -316,6 +336,34 @@ export function ScopeDetailPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* Activité du jour — édition en ligne  */}
+      <div className="bg-white dark:bg-nord-1 rounded-2xl border border-slate-200 dark:border-nord-2 p-5 sm:p-6 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-nord-6 flex items-center gap-2">
+              <FileCheck2 className="w-4 h-4 text-blue-600 dark:text-nord-8" />
+              Activité du jour
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-nord-4">
+              Saisie en ligne — sauvegarde automatique de l'activité quotidienne
+            </p>
+          </div>
+          <DateNavigator
+            value={editorDay}
+            today={todayIso}
+            onChange={setEditorDay}
+          />
+        </div>
+
+        <TodayActivityEditor
+          key={editorDay}
+          scopeId={scope.id}
+          day={editorDay}
+          initialActivity={editorActivity}
+          onChanged={handleActivityChanged}
+        />
       </div>
 
       {/* Tendance du périmètre, placée avant le détail jour par jour */}
