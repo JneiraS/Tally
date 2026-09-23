@@ -38,6 +38,23 @@ export function getTodayIsoDate(): string {
 }
 
 /**
+ * Ajoute un nombre donné de jours à une date ISO, en évitant les décalages de fuseau horaire.
+ */
+export function addDaysIso(isoDate: string, days: number): string {
+  if (!isValidIsoDate(isoDate)) return isoDate;
+  const [yearStr, monthStr, dayStr] = isoDate.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  const day = parseInt(dayStr, 10);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+/**
  * Formate une date YYYY-MM-DD en format français standard (ex: "19 sept. 2026").
  */
 export function formatDateFr(isoDate: string): string {

@@ -657,4 +657,56 @@ describe('ScopeListPage Component', () => {
     ).not.toBeInTheDocument();
     expect(protabApi.createActivity).not.toHaveBeenCalled();
   });
+
+  it('ouvre la modale d\'export depuis le bouton Exporter de l\'en-tête', async () => {
+    const mockScopes = [
+      {
+        id: '9922e4567-e89b-12d3-a456-426614174000',
+        name: 'Scope Export',
+        knowledge_base_id: 'KB-EXPORT-01',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope Export')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Exporter/i }));
+
+    expect(
+      screen.getByRole('heading', { name: /Exporter les données/i })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('heading', { name: /Exporter les données/i })
+      ).not.toBeInTheDocument();
+    });
+  });
 });

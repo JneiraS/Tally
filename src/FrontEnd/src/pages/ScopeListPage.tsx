@@ -12,6 +12,7 @@ import {
   Users,
   Activity as ActivityIcon,
   Inbox,
+  Download,
 } from "lucide-react";
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
@@ -27,6 +28,7 @@ import {
 import { useToast } from "../hooks/useToast";
 import { DateNavigator } from "../components/DateNavigator";
 import { InlineActivityCounters } from "../components/InlineActivityCounters";
+import { ExportModal } from "../components/ExportModal";
 
 const DashboardCharts = lazy(() =>
   import("../components/DashboardCharts").then((m) => ({
@@ -67,6 +69,7 @@ export function ScopeListPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [completingIds, setCompletingIds] = useState<string[]>([]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const todayIso = getTodayIsoDate();
   const [selectedDay, setSelectedDay] = useState(todayIso);
@@ -289,6 +292,16 @@ export function ScopeListPage({
             today={todayIso}
             onChange={setSelectedDay}
           />
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            disabled={scopes.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 dark:text-nord-5 bg-white dark:bg-nord-1 hover:bg-slate-50 dark:hover:bg-nord-2 border border-slate-300 dark:border-nord-2 rounded-lg shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Exporter les données sur une plage de dates"
+          >
+            <Download className="w-4 h-4 text-blue-600 dark:text-nord-8" />
+            <span>Exporter</span>
+          </button>
           <button
             type="button"
             onClick={fetchScopes}
@@ -787,6 +800,15 @@ export function ScopeListPage({
           </ul>
         </>
       )}
+
+      {/* Modale d'export des données */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        scopes={scopes}
+        filteredScopes={filteredScopes}
+        filteredCount={filteredScopes.length}
+      />
     </div>
   );
 }
