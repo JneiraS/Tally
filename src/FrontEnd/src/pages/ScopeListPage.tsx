@@ -52,7 +52,6 @@ interface EnrichedScope extends ScopeMonitoring {
   status: "completed" | "in_progress" | "none";
   selectedDayErrors: number;
   selectedDayIncidents: number;
-  feaiCount: number;
 }
 
 export function ScopeListPage({
@@ -177,7 +176,6 @@ export function ScopeListPage({
         status,
         selectedDayErrors: selectedActivity?.errors_reported || 0,
         selectedDayIncidents: selectedActivity?.incidents_created || 0,
-        feaiCount: selectedActivity?.feai.length || 0,
       };
     });
   }, [scopes, selectedDay]);
@@ -620,17 +618,6 @@ export function ScopeListPage({
                           initialActivity={scope.selectedActivity}
                           onChanged={handleActivityChanged}
                         />
-                        <p className="mt-1.5 pl-0.5">
-                          <span
-                            className={
-                              scope.feaiCount > 0
-                                ? "text-[11px] font-mono font-medium text-blue-600 dark:text-nord-8"
-                                : "text-[11px] text-slate-400 dark:text-nord-3"
-                            }
-                          >
-                            {scope.feaiCount} réf. FEAI
-                          </span>
-                        </p>
                       </td>
 
                       {/* Statut & action de complétion */}
@@ -755,17 +742,6 @@ export function ScopeListPage({
                     initialActivity={scope.selectedActivity}
                     onChanged={handleActivityChanged}
                   />
-                  <p className="mt-1.5 pl-0.5">
-                    <span
-                      className={
-                        scope.feaiCount > 0
-                          ? "text-[11px] font-mono font-medium text-blue-600 dark:text-nord-8"
-                          : "text-[11px] text-slate-400 dark:text-nord-3"
-                      }
-                    >
-                      {scope.feaiCount} réf. FEAI
-                    </span>
-                  </p>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-nord-2">

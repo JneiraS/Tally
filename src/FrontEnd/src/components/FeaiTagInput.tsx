@@ -64,6 +64,7 @@ export function FeaiTagInput({
             <button
               type="button"
               onClick={() => onChange(values.filter((c) => c !== code))}
+              aria-label={`Supprimer la référence ${code}`}
               className="text-slate-400 hover:text-rose-600 dark:text-nord-3 dark:hover:text-nord-11"
             >
               <X className="w-2.5 h-2.5" />

@@ -709,4 +709,178 @@ describe('ScopeListPage Component', () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  it('ajoute une référence FEAI sur un jour existant via updateActivity en autosave', async () => {
+    const mockScopes = [
+      {
+        id: '55551234-e21b-23c4-a456-426614174000',
+        name: 'Scope FEAI Existant',
+        knowledge_base_id: 'KB-FEAI-01',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+    vi.mocked(protabApi.updateActivity).mockResolvedValueOnce(undefined);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope FEAI Existant')).toBeInTheDocument();
+    });
+
+    const feaiInput = within(screen.getByRole('table')).getByLabelText('Ajouter une référence FEAI');
+    fireEvent.change(feaiInput, { target: { value: 'inc000000002' } });
+    fireEvent.keyDown(feaiInput, { key: 'Enter' });
+
+    await waitFor(
+      () => {
+        expect(protabApi.updateActivity).toHaveBeenCalledWith(
+          '55551234-e21b-23c4-a456-426614174000',
+          '2026-09-19',
+          {
+            errors_reported: 2,
+            incidents_created: 1,
+            feai: ['INC000000001', 'INC000000002'],
+          }
+        );
+      },
+      { timeout: 3000 }
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Enregistré')).toBeInTheDocument();
+    });
+    expect(protabApi.createActivity).not.toHaveBeenCalled();
+  });
+
+  it('ajoute une référence FEAI sur un jour non saisi via createActivity en autosave', async () => {
+    const mockScopes = [
+      {
+        id: '66664321-e21b-23c4-a456-426614174000',
+        name: 'Scope FEAI Nouveau',
+        knowledge_base_id: 'KB-FEAI-02',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+    vi.mocked(protabApi.createActivity).mockResolvedValueOnce(undefined);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope FEAI Nouveau')).toBeInTheDocument();
+    });
+
+    const feaiInput = within(screen.getByRole('table')).getByLabelText('Ajouter une référence FEAI');
+    fireEvent.change(feaiInput, { target: { value: 'INC000000007' } });
+    fireEvent.keyDown(feaiInput, { key: 'Enter' });
+
+    await waitFor(
+      () => {
+        expect(protabApi.createActivity).toHaveBeenCalledWith(
+          '66664321-e21b-23c4-a456-426614174000',
+          {
+            day: '2026-09-19',
+            errors_reported: 0,
+            incidents_created: 0,
+            feai: ['INC000000007'],
+          }
+        );
+      },
+      { timeout: 3000 }
+    );
+  });
+
+  it('supprime une référence FEAI via la croix et sauvegarde via updateActivity', async () => {
+    const mockScopes = [
+      {
+        id: '77774321-e21b-23c4-a456-426614174000',
+        name: 'Scope FEAI Suppression',
+        knowledge_base_id: 'KB-FEAI-03',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-19',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: ['INC000000001'],
+            handled: true,
+            completed: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+    vi.mocked(protabApi.updateActivity).mockResolvedValueOnce(undefined);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope FEAI Suppression')).toBeInTheDocument();
+    });
+
+    const removeButton = within(screen.getByRole('table')).getByRole('button', {
+      name: 'Supprimer la référence INC000000001',
+    });
+    fireEvent.click(removeButton);
+
+    await waitFor(
+      () => {
+        expect(protabApi.updateActivity).toHaveBeenCalledWith(
+          '77774321-e21b-23c4-a456-426614174000',
+          '2026-09-19',
+          {
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: [],
+          }
+        );
+      },
+      { timeout: 3000 }
+    );
+  });
 });

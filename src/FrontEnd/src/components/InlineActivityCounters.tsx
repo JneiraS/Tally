@@ -3,6 +3,7 @@ import { Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { validateActivityForm } from "../utils/validation";
+import { FeaiTagInput } from "./FeaiTagInput";
 
 const DEBOUNCE_MS = 800;
 
@@ -18,6 +19,7 @@ interface InlineActivityCountersProps {
 interface ValueSnapshot {
   errorsReported: string;
   incidentsCreated: string;
+  feai: string[];
 }
 
 export function InlineActivityCounters({
@@ -32,13 +34,18 @@ export function InlineActivityCounters({
   const [incidentsCreated, setIncidentsCreated] = useState<string>(
     String(initialActivity?.incidents_created ?? 0),
   );
+  const [feai, setFeai] = useState<string[]>(initialActivity?.feai ?? []);
   const [status, setStatus] = useState<SaveStatus>(
     initialActivity ? "saved" : "idle",
   );
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const valuesRef = useRef<ValueSnapshot>({ errorsReported, incidentsCreated });
-  valuesRef.current = { errorsReported, incidentsCreated };
+  const valuesRef = useRef<ValueSnapshot>({
+    errorsReported,
+    incidentsCreated,
+    feai,
+  });
+  valuesRef.current = { errorsReported, incidentsCreated, feai };
 
   const existsRef = useRef<boolean>(!!initialActivity);
   const lastSavedRef = useRef<string>("");
@@ -61,7 +68,7 @@ export function InlineActivityCounters({
         day,
         errors_reported: values.errorsReported,
         incidents_created: values.incidentsCreated,
-        feai: initialActivity?.feai ?? [],
+        feai: values.feai,
       },
       { isCreation: false },
     );
@@ -81,7 +88,7 @@ export function InlineActivityCounters({
     const payload = {
       errors_reported: Number(values.errorsReported),
       incidents_created: Number(values.incidentsCreated),
-      feai: initialActivity?.feai ?? [],
+      feai: values.feai.map((code) => code.trim()),
     };
 
     savingRef.current = true;
@@ -166,11 +173,11 @@ export function InlineActivityCounters({
           day,
           errors_reported: errorsReported,
           incidents_created: incidentsCreated,
-          feai: initialActivity?.feai ?? [],
+          feai,
         },
         { isCreation: false },
       ),
-    [day, errorsReported, incidentsCreated, initialActivity],
+    [day, errorsReported, incidentsCreated, feai],
   );
 
   const isValidLive = validation.isValid;
@@ -181,7 +188,7 @@ export function InlineActivityCounters({
 
   return (
     <div
-      className="flex flex-col gap-1 min-w-[180px] text-left"
+      className="flex flex-col gap-1 min-w-[220px] text-left"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -231,6 +238,16 @@ export function InlineActivityCounters({
           />
         </label>
       </div>
+
+      {/* Références FEAI / FE */}
+      <FeaiTagInput
+        values={feai}
+        onChange={(next) => {
+          setFeai(next);
+          scheduleSave();
+        }}
+        errorMessage={validation.errors.feai}
+      />
 
       <div className="flex items-center gap-1 min-h-4">
         {status === "saving" && (
