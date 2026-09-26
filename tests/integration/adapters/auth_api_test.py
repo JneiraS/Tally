@@ -138,3 +138,34 @@ def test_project_settings_reject_invalid_weekday():
         json={"excluded_weekdays": [0], "excluded_dates": []},
     )
     assert response.status_code == 422
+
+
+def login_and_read_session_cookie() -> str:
+    client = TestClient(
+        create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository())
+    )
+    response = client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+    assert response.status_code == 200
+    return response.headers["set-cookie"]
+
+
+def test_session_cookie_is_httponly_and_samesite_lax():
+    cookie = login_and_read_session_cookie()
+
+    assert "httponly" in cookie.lower()
+    assert "samesite=lax" in cookie.lower()
+
+
+def test_session_cookie_omits_secure_over_plain_http(monkeypatch):
+    monkeypatch.delenv("PROTAB_COOKIE_SECURE", raising=False)
+
+    assert "secure" not in login_and_read_session_cookie().lower()
+
+
+def test_session_cookie_is_secure_when_configured(monkeypatch):
+    monkeypatch.setenv("PROTAB_COOKIE_SECURE", "1")
+
+    assert "secure" in login_and_read_session_cookie().lower()

@@ -1066,21 +1066,80 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
     en exceptions de domaine par l'adapter.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
+- La table `scope_monitorings` impose une clé étrangère `project_id -> projects.id` avec suppression en
+  cascade, comme `auth_sessions` et `daily_activities`. L'adapter applique cette contrainte de façon
+  idempotente au démarrage pour les bases existantes ; toute réparation de données doit donc restaurer un
+  `project_id` valide avant de l'ajouter.
 - L'API de production utilise une session HTTP-only et filtre les périmètres par `project_id` ; les routes
   métier sont protégées par l'authentification projet/quadrigramme.
+- **Isolation multi-tenant par défaut** : le projet courant est porté par un `ContextVar` posé par la
+  dépendance `project_context`. Les adaptateurs PostgreSQL appellent `require_current_project()` et
+  lèvent `MissingProjectContextError` si le contexte est absent — aucun repli sur un projet par défaut.
+  Toute requête SQL d'un adapter doit filtrer sur `project_id` **sans condition**.
+- **Allowlist de routes** : l'authentification est activée par la dépendance `project_context`, donc une
+  nouvelle route qui l'oublierait fuiterait entre tenants. `tests/integration/adapters/route_authorization_test.py`
+  inverse la polarité : seules les routes de `PUBLIC_ROUTES` (`/healthz`, `/projects`, `/auth/*`, docs)
+  peuvent être non authentifiées. Ajouter une route publique = ajouter son chemin à cette liste.
+- **Chemins d'API** : déclarés une seule fois côté front dans `src/FrontEnd/src/constants/routes.ts`
+  (`AUDIT_LOG_PATH`) et symétriquement dans `app.py` / `nginx.conf` / `vite.config.ts`. Ne pas restaurer
+  l'ancien chemin haché `6d857a9d…-log` : la sécurité repose sur le cookie de session, pas sur l'opacité
+  du chemin. Le journal d'audit est ainsi `GET /audit-log`.
 
 ## 28.2 Configuration
 
 - Chargée via `load_dotenv()` (`src/protab/adapters/inbound/api/config.py`) + `os.getenv`.
-- Variables : `PROTAB_HOST`, `PROTAB_PORT`, `DATABASE_URL` (DSN PostgreSQL), `PROTAB_TEST_DATABASE_URL` (tests).
+- Variables : `PROTAB_HOST`, `PROTAB_PORT`, `DATABASE_URL` (DSN PostgreSQL),
+  `PROTAB_TEST_DATABASE_URL` (tests), `PROTAB_COOKIE_SECURE` (drapeau `Secure` du cookie de session),
+  `PROTAB_DEFAULT_PROJECT_PASSWORD` (obligatoire au premier démarrage).
 - Seuls des défauts/conteneurs de dev sont commités (cf. `.env.example`) ; aucun secret réel.
+- **Fail-closed** : aucun secret devinable ne doit être réintroduit. `PROTAB_DEFAULT_PROJECT_PASSWORD` et le
+  contexte de projet lèvent une `RuntimeError` explicite quand elles sont absentes, plutôt que de retomber
+  sur une valeur par défaut. Toute nouvelle dépendance de sécurité suit la même règle.
+- **Fail-closed là où le secret sert, pas à chaque démarrage** : `resolve_bootstrap_password()` n'est
+  appelé que si la ligne du projet bootstrap est absente. Exiger le secret à chaque `connect()` casserait
+  le redémarrage de toute installation déjà initialisée, pour une valeur jamais utilisée.
+  `docker-compose.yml` transmet donc la variable sans garde (`${…:-}`) : l'application est l'unique
+  point d'application de la règle, Compose ne doit pas la rejouer.
+- Le cookie de session est `HttpOnly` + `SameSite=Lax` ; `Secure` n'est activé que si `PROTAB_COOKIE_SECURE`
+  est truthy (`1`, `true`, `yes`, `on`). En Docker Compose l'API est publiée sur `127.0.0.1` uniquement.
+- **401 = session perdue, pas panne réseau** : le frontend le traite globalement via
+  `protabApi.setUnauthorizedHandler` (branché dans `App.tsx`) et revient à `LoginPage`, au lieu d'afficher
+  une boîte « Échec du chargement » dont « Réessayer » ne peut pas réussir. `POST /auth/login` est exclu :
+  un 401 y signifie mot de passe erroné et reste une erreur de formulaire. Tout nouveau client HTTP doit
+  conserver cette exclusion, sinon un mauvais mot de passe vide le formulaire.
 
-## 28.3 Tests d'intégration PostgreSQL
+## 28.3 Authentification : quadrigrammes et rotation du mot de passe
+
+- **Les deux colonnes `officials` sont des listes, pas des scalaires.** `official_main` et `official_backup`
+  encodent un ou plusieurs quadrigrammes séparés par `/`. Le parseur commun est `_official_codes()` dans
+  `postgres_auth_repository.py`, utilisé par `authenticate()` pour **les deux** colonnes ; casse et espaces
+  ignorés. Traiter `official_main` comme un scalaire (le cas avant ce correctif) rendait `LAMA/JMAB`
+  inutilisable et, à l'inverse, la chaîne brute `"LAMA/JMAB"` recevable comme code.
+- **Un substitut de saisie n'est pas un code.** Le `?` des données réelles signifie « pas de suppléant ».
+  Toute partie sans caractère alphanumérique est écartée. La chaîne complète n'est jamais un code valide, même
+  si elle satisfait le `min_length`/`max_length` du schéma : c'est une usurpation dans le journal d'audit.
+- **Ne pas resserrer la validation du quadrigramme sans vérifier les données.** Le login accepte
+  volontairement des formes larges car un projet sans périmètre doit accepter n'importe quel quadrigramme
+  (bootstrap du premier périmètre). Une contrainte de format stricte risquerait de verrouiller des saisies
+  manuelles déjà en base.
+- **Rotation : `protab-project set-password <code>`** (`src/protab/project_admin.py`). Mot de passe saisi par
+  `getpass`, jamais en argument. `PostgresAuthRepository.set_project_password()` remplace le hash **et
+  supprime les `auth_sessions` du projet**. Cette révocation n'est pas cosmétique : c'est le geste correct
+  quand un mot de passe a été divulgué, et elle est couverte par
+  `tests/integration/adapters/project_admin_test.py`. La forme historique `protab-project <code> <nom>`
+  reste valide.
+
+## 28.4 Tests d'intégration PostgreSQL
 
 - `tests/integration/adapters/postgres_scope_monitoring_repository_test.py` est ignoré (`skip`) tant que
   `PROTAB_TEST_DATABASE_URL` n'est pas défini. Le lancer via `make test-db` (base `protab_test` créée si absente).
+- `tests/integration/adapters/postgres_auth_repository_test.py` fournit lui-même
+  `PROTAB_DEFAULT_PROJECT_PASSWORD` via `monkeypatch`, puisque l'authent refuse de démarrer sans.
+- `tests/integration/adapters/project_admin_test.py` dépend également de `PROTAB_TEST_DATABASE_URL` et fait de
+  même. Il exercise la CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) : c'est
+  volontaire, il vérifie le SQL de rotation et la révocation des sessions, pas la logique d'argparse.
 
-## 28.4 Conteneurisation & commandes utiles
+## 28.5 Conteneurisation & commandes utiles
 
 - `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
@@ -1088,6 +1147,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
+- `node_modules` n'est **jamais** versionné : dépendances résolues depuis `package-lock.json` (`npm ci`).
 
 ## graphify
 

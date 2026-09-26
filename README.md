@@ -65,8 +65,18 @@ Démarrage : `make run` (ou `uv run protab`) → serveur uvicorn sur `http://0.0
 interactive : `/docs` (Swagger). Healthcheck : `GET /healthz` → `{"status": "ok"}`.
 
 Configuration (fichier `.env` copié depuis `.env.example`) :
-`PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`) et
-`DATABASE_URL` (DSN PostgreSQL ; **obligatoire** pour démarrer l'API).
+`PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`),
+`DATABASE_URL` (DSN PostgreSQL ; **obligatoire** pour démarrer l'API) et
+`PROTAB_COOKIE_SECURE` (`0`/`1`, défaut `0` : à passer à `1` derrière HTTPS).
+`PROTAB_DEFAULT_PROJECT_PASSWORD` est **obligatoire au tout premier démarrage**,
+c'est-à-dire au moment où le projet bootstrap doit être créé. L'API refuse alors de démarrer
+(aucun mot de passe par défaut n'est fourni). Une fois le projet créé, la variable n'est plus
+consultée : redémarrer une installation déjà initialisée n'exige aucun secret.
+
+L'API écoute sur `0.0.0.0` *à l'intérieur* du conteneur, mais Docker Compose ne
+publie son port que sur la boucleback (`127.0.0.1:8874:8000`) : elle n'est donc
+pas joignable depuis le réseau local. Pour l'exposer volontairement, adapte le
+mapping `ports:` de `docker-compose.yml` et mets `PROTAB_COOKIE_SECURE=1`.
 
 ### Authentification par projet
 
@@ -74,16 +84,31 @@ L'application demande le projet, le quadrigramme de l'utilisateur et le mot de p
 Les mots de passe sont stockés sous forme de hash et la session est conservée dans un cookie HTTP-only.
 Les périmètres et activités sont filtrés côté backend par le projet authentifié.
 
-Routes publiques : `GET /projects`, `POST /auth/login`, `GET /auth/me`, `POST /auth/logout`.
-Les routes de supervision nécessitent une session valide.
+Routes publiques : `GET /healthz`, `GET /projects`, `POST /auth/login`, `GET /auth/me`,
+`POST /auth/logout` et la documentation interactive. Toute autre route exige une session
+valide et un contexte de projet : les adaptateurs PostgreSQL lèvent une erreur explicite
+plutôt que de retomber sur un projet par défaut si le contexte est absent.
+`tests/integration/adapters/route_authorization_test.py` verrouille cette liste : toute
+nouvelle route doit être explicitement déclarée publique, sinon le test échoue.
+
+La session expire au bout de 12 h. Un `401` n'est jamais une panne réseau : le frontend le
+traite globalement (`protabApi.setUnauthorizedHandler`) et revient à l'écran de connexion, au
+lieu d'afficher une erreur « Échec du chargement » que « Réessayer » ne pourrait pas
+réparer. Seul `POST /auth/login` est exclu de ce traitement : un `401` y signifie mot de
+passe erroné et reste une erreur de formulaire.
 Les jours non travaillés sont configurables par projet via `GET /project/settings` et
 `PUT /project/settings`. Par défaut, samedi et dimanche sont exclus ; les dates ponctuelles
 peuvent également être ajoutées.
 
 Restriction du quadrigramme : une fois qu'un projet possède au moins un périmètre, le quadrigramme fourni au
-login doit correspondre exactement au `official_main` d'un périmètre du projet, ou faire partie du ou des
-`official_backup` (un ou plusieurs quadrigrammes séparés par `/`, ex. `MLOZ/MRAM`). Tant qu'un projet n'a encore
-aucun périmètre (bootstrap), tout quadrigramme est accepté afin de permettre la création du premier périmètre.
+login doit correspondre exactement à l'un des quadrigrammes déclarés par un périmètre du projet. Les colonnes
+`official_main` et `official_backup` sont toutes deux interpretées comme une liste : un ou plusieurs
+quadrigrammes séparés par `/` (ex. `MLOZ/MRAM`), la casse et les espaces étant ignorés. Une partie qui ne
+contient aucun caractère alphanumérique est un substitut de saisie et n'est jamais un code valide — c'est ainsi
+que le `?` utilisé pour « pas de suppléant » est écarté. La chaîne entière n'est pas un code : avec
+`official_main = "LAMA/JMAB"`, les codes acceptés sont `LAMA` et `JMAB`, pas `"LAMA/JMAB"`. Tant qu'un projet
+n'a encore aucun périmètre (bootstrap), tout quadrigramme est accepté afin de permettre la création du premier
+périmètre.
 
 Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
 `PROTAB_DEFAULT_PROJECT_NAME` et `PROTAB_DEFAULT_PROJECT_PASSWORD`. Les projets suivants se créent avec :
@@ -91,6 +116,17 @@ Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
 ```bash
 uv run protab-project projet-alpha "Projet Alpha"
 ```
+
+Le mot de passe d'un projet se change avec la sous-commande `set-password` (le nouveau mot de passe est saisi
+sans écho, jamais en argument) :
+
+```bash
+uv run protab-project set-password projet-alpha
+```
+
+Cette commande remplace le hash stocké et **révoque toutes les sessions** ouvertes sur le projet : c'est le
+geste à faire quand un mot de passe a été divulgué, sinon les sessions déjà ouvertes survivraient à la
+rotation.
 
 | Méthode & path                                                                                              | Body                                                                                        | Succès                                                                     | Erreurs                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -102,7 +138,7 @@ uv run protab-project projet-alpha "Projet Alpha"
 | `GET /scope-monitorings`                                                                                    | —                                                                                           | `200` liste des périmètres (id, name, knowledge, officials, activities)    | —                                                                          |
 | `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
 | `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
-| `GET /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
+| `GET /audit-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
 | `GET /project/settings`                                                                                     | —                                                                                           | `200` réglages du projet courant                                           | `401` session absente                                                      |
 | `PUT /project/settings`                                                                                     | `{excluded_weekdays: [1..7], excluded_dates: ["YYYY-MM-DD"]}`                               | `200` réglages mis à jour                                                  | `401` session absente, `422` payload invalide                              |
 
@@ -116,7 +152,7 @@ Chaque mutation (création/import de périmètre, création/mise à jour/validat
 journal `audit_log` : acteur (quadrigramme de session), action, périmètre, jour concerné et diff avant/après
 (`changes`, champ par champ). Les modifications sans changement effectif ne sont pas journalisées. L'écriture
 du journal est best-effort : un échec d'audit ne fait pas échouer la requête métier. Lecture via
-`GET /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9`.
+`GET /audit-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/audit-log`.
 
 ## Persistance
 

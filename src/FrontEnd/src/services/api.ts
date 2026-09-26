@@ -18,6 +18,7 @@ import {
   ScopeMonitoring,
   UpdateActivityInput,
 } from "../types";
+import { AUDIT_LOG_PATH } from "../constants/routes";
 
 /**
  * Erreur personnalisée pour les retours API non réussis
@@ -41,6 +42,26 @@ export class ApiError extends Error {
 // Configuration de l'URL de base
 // Par défaut utilise le proxy Vite (/scope-monitorings) ou l'URL spécifiée via variable d'environnement
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
+/** Notified when the API rejects a call for lack of a valid session. */
+type UnauthorizedHandler = (() => void) | null;
+
+let unauthorizedHandler: UnauthorizedHandler = null;
+
+/**
+ * Register the callback invoked when the session is lost.
+ *
+ * A 401 is a dead end for the caller: retrying cannot succeed, so the app must
+ * fall back to the login screen instead of showing a generic API failure.
+ * `POST /auth/login` is excluded, since a 401 there means a wrong password and
+ * must remain a form error.
+ */
+function notifyUnauthorized(endpoint: string): void {
+  if (endpoint.startsWith("/auth/login")) {
+    return;
+  }
+  unauthorizedHandler?.();
+}
 
 export interface Project {
   id: string;
@@ -144,6 +165,9 @@ async function request<T>(
     }
 
     if (!response.ok) {
+      if (response.status === 401) {
+        notifyUnauthorized(endpoint);
+      }
       const errorDetail = data as FastApiErrorResponse;
       const message = parseFastApiErrorMessage(
         response.status,
@@ -185,6 +209,14 @@ async function request<T>(
  * Client API ProTab
  */
 export const protabApi = {
+  /**
+   * Enregistre le callback appelé quand la session est perdue (401).
+   * Passer `null` pour le désactiver.
+   */
+  setUnauthorizedHandler(handler: UnauthorizedHandler): void {
+    unauthorizedHandler = handler;
+  },
+
   /**
    * Vérifie la disponibilité du backend FastAPI
    */
@@ -335,7 +367,7 @@ export const protabApi = {
   },
 
   /**
-   * GET /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log
+   * GET /audit-log
    * Liste les événements du journal d'audit, du plus récent au plus ancien.
    * Paramètres filtres optionnels : scope_id, actor, action, from_date, to_date, limit.
    */
@@ -348,7 +380,7 @@ export const protabApi = {
     });
     const query = qs.toString();
     return request<AuditEvent[]>(
-      `/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log${query ? `?${query}` : ""}`,
+      `${AUDIT_LOG_PATH}${query ? `?${query}` : ""}`,
     );
   },
 };

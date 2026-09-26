@@ -16,6 +16,7 @@ import { protabApi, ApiError } from "../services/api";
 import { formatDateFr } from "../utils/date";
 import { useToast } from "../hooks/useToast";
 import { AuditActivityHeatmap } from "../components/AuditActivityHeatmap";
+import { AUDIT_LOG_PATH } from "../constants/routes";
 
 const ACTION_LABELS: Record<AuditAction, string> = {
   scope_created: "Création de périmètre",
@@ -189,8 +190,7 @@ export function AuditLogPage() {
             Chargement de l'historique en cours...
           </p>
           <p className="text-xs text-slate-400 dark:text-nord-3 mt-1">
-            Interrogation de GET
-            /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log
+            Interrogation de GET {AUDIT_LOG_PATH}
           </p>
         </div>
       ) : events.length === 0 ? (
@@ -327,8 +327,7 @@ export function AuditLogPage() {
               Affichage de {events.length} événement(s) sur les 500 plus récents
             </span>
             <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">
-              GET
-              /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9-log
+              GET {AUDIT_LOG_PATH}
             </span>
           </div>
         </div>

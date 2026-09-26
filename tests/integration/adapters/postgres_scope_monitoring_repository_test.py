@@ -14,7 +14,10 @@ from fastapi.testclient import TestClient
 
 from protab.adapters.inbound.api.app import create_app
 from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+    MissingProjectContextError,
     PostgresScopeMonitoringRepository,
+    reset_current_project,
+    set_current_project,
 )
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
@@ -37,6 +40,8 @@ VALID_ITEM = {
     "official_main": "Main",
     "official_backup": "Backup",
 }
+
+TEST_PROJECT_ID = "protab"
 
 
 def make_scope(
@@ -68,6 +73,11 @@ def truncate_all() -> None:
         conn.execute(
             "TRUNCATE daily_activities, scope_monitorings RESTART IDENTITY CASCADE"
         )
+        conn.execute(
+            "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s) "
+            "ON CONFLICT (id) DO NOTHING",
+            (TEST_PROJECT_ID, "Test project", "test-hash"),
+        )
 
 
 @pytest.fixture
@@ -78,6 +88,19 @@ def repo():
     truncate_all()
     yield repository
     repository.close()
+
+
+@pytest.fixture(autouse=True)
+def project_context():
+    """Every read and write is tenant-scoped: name the project under test.
+
+    The adapters fail closed when no project context is established, so the
+    tests must declare which tenant they operate in rather than relying on a
+    default. Teardown restores the previous (empty) context.
+    """
+    token = set_current_project(TEST_PROJECT_ID)
+    yield token
+    reset_current_project(token)
 
 
 # --- Round-trip ------------------------------------------------------------
@@ -212,6 +235,17 @@ def test_connect_creates_project_name_index(repo):
 
     assert row is not None
     assert "(project_id, name)" in row[0]
+
+
+def test_connect_creates_project_foreign_key(repo):
+    with repo._pool.connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM pg_constraint "
+            "WHERE conrelid = 'scope_monitorings'::regclass "
+            "AND conname = 'scope_monitorings_project_id_fkey'"
+        ).fetchone()
+
+    assert row is not None
 
 
 def test_connect_is_idempotent_for_project_name_index(repo):
@@ -351,3 +385,32 @@ def test_duplicate_name_via_api_returns_409(repo):
         json=[{**VALID_ITEM, "name": "Scope A"}],
     )
     assert response.status_code == 409
+
+
+# --- Tenant isolation --------------------------------------------------------
+
+
+def test_adapters_refuse_to_read_or_write_without_project_context(repo):
+    """No project context must raise, never fall back to a default tenant."""
+    set_current_project(None)
+
+    with pytest.raises(MissingProjectContextError):
+        repo.find_all()
+    with pytest.raises(MissingProjectContextError):
+        repo.find_all_scope_names()
+    with pytest.raises(MissingProjectContextError):
+        repo.find_by_id("scope-001")
+    with pytest.raises(MissingProjectContextError):
+        repo.find_by_name("Scope A")
+    with pytest.raises(MissingProjectContextError):
+        repo.save(make_scope())
+
+
+def test_find_all_returns_only_the_requesting_project_scopes(repo):
+    repo.save(make_scope(scope_id="scope-alpha", name="Scope Alpha"))
+    set_current_project("other-project")
+
+    assert repo.find_all() == []
+    assert repo.find_by_id("scope-alpha") is None
+    assert repo.find_by_name("Scope Alpha") is None
+    assert repo.find_all_scope_names() == {}

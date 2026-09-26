@@ -42,7 +42,7 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
     CREATE TABLE IF NOT EXISTS scope_monitorings (
         id TEXT PRIMARY KEY,
-        project_id TEXT,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
         name TEXT NOT NULL UNIQUE,
         knowledge_base_id TEXT NOT NULL,
         official_main TEXT NOT NULL,
@@ -78,6 +78,26 @@ def reset_current_project(token) -> None:
 
 def current_project_id() -> str | None:
     return _CURRENT_PROJECT_ID.get()
+
+
+class MissingProjectContextError(RuntimeError):
+    """No authenticated request established the project to read or write."""
+
+
+def require_current_project() -> str:
+    """Return the current project id, or refuse to touch the database.
+
+    Every read and write is scoped to a single tenant. Falling back to a
+    default project, or emitting an unfiltered ``SELECT``, would silently
+    expose every tenant's scopes, so the adapters fail closed instead.
+    """
+    project_id = current_project_id()
+    if project_id is None:
+        raise MissingProjectContextError(
+            "Contexte projet absent : refusing to read or write scopes across "
+            "tenants. The request must go through the project_context dependency."
+        )
+    return project_id
 
 
 _SCOPE_SELECT = (
@@ -138,6 +158,20 @@ class PostgresScopeMonitoringRepository:
         )
         conn.execute(
             "UPDATE scope_monitorings SET project_id = 'protab' WHERE project_id IS NULL"
+        )
+        conn.execute(
+            "DO $$\n"
+            "BEGIN\n"
+            "    IF NOT EXISTS (\n"
+            "        SELECT 1 FROM pg_constraint\n"
+            "        WHERE conrelid = 'scope_monitorings'::regclass\n"
+            "          AND conname = 'scope_monitorings_project_id_fkey'\n"
+            "    ) THEN\n"
+            "        ALTER TABLE scope_monitorings\n"
+            "        ADD CONSTRAINT scope_monitorings_project_id_fkey\n"
+            "        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;\n"
+            "    END IF;\n"
+            "END $$"
         )
         conn.execute(
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
@@ -212,7 +246,7 @@ class PostgresScopeMonitoringRepository:
         return activities_by_scope
 
     def save(self, scope: ScopeMonitoring) -> None:
-        project_id = current_project_id() or "protab"
+        project_id = require_current_project()
         with self._pool.connection() as conn:
             try:
                 with conn.transaction():
@@ -273,12 +307,11 @@ class PostgresScopeMonitoringRepository:
         )
 
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             row = conn.execute(
-                f"{_SCOPE_SELECT} WHERE id = %s"
-                + (" AND project_id = %s" if project_id else ""),
-                (scope_id, project_id) if project_id else (scope_id,),
+                f"{_SCOPE_SELECT} WHERE id = %s AND project_id = %s",
+                (scope_id, project_id),
             ).fetchone()
             if row is None:
                 return None
@@ -286,12 +319,11 @@ class PostgresScopeMonitoringRepository:
             return self._scope_from_row(row, activities)
 
     def find_by_name(self, name: str) -> ScopeMonitoring | None:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             row = conn.execute(
-                f"{_SCOPE_SELECT} WHERE name = %s"
-                + (" AND project_id = %s" if project_id else ""),
-                (name, project_id) if project_id else (name,),
+                f"{_SCOPE_SELECT} WHERE name = %s AND project_id = %s",
+                (name, project_id),
             ).fetchone()
             if row is None:
                 return None
@@ -299,13 +331,11 @@ class PostgresScopeMonitoringRepository:
             return self._scope_from_row(row, activities)
 
     def find_all(self) -> list[ScopeMonitoring]:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             rows = conn.execute(
-                f"{_SCOPE_SELECT}"
-                + (" WHERE project_id = %s" if project_id else "")
-                + " ORDER BY name",
-                (project_id,) if project_id else (),
+                f"{_SCOPE_SELECT} WHERE project_id = %s ORDER BY name",
+                (project_id,),
             ).fetchall()
             activities_by_scope = self._load_activities_batched(
                 conn, [row[0] for row in rows]
@@ -316,11 +346,10 @@ class PostgresScopeMonitoringRepository:
             ]
 
     def find_all_scope_names(self) -> dict[str, str]:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             rows = conn.execute(
-                "SELECT id, name FROM scope_monitorings"
-                + (" WHERE project_id = %s" if project_id else ""),
-                (project_id,) if project_id else (),
+                "SELECT id, name FROM scope_monitorings WHERE project_id = %s",
+                (project_id,),
             ).fetchall()
             return {scope_id: name for scope_id, name in rows}

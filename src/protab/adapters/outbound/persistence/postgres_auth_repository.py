@@ -78,11 +78,45 @@ def _check_password(password: str, encoded: str) -> bool:
         return False
 
 
-def _backup_codes(official_backup: str | None) -> set[str]:
-    """Quadrigrammes valides d'une colonne official_backup (format « A/B »)."""
-    if not official_backup:
+BOOTSTRAP_PASSWORD_ENV = "PROTAB_DEFAULT_PROJECT_PASSWORD"
+
+
+def resolve_bootstrap_password() -> str:
+    """Return the password seeding the first project, or refuse to start.
+
+    Called only when the bootstrap project is genuinely absent, so restarting an
+    existing deployment does not demand a secret it will never use.
+
+    No default is provided on purpose: a well-known fallback would create a
+    project reachable by anyone who guesses the project code, which is itself
+    readable without authentication via ``GET /projects``.
+    """
+    password = (os.getenv(BOOTSTRAP_PASSWORD_ENV) or "").strip()
+    if not password:
+        raise RuntimeError(
+            f"{BOOTSTRAP_PASSWORD_ENV} est obligatoire au premier démarrage de "
+            "l'API : aucun mot de passe par défaut n'est fourni. "
+            "Renseignez-la dans .env (voir .env.example)."
+        )
+    return password
+
+
+def _official_codes(value: str | None) -> set[str]:
+    """Quadrigrammes declared by one ``officials`` column (format « A/B »).
+
+    ``official_main`` and ``official_backup`` both hold one or more codes
+    separated by ``/``, and the real data writes ``?`` as a human placeholder
+    for "no backup official" (e.g. ``MRAM/ ?``). A part without any alphanumeric
+    character is such a placeholder and must never become a usable login code.
+    """
+    if not value:
         return set()
-    return {part.strip().upper() for part in official_backup.split("/") if part.strip()}
+    codes = set()
+    for part in value.split("/"):
+        candidate = part.strip().upper()
+        if candidate and any(char.isalnum() for char in candidate):
+            codes.add(candidate)
+    return codes
 
 
 class PostgresAuthRepository:
@@ -136,19 +170,22 @@ class PostgresAuthRepository:
                 )
                 """
             )
-            password = os.getenv("PROTAB_DEFAULT_PROJECT_PASSWORD", "protab")
-            conn.execute(
-                """
-                INSERT INTO projects (id, name, password_hash)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (id) DO NOTHING
-                """,
-                (
-                    self.default_project_id,
-                    self.default_project_name,
-                    _hash_password(password),
-                ),
-            )
+            already_seeded = conn.execute(
+                "SELECT 1 FROM projects WHERE id = %s",
+                (self.default_project_id,),
+            ).fetchone()
+            if already_seeded is None:
+                conn.execute(
+                    """
+                    INSERT INTO projects (id, name, password_hash)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (
+                        self.default_project_id,
+                        self.default_project_name,
+                        _hash_password(resolve_bootstrap_password()),
+                    ),
+                )
 
     def close(self) -> None:
         self._pool.close()
@@ -198,8 +235,8 @@ class PostgresAuthRepository:
 
         code = (quadrigramme or "").strip().upper()
         return any(
-            code == (official_main or "").strip().upper()
-            or code in _backup_codes(official_backup)
+            code in _official_codes(official_main)
+            or code in _official_codes(official_backup)
             for official_main, official_backup in scopes
         )
 
@@ -235,6 +272,26 @@ class PostgresAuthRepository:
                 (Jsonb(config), project_id),
             )
         return self.get_project(project_id)
+
+    def set_project_password(self, project_id: str, password: str) -> None:
+        """Replace the password of an existing project and drop its sessions.
+
+        Rotating a password is what one does because it leaked, so the sessions
+        opened with the old one must stop working immediately.
+        """
+        project_id = project_id.strip()
+        if not project_id or not password:
+            raise ValueError(
+                "Le code du projet et le mot de passe sont obligatoires."
+            )
+        with self._pool.connection() as conn:
+            conn.execute(
+                "UPDATE projects SET password_hash = %s WHERE id = %s",
+                (_hash_password(password), project_id),
+            )
+            conn.execute(
+                "DELETE FROM auth_sessions WHERE project_id = %s", (project_id,)
+            )
 
     def create_session(self, project_id: str, quadrigramme: str) -> AuthSession:
         token = secrets.token_urlsafe(32)

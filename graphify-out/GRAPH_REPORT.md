@@ -1,271 +1,332 @@
 # Graph Report - ProTab  (2026-09-26)
 
 ## Corpus Check
-- Corpus is ~45,723 words - fits in a single context window. You may not need a graph.
+- 152 files · ~49,647 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 13 file(s) not represented in the graph (top: (none) 8, .example 1, .conf 1)
 
 ## Summary
-- 935 nodes · 2164 edges · 72 communities (39 shown, 33 thin omitted)
-- Extraction: 80% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 421 edges (avg confidence: 0.92)
-- Token cost: 10,136 input · 18,656 output
+- 1029 nodes · 2350 edges · 82 communities (50 shown, 32 thin omitted)
+- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 455 edges (avg confidence: 0.92)
+- Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `0e6db542`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- Postgres Scope Monitoring Repository
-- Connection Pool and Shared Infrastructure
-- Graphify Plugin and Frontend Dependencies
-- Modal and Layout UI Components
-- API Configuration and Composition Root
-- Audit Log Page and Activity Heatmap
-- Daily Activity Invariants and Errors
-- Activity Forms and Feai Input
-- Audit Trail Persistence and Query
-- Domain Entities and Repository Adapters
-- Scope Monitoring API Tests
-- FastAPI App Factory and Schemas
-- Application Core Wiring
-- Frontend Testing and Date Navigation
-- Create ScopeMonitoring Use Case
-- CSV Export and Date Utilities
-- Auth Repository and Password Hashing
-- Dashboard Charts with Recharts
-- Query Use Cases
-- PostgreSQL Integration Tests
-- Auth Session and HTTP Flow Tests
-- TypeScript Compiler Config
-- Authentication HTTP Routes
-- KPI Computation
-- Create DailyActivity Use Case
-- UI/UX Design System Skill
-- Domain Commands and Port Interfaces
-- ProTab Domain Model
-- HTTP Error Mapping
-- Update DailyActivity Use Case
-- Performance Optimization Skill
-- Complete DailyActivity Use Case
-- Hexagonal Architecture Rules
-- Persistence and Infrastructure Notes
-- Docker Development Stack
-- Audit Event Change Diffing
-- API Surface and Audit Trail
-- Development Workflow Rules
-- Project Settings and Auth Rules
-- opencode Plugin Config
-- Weekday Field Validator
-- Application Layer Overview
-- Package Marker
+- ScopeDetailPage.tsx
+- project_admin_test.py
+- package.json
+- App.tsx
+- scope_monitoring_csv_reader_test.py
+- api.ts
+- DomainError
+- TodayActivityEditor.tsx
+- AuditEvent
+- datetime
+- api_test.py
+- create_app
+- app.py
+- AppSessionLoss.test.tsx
+- InMemoryScopeMonitoringRepository
+- ExportModal.tsx
+- protab_adapters_outbound_persistence_in_memory_scope_monitoring_repository
+- vitest
+- dependencies
+- postgres_scope_monitoring_repository_test.py
+- project_admin.py
+- compilerOptions
+- ScopeMonitoring
+- ScopeListPage.tsx
+- CreateDailyActivityUseCase
+- Rule Categories by Priority (1-10)
+- devDependencies
+- ProTab Project Documentation
+- audit_log_api_test.py
+- UpdateDailyActivityUseCase
+- FastAPI & PostgreSQL Performance Optimizer Skill
+- CompleteDailyActivityUseCase
+- Hexagonal Architecture (Ports and Adapters)
+- PostgresScopeMonitoringRepository
+- api Service (FastAPI backend)
+- build_connection_pool
+- Mutation Use Cases (Create/Complete/Update DailyActivity, Create ScopeMonitoring)
+- Development Workflow (9 Steps)
+- Project Authentication with Quadrigramme Restriction
+- opencode.json
+- AuditActivityHeatmap.tsx
+- Application Layer / Use Cases
+- protab
+- DailyActivity
+- PostgresAuthRepository
+- postgres_auth_repository_test.py
+- FakeAuthRepository
+- _official_codes
+- graphify.js
+- scripts
+- resolve_bootstrap_password
+- postgres_auth_repository.py
+- protab_adapters_outbound_persistence_postgres_auth_repository
 
 ## God Nodes (most connected - your core abstractions)
-1. `create_app()` - 66 edges
+1. `create_app()` - 69 edges
 2. `DailyActivity` - 52 edges
-3. `InMemoryScopeMonitoringRepository` - 45 edges
+3. `InMemoryScopeMonitoringRepository` - 48 edges
 4. `ScopeMonitoring` - 41 edges
 5. `AuditEvent` - 25 edges
 6. `react` - 24 edges
 7. `ScopeMonitoringRepository` - 24 edges
 8. `useToast()` - 23 edges
 9. `PostgresScopeMonitoringRepository` - 23 edges
-10. `lucide-react` - 21 edges
+10. `PostgresAuthRepository` - 22 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `Centralized PostgreSQL Pool Configuration` --semantically_similar_to--> `Connection Pooling Parameters`  [INFERRED] [semantically similar]
   AGENTS.md → .opencode/skills/improve-performances/SKILL.md
 - `test_api_flow_persists_in_postgres()` --calls--> `create_app()`  [INFERRED]
   tests/integration/adapters/postgres_scope_monitoring_repository_test.py → src/protab/adapters/inbound/api/app.py
+- `test_complete_unknown_day_does_not_partially_persist()` --calls--> `create_app()`  [INFERRED]
+  tests/integration/adapters/postgres_scope_monitoring_repository_test.py → src/protab/adapters/inbound/api/app.py
 - `test_duplicate_name_via_api_returns_409()` --calls--> `create_app()`  [INFERRED]
   tests/integration/adapters/postgres_scope_monitoring_repository_test.py → src/protab/adapters/inbound/api/app.py
 - `test_build_connection_pool_uses_tuned_configuration()` --calls--> `build_connection_pool()`  [INFERRED]
   tests/unit/adapters/postgres_pool_test.py → src/protab/adapters/outbound/persistence/postgres_pool.py
-- `test_audit_event_defaults()` --uses--> `AuditEvent`  [INFERRED]
-  tests/unit/domain/audit_event_test.py → src/protab/domain/entities/audit_event.py
 
 ## Import Cycles
 - None detected.
 
 ## Hyperedges (group relationships)
-- **ProTab Hexagonal Core and Its Adapters** — agents_hexagonal_architecture, readme_scope_monitoring_aggregate, readme_mutation_use_cases, agents_scopemonitoringrepository_port, readme_http_api_adapter, readme_csv_import_adapter, readme_postgres_persistence [INFERRED 0.95]
-- **ProTab PostgreSQL Persistence Path (port → adapter → pool → container)** — agents_scopemonitoringrepository_port, agents_postgres_scopemonitoringrepository, agents_idempotent_schema_bootstrap, agents_postgres_pool_configuration, readme_postgres_persistence, readme_scope_monitorings_index, docker_compose_db_service, docker_compose_api_service [INFERRED 0.85]
 - **ProTab Mutation → Audit Trail Flow** — readme_mutation_use_cases, readme_audit_trail, readme_domain_invariants, readme_domain_error_http_mapping, readme_rest_routes_table [INFERRED 0.85]
+- **ProTab PostgreSQL Persistence Path (port → adapter → pool → container)** — agents_scopemonitoringrepository_port, agents_postgres_scopemonitoringrepository, agents_idempotent_schema_bootstrap, agents_postgres_pool_configuration, readme_postgres_persistence, readme_scope_monitorings_index, docker_compose_db_service, docker_compose_api_service [INFERRED 0.85]
+- **ProTab Hexagonal Core and Its Adapters** — agents_hexagonal_architecture, readme_scope_monitoring_aggregate, readme_mutation_use_cases, agents_scopemonitoringrepository_port, readme_http_api_adapter, readme_csv_import_adapter, readme_postgres_persistence [INFERRED 0.95]
 
-## Communities (72 total, 33 thin omitted)
+## Communities (82 total, 32 thin omitted)
 
-### Community 0 - "Postgres Scope Monitoring Repository"
-Cohesion: 0.05
-Nodes (38): current_project_id(), PostgresScopeMonitoringRepository, Connection, date, Exception, Persist ``ScopeMonitoring`` aggregates in PostgreSQL. The schema is applied…, Open the connection pool and apply the (idempotent) schema., Close the connection pool, releasing database connections. (+30 more)
+### Community 0 - "ScopeDetailPage.tsx"
+Cohesion: 0.14
+Nodes (25): lucide-react, react, ActivityFormModal(), Badge(), BadgeProps, CompleteActivitiesModal(), CsvImportModal(), CsvImportModalProps (+17 more)
 
-### Community 1 - "Connection Pool and Shared Infrastructure"
-Cohesion: 0.05
-Nodes (41): ConnectionPool, contextvars, protab_adapters_outbound_persistence_postgres_audit_trail_repository, psycopg, psycopg_pool, project_context(), build_connection_pool(), ping_check() (+33 more)
+### Community 1 - "project_admin_test.py"
+Cohesion: 0.22
+Nodes (13): protab, bootstrap_password(), fixture, Integration tests for the ``protab-project`` administrative command. The…, Rotating a leaked password must not leave old sessions usable., repository(), run(), stored_hash() (+5 more)
 
-### Community 2 - "Graphify Plugin and Frontend Dependencies"
-Cohesion: 0.04
-Nodes (44): IMPORTANT: keep the reminder string free of backticks and $(...) constructs., ref_fs, jsdom, ref_path, react-dom, tailwindcss, @tailwindcss/vite, @types/node (+36 more)
+### Community 2 - "package.json"
+Cohesion: 0.17
+Nodes (11): jsdom, tailwindcss, @types/node, @types/react, @types/react-dom, typescript, vite, name (+3 more)
 
-### Community 3 - "Modal and Layout UI Components"
-Cohesion: 0.09
-Nodes (29): lucide-react, react-router-dom, AuditShortcut(), CompleteActivitiesModal(), CsvImportModal(), CsvImportModalProps, Modal(), ModalProps (+21 more)
+### Community 3 - "App.tsx"
+Cohesion: 0.11
+Nodes (17): react-router-dom, AuditShortcut(), Navbar(), NavbarProps, AUDIT_LOG_PATH, Theme, ThemeContext, ThemeContextType (+9 more)
 
-### Community 4 - "API Configuration and Composition Root"
+### Community 4 - "scope_monitoring_csv_reader_test.py"
+Cohesion: 0.15
+Nodes (26): csv, fastapi_responses, JSONResponse, Path, pathlib, protab_adapters_inbound_csv_scope_monitoring_csv_reader, protab_application_commands_create_scope_monitoring, bad_request() (+18 more)
+
+### Community 5 - "api.ts"
+Cohesion: 0.15
+Nodes (19): ACTION_ICONS, ACTION_LABELS, AuditLogPage(), formatCreatedAt(), formatValue(), notifyUnauthorized(), parseFastApiErrorMessage(), request() (+11 more)
+
+### Community 6 - "DomainError"
 Cohesion: 0.08
-Nodes (35): argparse, dotenv, getpass, os, Path, pathlib, protab_adapters_inbound_api_config, pytest (+27 more)
+Nodes (36): current_actor(), date, build_changes(), Return only the fields whose value differs between ``before`` and ``after``.…, DuplicateFeaiReferenceError, IncidentsExceedErrorsError, InvalidFeaiReferenceError, NegativeErrorsCountError (+28 more)
 
-### Community 5 - "Audit Log Page and Activity Heatmap"
-Cohesion: 0.11
-Nodes (27): AuditActivityHeatmap(), AuditActivityHeatmapProps, HOURS, intensityClass(), WEEKDAYS, ToastProvider(), ACTION_ICONS, ACTION_LABELS (+19 more)
+### Community 7 - "TodayActivityEditor.tsx"
+Cohesion: 0.15
+Nodes (18): ActivityFormModalProps, CompleteActivitiesModalProps, FeaiTagInput(), FeaiTagInputProps, InlineActivityCounters(), InlineActivityCountersProps, SaveStatus, ValueSnapshot (+10 more)
 
-### Community 6 - "Daily Activity Invariants and Errors"
-Cohesion: 0.11
-Nodes (28): date, DuplicateFeaiReferenceError, IncidentsExceedErrorsError, InvalidFeaiReferenceError, NegativeErrorsCountError, NegativeIncidentsCountError, Raised when incidents_created exceeds errors_reported., Raised when a FEAI reference does not match the expected format. (+20 more)
-
-### Community 7 - "Activity Forms and Feai Input"
+### Community 8 - "AuditEvent"
 Cohesion: 0.12
-Nodes (26): react, ActivityFormModal(), ActivityFormModalProps, CompleteActivitiesModalProps, FeaiTagInput(), FeaiTagInputProps, InlineActivityCounters(), InlineActivityCountersProps (+18 more)
+Nodes (20): InMemoryAuditTrailRepository, PostgresAuditTrailRepository, Open the connection pool and apply the (idempotent) schema., Close the connection pool, releasing database connections., current_project_id(), CreateScopeMonitoringCommand, ListAuditEventsUseCase, CreateScopeMonitoringUseCase (+12 more)
 
-### Community 8 - "Audit Trail Persistence and Query"
-Cohesion: 0.13
-Nodes (20): _audit_event_to_response(), list_scope_audit_log(), InMemoryAuditTrailRepository, PostgresAuditTrailRepository, Open the connection pool and apply the (idempotent) schema., Close the connection pool, releasing database connections., CreateScopeMonitoringCommand, CreateScopeMonitoringUseCase (+12 more)
+### Community 9 - "datetime"
+Cohesion: 0.12
+Nodes (18): dataclasses, datetime, re, Domain model for the audit trail. An :class:`AuditEvent` records *who* (actor)…, KnowledgeBase, Officials, fixture_scope_monitoring(), fixture (+10 more)
 
-### Community 9 - "Domain Entities and Repository Adapters"
-Cohesion: 0.11
-Nodes (23): protab_adapters_outbound_persistence_in_memory_audit_trail_repository, protab_adapters_outbound_persistence_postgres_pool, protab_domain_entities_daily_activity, protab_domain_entities_scope_monitoring, PostgreSQL outbound adapter for the ScopeMonitoringRepository port. The…, KnowledgeBase, Officials, all_events() (+15 more)
-
-### Community 10 - "Scope Monitoring API Tests"
+### Community 10 - "api_test.py"
 Cohesion: 0.09
 Nodes (16): client(), create_scope_via_api(), make_scope_with_activity(), fixture, test_complete_daily_activities_returns_204(), test_complete_day_without_activity_returns_404(), test_create_daily_activity_duplicate_day_returns_409(), test_create_daily_activity_invalid_invariant_returns_400() (+8 more)
 
-### Community 11 - "FastAPI App Factory and Schemas"
-Cohesion: 0.14
-Nodes (27): BaseModel, pydantic, _activity_to_response(), create_app(), create_scope_monitorings(), get_scope_daily_activity(), get_scope_monitoring(), import_scope_monitorings_csv() (+19 more)
+### Community 11 - "create_app"
+Cohesion: 0.08
+Nodes (46): BaseModel, contextvars, field_validator, pydantic, _activity_to_response(), _audit_event_to_response(), create_app(), create_scope_monitorings() (+38 more)
 
-### Community 12 - "Application Core Wiring"
+### Community 12 - "app.py"
 Cohesion: 0.12
-Nodes (19): csv, protab_adapters_inbound_api_auth, protab_adapters_inbound_api_errors, protab_adapters_inbound_api_schemas, protab_adapters_inbound_csv_scope_monitoring_csv_reader, protab_adapters_outbound_persistence_postgres_scope_monitoring_repository, protab_application_actor_context, protab_application_commands_create_scope_monitoring (+11 more)
+Nodes (19): protab_adapters_inbound_api_auth, protab_adapters_inbound_api_errors, protab_adapters_inbound_api_schemas, protab_adapters_outbound_persistence_postgres_scope_monitoring_repository, protab_application_actor_context, protab_application_commands_daily_activity, protab_application_queries_list_audit_events, protab_application_queries_list_scopes (+11 more)
 
-### Community 13 - "Frontend Testing and Date Navigation"
-Cohesion: 0.12
-Nodes (17): @testing-library/jest-dom, @testing-library/react, vitest, DashboardCharts(), DateNavigator(), DateNavigatorProps, formatDayMonthFr(), formatWeekdayFr() (+9 more)
+### Community 13 - "AppSessionLoss.test.tsx"
+Cohesion: 0.25
+Nodes (7): react-dom, App(), src_frontend_src_index, json(), PROJECT, SESSION, stubFetch()
 
-### Community 14 - "Create ScopeMonitoring Use Case"
-Cohesion: 0.13
-Nodes (18): protab_application_queries_get_daily_activity, protab_application_queries_get_scope, protab_application_queries_list_scopes, protab_application_use_cases_create_scope_monitoring, InMemoryScopeMonitoringRepository, make_command(), test_create_duplicate_name_raises_and_persists_nothing(), test_create_empty_official_raises() (+10 more)
+### Community 14 - "InMemoryScopeMonitoringRepository"
+Cohesion: 0.15
+Nodes (19): protab_application_queries_get_daily_activity, protab_application_queries_get_scope, protab_application_use_cases_create_scope_monitoring, pytest, InMemoryScopeMonitoringRepository, GetDailyActivityUseCase, make_command(), test_create_duplicate_name_raises_and_persists_nothing() (+11 more)
 
-### Community 15 - "CSV Export and Date Utilities"
+### Community 15 - "ExportModal.tsx"
+Cohesion: 0.18
+Nodes (18): ExportModal(), ExportModalProps, ScopeBase, defaultFrom, renderModal(), scope(), today, ScopeMonitoring (+10 more)
+
+### Community 16 - "protab_adapters_outbound_persistence_in_memory_scope_monitoring_repository"
 Cohesion: 0.17
-Nodes (19): ExportModal(), ScopeBase, defaultFrom, renderModal(), scope(), today, addDaysIso(), formatFullDateFr() (+11 more)
+Nodes (13): APIRoute, fastapi_routing, fastapi_testclient, protab_adapters_inbound_api_app, protab_adapters_outbound_persistence_in_memory_scope_monitoring_repository, test_daily_activity_full_flow_over_http(), business_routes(), Business routes must be authenticated by default (allowlist, not denylist).… (+5 more)
 
-### Community 16 - "Auth Repository and Password Hashing"
-Cohesion: 0.13
-Nodes (12): hashlib, hmac, secrets, _backup_codes(), _check_password(), _hash_password(), _normalize_non_working_days(), PostgresAuthRepository (+4 more)
+### Community 17 - "vitest"
+Cohesion: 0.10
+Nodes (22): recharts, @testing-library/jest-dom, @testing-library/react, vitest, DashboardCharts(), DateNavigator(), DateNavigatorProps, formatDayMonthFr() (+14 more)
 
-### Community 17 - "Dashboard Charts with Recharts"
-Cohesion: 0.14
-Nodes (18): recharts, Badge(), BadgeProps, CompleteTodayButton(), CompleteTodayButtonProps, DashboardChartsProps, ExportModalProps, ScopeDetailCharts() (+10 more)
+### Community 18 - "dependencies"
+Cohesion: 0.20
+Nodes (10): dependencies, lucide-react, react, react-dom, react-router-dom, recharts, tailwindcss, @tailwindcss/vite (+2 more)
 
-### Community 18 - "Query Use Cases"
-Cohesion: 0.11
-Nodes (10): GetDailyActivityUseCase, GetScopeUseCase, ListAuditEventsUseCase, ListScopesUseCase, AuditTrailRepository, Protocol, Persist an audit event., Protocol (+2 more)
+### Community 19 - "postgres_scope_monitoring_repository_test.py"
+Cohesion: 0.07
+Nodes (37): protab_adapters_outbound_persistence_postgres_audit_trail_repository, reset_current_project(), set_current_project(), make_event(), project(), fixture, Integration tests for the PostgreSQL audit trail adapter. Skipped when…, repo() (+29 more)
 
-### Community 19 - "PostgreSQL Integration Tests"
-Cohesion: 0.13
-Nodes (17): make_scope(), date, fixture, Integration tests for the PostgreSQL repository adapter. These tests exercise…, repo(), test_api_flow_persists_in_postgres(), test_duplicate_name_via_api_returns_409(), test_find_all_loads_activities_for_all_scopes() (+9 more)
+### Community 20 - "project_admin.py"
+Cohesion: 0.08
+Nodes (32): argparse, dotenv, getpass, os, parametrize, protab_adapters_inbound_api_config, build_repository(), Select the persistence adapter from configuration. PostgreSQL is required for… (+24 more)
 
-### Community 20 - "Auth Session and HTTP Flow Tests"
-Cohesion: 0.14
-Nodes (11): fastapi_testclient, protab_adapters_inbound_api_app, protab_adapters_outbound_persistence_in_memory_scope_monitoring_repository, AuthSession, test_daily_activity_full_flow_over_http(), FakeAuthRepository, test_authenticated_routes_require_a_valid_session(), test_in_memory_application_remains_unauthenticated_for_existing_fixtures() (+3 more)
-
-### Community 21 - "TypeScript Compiler Config"
+### Community 21 - "compilerOptions"
 Cohesion: 0.10
 Nodes (19): compilerOptions, allowJs, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+11 more)
 
-### Community 22 - "Authentication HTTP Routes"
-Cohesion: 0.16
-Nodes (17): fastapi, protab_adapters_outbound_persistence_postgres_auth_repository, Response, get_project_settings(), list_projects(), login(), logout(), me() (+9 more)
+### Community 22 - "ScopeMonitoring"
+Cohesion: 0.10
+Nodes (12): GetScopeUseCase, ListScopesUseCase, ScopeMonitoring, AuditTrailRepository, Protocol, Protocol, Return the ScopeMonitoring with the given id, or None., Return the ScopeMonitoring with the given name, or None. (+4 more)
 
-### Community 23 - "KPI Computation"
-Cohesion: 0.22
-Nodes (13): baselineDelta, buildDailyTrend(), coverageRate(), CumulativeTrendPoint, DailyTrendPoint, DEFAULT_NON_WORKING_DAYS, isWorkingDay(), lastNDays() (+5 more)
+### Community 23 - "ScopeListPage.tsx"
+Cohesion: 0.13
+Nodes (25): CompleteTodayButton(), CompleteTodayButtonProps, DashboardChartsProps, WorkingDaysModalProps, DashboardCharts, QuickFilter, ScopeListPage(), ScopeListPageProps (+17 more)
 
-### Community 24 - "Create DailyActivity Use Case"
-Cohesion: 0.32
-Nodes (11): handle_create_daily_activity(), current_actor(), CreateDailyActivityCommand, CreateDailyActivityUseCase, make_command(), make_scope(), make_scope_daily_activity(), test_create_daily_activity() (+3 more)
+### Community 24 - "CreateDailyActivityUseCase"
+Cohesion: 0.35
+Nodes (10): handle_create_daily_activity(), CreateDailyActivityCommand, CreateDailyActivityUseCase, make_command(), make_scope(), make_scope_daily_activity(), test_create_daily_activity(), test_create_duplicate_day_raises_and_persists_nothing() (+2 more)
 
-### Community 25 - "UI/UX Design System Skill"
+### Community 25 - "Rule Categories by Priority (1-10)"
 Cohesion: 0.20
 Nodes (12): Design Dials (variance / motion / density), Design System Generation (--design-system), Design System Persistence (Master + Overrides), Pre-Delivery UI Checklist, Search Query Contract, Rule Categories by Priority (1-10), ui-ux-pro-max Search Script, Stack Detection Step (+4 more)
 
-### Community 26 - "Domain Commands and Port Interfaces"
-Cohesion: 0.21
-Nodes (6): dataclasses, datetime, re, Domain model for the audit trail. An :class:`AuditEvent` records *who* (actor)…, typing, uuid
+### Community 26 - "devDependencies"
+Cohesion: 0.22
+Nodes (9): devDependencies, jsdom, @testing-library/jest-dom, @testing-library/react, @types/node, @types/react, @types/react-dom, typescript (+1 more)
 
-### Community 27 - "ProTab Domain Model"
+### Community 27 - "ProTab Project Documentation"
 Cohesion: 0.18
 Nodes (11): Avoid Premature Abstraction, PostgreSQL Integration Tests (make test-db), SOLID Principles, Aggregate Owns DailyActivities Indexed by Day, CSV Import Inbound Adapter, DailyActivity (Entity), Day Is Not a Class (datetime.date as value object), Domain Invariants (counters, FEAI format, completion implication) (+3 more)
 
-### Community 28 - "HTTP Error Mapping"
+### Community 28 - "audit_log_api_test.py"
+Cohesion: 0.29
+Nodes (8): protab_adapters_outbound_persistence_in_memory_audit_trail_repository, all_events(), env(), make_scope_with_activity(), fixture, test_activity_flow_records_audit_via_api(), test_create_scope_records_audit_via_api(), test_get_audit_log_endpoint_filters_and_orders()
+
+### Community 29 - "UpdateDailyActivityUseCase"
 Cohesion: 0.44
-Nodes (10): fastapi_responses, JSONResponse, bad_request(), conflict(), not_found(), Exception, FastAPI, Request (+2 more)
+Nodes (8): handle_update_daily_activity(), UpdateDailyActivityCommand, UpdateDailyActivityUseCase, make_scope_with_activity(), test_update_daily_activity(), test_update_day_without_activity_raises(), test_update_invalid_invariant_raises_and_does_not_modify(), test_update_scope_not_found()
 
-### Community 29 - "Update DailyActivity Use Case"
-Cohesion: 0.38
-Nodes (9): protab_application_use_cases_update_daily_activity, handle_update_daily_activity(), UpdateDailyActivityCommand, UpdateDailyActivityUseCase, make_scope_with_activity(), test_update_daily_activity(), test_update_day_without_activity_raises(), test_update_invalid_invariant_raises_and_does_not_modify() (+1 more)
-
-### Community 30 - "Performance Optimization Skill"
+### Community 30 - "FastAPI & PostgreSQL Performance Optimizer Skill"
 Cohesion: 0.22
 Nodes (10): Caching Layer & Background Task Offloading, Connection Pooling Parameters, Database Indexing Strategy, Diagnostic & Audit Checklist, Event Loop Stall Detection, FastAPI & PostgreSQL Performance Optimizer Skill, N+1 Query Pattern Detection, Payload & Serialization Optimization (+2 more)
 
-### Community 31 - "Complete DailyActivity Use Case"
+### Community 31 - "CompleteDailyActivityUseCase"
 Cohesion: 0.44
 Nodes (8): complete_daily_activities(), CompleteDailyActivityCommand, CompleteDailyActivityUseCase, make_scope(), test_complete_day_without_activity_raises(), test_complete_multiple_days(), test_complete_scope_not_found(), test_complete_single_day()
 
-### Community 32 - "Hexagonal Architecture Rules"
+### Community 32 - "Hexagonal Architecture (Ports and Adapters)"
 Cohesion: 0.22
 Nodes (9): Adapters (Inbound / Outbound), Dependency Injection and Composition Root, Dependency Rule (Adapters → Ports → Application → Domain), Domain Layer, Domain Error Handling and Adapter Translation, Framework Isolation, Hexagonal Architecture (Ports and Adapters), Ports (Inbound and Outbound Contracts) (+1 more)
 
-### Community 33 - "Persistence and Infrastructure Notes"
+### Community 33 - "PostgresScopeMonitoringRepository"
 Cohesion: 0.31
 Nodes (9): API Configuration via load_dotenv and os.getenv, Configuration and Secrets Management, Idempotent Schema Bootstrap (CREATE TABLE IF NOT EXISTS), InMemoryScopeMonitoringRepository, Centralized PostgreSQL Pool Configuration, PostgresScopeMonitoringRepository, ProTab Infrastructure Notes, ScopeMonitoringRepository Outbound Port (+1 more)
 
-### Community 34 - "Docker Development Stack"
+### Community 34 - "api Service (FastAPI backend)"
 Cohesion: 0.31
 Nodes (9): api Healthcheck (/healthz), api Service (FastAPI backend), db Healthcheck (pg_isready), db Service (postgres:17-alpine), ProTab Development Docker Stack, frontend Service (React/nginx build), pgdata Named Volume, FastAPI HTTP Inbound Adapter (+1 more)
 
-### Community 35 - "Audit Event Change Diffing"
-Cohesion: 0.36
-Nodes (7): build_changes(), Return only the fields whose value differs between ``before`` and ``after``.…, test_audit_event_defaults(), test_build_changes_empty_when_identical(), test_build_changes_from_empty_keeps_all_fields(), test_build_changes_handles_removed_fields(), test_build_changes_keeps_only_different_fields()
+### Community 35 - "build_connection_pool"
+Cohesion: 0.18
+Nodes (8): ConnectionPool, psycopg_pool, build_connection_pool(), ping_check(), Connection, Shared PostgreSQL connection-pool configuration for persistence adapters., Check connectivity and leave the connection outside a transaction., Build a tuned, initially closed synchronous PostgreSQL pool.
 
-### Community 36 - "API Surface and Audit Trail"
+### Community 36 - "Mutation Use Cases (Create/Complete/Update DailyActivity, Create ScopeMonitoring)"
 Cohesion: 0.33
 Nodes (7): Audit Trail (best-effort mutation journal), Atomic ScopeMonitoring Creation, Domain Error to HTTP Status Mapping, Mutation Use Cases (Create/Complete/Update DailyActivity, Create ScopeMonitoring), Query Use Cases (ListScopes, GetScope, GetDailyActivity, ListAuditEvents), REST Routes and Status Codes Table, React Root Mount (#root)
 
-### Community 37 - "Development Workflow Rules"
+### Community 37 - "Development Workflow (9 Steps)"
 Cohesion: 0.40
 Nodes (6): Definition of Done Checklist, Development Workflow (9 Steps), Documentation Synchronization Requirement, Graphify Knowledge Graph Workflow, Test-Driven Development (RED/GREEN/REFACTOR), Testing Strategy (Test Pyramid)
 
-### Community 38 - "Project Settings and Auth Rules"
+### Community 38 - "Project Authentication with Quadrigramme Restriction"
 Cohesion: 0.50
 Nodes (4): Default Project Seeding Env Vars, Project Authentication with Quadrigramme Restriction, Per-Project Working Days Settings, Quadrigramme Bootstrap Exemption
 
+### Community 40 - "AuditActivityHeatmap.tsx"
+Cohesion: 0.29
+Nodes (8): AuditActivityHeatmap(), AuditActivityHeatmapProps, HOURS, intensityClass(), WEEKDAYS, AuditEvent, buildHeatmapMatrix(), HeatmapMatrix
+
+### Community 72 - "DailyActivity"
+Cohesion: 0.06
+Nodes (39): RuntimeError, MissingProjectContextError, PostgresScopeMonitoringRepository, Connection, date, Exception, Persist ``ScopeMonitoring`` aggregates in PostgreSQL. The schema is applied…, Open the connection pool and apply the (idempotent) schema. (+31 more)
+
+### Community 73 - "PostgresAuthRepository"
+Cohesion: 0.16
+Nodes (7): AuthSession, _hash_password(), _normalize_non_working_days(), PostgresAuthRepository, Project, Store project credentials and opaque, expiring session tokens., Replace the password of an existing project and drop its sessions. Rotating a…
+
+### Community 74 - "postgres_auth_repository_test.py"
+Cohesion: 0.11
+Nodes (22): add_scope(), bootstrap_password(), empty_database(), project(), fixture, Integration tests for the PostgreSQL auth repository rule: the quadrigramme…, The password is only needed to seed; a restart must not require it. Requiring…, ``official_main`` encodes several codes just like ``official_backup``. (+14 more)
+
+### Community 75 - "FakeAuthRepository"
+Cohesion: 0.18
+Nodes (10): FakeAuthRepository, login_and_read_session_cookie(), test_authenticated_routes_require_a_valid_session(), test_in_memory_application_remains_unauthenticated_for_existing_fixtures(), test_login_rejects_invented_quadrigramme_when_known_codes_exist(), test_project_settings_are_authenticated_and_project_scoped(), test_project_settings_reject_invalid_weekday(), test_session_cookie_is_httponly_and_samesite_lax() (+2 more)
+
+### Community 76 - "_official_codes"
+Cohesion: 0.23
+Nodes (10): _check_password(), _official_codes(), Quadrigrammes declared by one ``officials`` column (format « A/B »).…, Parsing of the officials columns that gate the quadrigramme. Both…, ``MRAM/ ?`` means "MRAM, no backup": ``?`` is not a quadrigramme., test_handles_empty_and_none(), test_ignores_punctuation_only_parts(), test_placeholder_is_not_a_code() (+2 more)
+
+### Community 77 - "graphify.js"
+Cohesion: 0.25
+Nodes (5): IMPORTANT: keep the reminder string free of backticks and $(...) constructs., ref_fs, ref_path, @tailwindcss/vite, @vitejs/plugin-react
+
+### Community 78 - "scripts"
+Cohesion: 0.33
+Nodes (6): scripts, build, dev, lint, preview, test
+
+### Community 79 - "resolve_bootstrap_password"
+Cohesion: 0.36
+Nodes (7): Return the password seeding the first project, or refuse to start. Called only…, resolve_bootstrap_password(), The bootstrap project password must never fall back to a hardcoded default. A…, test_blank_variable_raises(), test_missing_variable_raises(), test_returns_the_configured_password(), test_trims_surrounding_whitespace()
+
+### Community 80 - "postgres_auth_repository.py"
+Cohesion: 0.20
+Nodes (9): hashlib, hmac, protab_adapters_outbound_persistence_postgres_pool, psycopg, psycopg_types_json, secrets, PostgreSQL outbound adapter for the AuditTrailRepository port. The schema is…, PostgreSQL persistence for projects and login sessions. (+1 more)
+
+### Community 81 - "protab_adapters_outbound_persistence_postgres_auth_repository"
+Cohesion: 0.29
+Nodes (7): fastapi, protab_adapters_outbound_persistence_postgres_auth_repository, Response, logout(), clear_session_cookie(), CurrentUser, set_session_cookie()
+
 ## Ambiguous Edges - Review These
-- `Audit Trail (best-effort mutation journal)` → `React Root Mount (#root)`  [AMBIGUOUS]
+- `React Root Mount (#root)` → `Audit Trail (best-effort mutation journal)`  [AMBIGUOUS]
   src/FrontEnd/index.html · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **108 isolated node(s):** `$schema`, `plugin`, `protab`, `name`, `private` (+103 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 280 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **33 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **111 isolated node(s):** `$schema`, `plugin`, `protab`, `name`, `private` (+106 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 311 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **32 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **What is the exact relationship between `Audit Trail (best-effort mutation journal)` and `React Root Mount (#root)`?**
+- **What is the exact relationship between `React Root Mount (#root)` and `Audit Trail (best-effort mutation journal)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `create_app()` connect `FastAPI App Factory and Schemas` to `Connection Pool and Shared Infrastructure`, `API Configuration and Composition Root`, `Audit Trail Persistence and Query`, `Scope Monitoring API Tests`, `Application Core Wiring`, `Auth Repository and Password Hashing`, `Query Use Cases`, `PostgreSQL Integration Tests`, `Auth Session and HTTP Flow Tests`, `Authentication HTTP Routes`, `Create DailyActivity Use Case`, `HTTP Error Mapping`, `Update DailyActivity Use Case`, `Complete DailyActivity Use Case`?**
-  _High betweenness centrality (0.091) - this node is a cross-community bridge._
-- **Why does `DailyActivity` connect `Postgres Scope Monitoring Repository` to `Daily Activity Invariants and Errors`, `Audit Trail Persistence and Query`, `Domain Entities and Repository Adapters`, `Scope Monitoring API Tests`, `FastAPI App Factory and Schemas`, `Create ScopeMonitoring Use Case`, `Query Use Cases`, `PostgreSQL Integration Tests`, `Create DailyActivity Use Case`, `Domain Commands and Port Interfaces`, `Update DailyActivity Use Case`, `Complete DailyActivity Use Case`?**
-  _High betweenness centrality (0.048) - this node is a cross-community bridge._
-- **Why does `ScopeMonitoring` connect `Postgres Scope Monitoring Repository` to `Connection Pool and Shared Infrastructure`, `Audit Trail Persistence and Query`, `Domain Entities and Repository Adapters`, `Scope Monitoring API Tests`, `FastAPI App Factory and Schemas`, `Create ScopeMonitoring Use Case`, `Query Use Cases`, `PostgreSQL Integration Tests`, `Create DailyActivity Use Case`, `Update DailyActivity Use Case`, `Complete DailyActivity Use Case`?**
-  _High betweenness centrality (0.034) - this node is a cross-community bridge._
-- **Are the 46 inferred relationships involving `create_app()` (e.g. with `close_persistence()` and `project_context()`) actually correct?**
-  _`create_app()` has 46 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `create_app()` connect `create_app` to `scope_monitoring_csv_reader_test.py`, `AuditEvent`, `PostgresAuthRepository`, `api_test.py`, `FakeAuthRepository`, `app.py`, `InMemoryScopeMonitoringRepository`, `protab_adapters_outbound_persistence_in_memory_scope_monitoring_repository`, `protab_adapters_outbound_persistence_postgres_auth_repository`, `postgres_scope_monitoring_repository_test.py`, `project_admin.py`, `ScopeMonitoring`, `CreateDailyActivityUseCase`, `audit_log_api_test.py`, `UpdateDailyActivityUseCase`, `CompleteDailyActivityUseCase`?**
+  _High betweenness centrality (0.090) - this node is a cross-community bridge._
+- **Why does `DailyActivity` connect `DailyActivity` to `DomainError`, `AuditEvent`, `datetime`, `api_test.py`, `create_app`, `InMemoryScopeMonitoringRepository`, `postgres_scope_monitoring_repository_test.py`, `ScopeMonitoring`, `CreateDailyActivityUseCase`, `audit_log_api_test.py`, `UpdateDailyActivityUseCase`, `CompleteDailyActivityUseCase`?**
+  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+- **Why does `ScopeMonitoring` connect `ScopeMonitoring` to `DailyActivity`, `AuditEvent`, `datetime`, `create_app`, `api_test.py`, `postgres_auth_repository_test.py`, `InMemoryScopeMonitoringRepository`, `postgres_scope_monitoring_repository_test.py`, `CreateDailyActivityUseCase`, `audit_log_api_test.py`, `UpdateDailyActivityUseCase`, `CompleteDailyActivityUseCase`?**
+  _High betweenness centrality (0.037) - this node is a cross-community bridge._
+- **Are the 49 inferred relationships involving `create_app()` (e.g. with `close_persistence()` and `project_context()`) actually correct?**
+  _`create_app()` has 49 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 40 inferred relationships involving `DailyActivity` (e.g. with `_activity_to_response()` and `PostgresScopeMonitoringRepository`) actually correct?**
   _`DailyActivity` has 40 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 38 inferred relationships involving `InMemoryScopeMonitoringRepository` (e.g. with `ScopeMonitoring` and `test_daily_activity_full_flow_over_http()`) actually correct?**
-  _`InMemoryScopeMonitoringRepository` has 38 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 41 inferred relationships involving `InMemoryScopeMonitoringRepository` (e.g. with `ScopeMonitoring` and `test_daily_activity_full_flow_over_http()`) actually correct?**
+  _`InMemoryScopeMonitoringRepository` has 41 INFERRED edges - model-reasoned connections that need verification._
