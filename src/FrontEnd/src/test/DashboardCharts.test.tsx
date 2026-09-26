@@ -21,7 +21,7 @@ const scope = (
 });
 
 describe('DashboardCharts', () => {
-  it('affiche la tendance et la répartition des statuts', () => {
+  it('affiche l\'activité des 7 derniers jours et l\'état des périmètres', () => {
     const scopes = [
       scope('s1', 'Périmètre Alpha', [
         {
@@ -33,6 +33,7 @@ describe('DashboardCharts', () => {
           completed: true,
         },
       ]),
+      scope('s2', 'Périmètre Beta', []),
     ];
 
     render(
@@ -43,8 +44,10 @@ describe('DashboardCharts', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', { name: /Tendance hebdomadaire/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Répartition des statuts/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Activité — 7 derniers jours/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /État des périmètres/i })).toBeInTheDocument();
+    expect(screen.getByText(/4 erreurs/)).toBeInTheDocument();
+    expect(screen.getByText(/2 incidents/)).toBeInTheDocument();
     expect(screen.queryByText(/Couverture de saisie/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Périmètres à risque/i)).not.toBeInTheDocument();
   });

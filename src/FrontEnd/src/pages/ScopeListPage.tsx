@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, lazy, Suspense } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Layers,
   Search,
@@ -9,27 +9,27 @@ import {
   ChevronRight,
   AlertCircle,
   ShieldCheck,
-  Clock,
-  FileSpreadsheet,
   Users,
   Activity as ActivityIcon,
+  Inbox,
+  Download,
 } from "lucide-react";
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
-import { TodayActivityEditor } from "../components/TodayActivityEditor";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
 import {
   baselineDelta,
-  coverageRate,
-  lastWorkingDays,
+  previousWorkingDays,
   trailingErrors,
   transformationRate,
 } from "../utils/kpi";
 import { useToast } from "../hooks/useToast";
 import { DateNavigator } from "../components/DateNavigator";
+import { InlineActivityCounters } from "../components/InlineActivityCounters";
+import { ExportModal } from "../components/ExportModal";
 
 const DashboardCharts = lazy(() =>
   import("../components/DashboardCharts").then((m) => ({
@@ -44,21 +44,32 @@ interface ScopeListPageProps {
   nonWorkingDays?: NonWorkingDays;
 }
 
+type QuickFilter = "all" | "to_process" | "errors" | "incidents" | "completed";
+
+interface EnrichedScope extends ScopeMonitoring {
+  selectedActivity?: DailyActivity;
+  hasSelectedDay: boolean;
+  selectedDayCompleted: boolean;
+  status: "completed" | "in_progress" | "none";
+  selectedDayErrors: number;
+  selectedDayIncidents: number;
+}
+
 export function ScopeListPage({
   onOpenCreateScope,
   onOpenImportCsv,
   refreshTrigger,
   nonWorkingDays,
 }: ScopeListPageProps) {
+  const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
   const [scopes, setScopes] = useState<ScopeMonitoring[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "in_progress" | "completed" | "none"
-  >("all");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [completingIds, setCompletingIds] = useState<string[]>([]);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const todayIso = getTodayIsoDate();
   const [selectedDay, setSelectedDay] = useState(todayIso);
@@ -69,6 +80,27 @@ export function ScopeListPage({
   const selectedDayValidationLabel = isSelectedDayToday
     ? "aujourd'hui"
     : `le ${formatDateFr(selectedDay)}`;
+
+  const lastWorkingDay = useMemo(
+    () => previousWorkingDays(todayIso, 1, nonWorkingDays)[0],
+    [todayIso, nonWorkingDays],
+  );
+
+  const untreatedLastWorkingDayCount = useMemo(() => {
+    if (!lastWorkingDay) return 0;
+    return scopes.filter((scope) => {
+      const activity = (scope.daily_activities || []).find(
+        (item) => item.day === lastWorkingDay,
+      );
+      return !activity || !activity.handled;
+    }).length;
+  }, [scopes, lastWorkingDay]);
+
+  const showUntreatedBacklog = () => {
+    if (!lastWorkingDay) return;
+    setSelectedDay(lastWorkingDay);
+    setQuickFilter("to_process");
+  };
 
   const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
     setScopes((prev) =>
@@ -145,44 +177,32 @@ export function ScopeListPage({
     fetchScopes();
   }, [refreshTrigger]);
 
-  // Calculs dérivés par périmètre
-  const enrichedScopes = useMemo(() => {
+  // Données dérivées par périmètre pour le jour sélectionné
+  const enrichedScopes = useMemo<EnrichedScope[]>(() => {
     return scopes.map((scope) => {
       const activities = scope.daily_activities || [];
       const selectedActivity = activities.find((a) => a.day === selectedDay);
       const hasSelectedDay = !!selectedActivity;
       const selectedDayCompleted = selectedActivity?.completed ?? false;
-      const selectedDayHandled = selectedActivity?.handled ?? false;
 
-      // Détermination du statut global du jour ou de suivi
       let status: "completed" | "in_progress" | "none" = "none";
       if (selectedActivity) {
         status = selectedDayCompleted ? "completed" : "in_progress";
       }
-
-      const totalErrors = activities.reduce(
-        (acc, a) => acc + (a.errors_reported || 0),
-        0,
-      );
-      const totalIncidents = activities.reduce(
-        (acc, a) => acc + (a.incidents_created || 0),
-        0,
-      );
 
       return {
         ...scope,
         selectedActivity,
         hasSelectedDay,
         selectedDayCompleted,
-        selectedDayHandled,
         status,
-        totalErrors,
-        totalIncidents,
+        selectedDayErrors: selectedActivity?.errors_reported || 0,
+        selectedDayIncidents: selectedActivity?.incidents_created || 0,
       };
     });
   }, [scopes, selectedDay]);
 
-  // Filtrage selon recherche et statut
+  // Filtrage combiné recherche + filtre rapide action
   const filteredScopes = useMemo(() => {
     return enrichedScopes.filter((scope) => {
       const matchesSearch =
@@ -195,62 +215,86 @@ export function ScopeListPage({
 
       if (!matchesSearch) return false;
 
-      if (statusFilter === "completed") {
-        return scope.status === "completed";
+      switch (quickFilter) {
+        case "to_process":
+          return scope.status !== "completed";
+        case "errors":
+          return scope.selectedDayErrors > 0;
+        case "incidents":
+          return scope.selectedDayIncidents > 0;
+        case "completed":
+          return scope.status === "completed";
+        default:
+          return true;
       }
-      if (statusFilter === "in_progress") {
-        return scope.status === "in_progress";
-      }
-      if (statusFilter === "none") {
-        return scope.status === "none";
-      }
-      return true;
     });
-  }, [enrichedScopes, searchQuery, statusFilter]);
+  }, [enrichedScopes, searchQuery, quickFilter]);
 
-  // Statistiques pour le bandeau supérieur
+  // Statistiques action-first pour le bandeau KPI
   const stats = useMemo(() => {
     const total = scopes.length;
     const completedCount = enrichedScopes.filter(
       (s) => s.selectedDayCompleted,
     ).length;
-    const pendingCount = total - completedCount;
+    const inProgressCount = enrichedScopes.filter(
+      (s) => s.status === "in_progress",
+    ).length;
+    const noneCount = enrichedScopes.filter((s) => s.status === "none").length;
+    const toProcessCount = inProgressCount + noneCount;
     const selectedDayErrors = enrichedScopes.reduce(
-      (acc, s) => acc + (s.selectedActivity?.errors_reported || 0),
+      (acc, s) => acc + s.selectedDayErrors,
       0,
     );
     const selectedDayIncidents = enrichedScopes.reduce(
-      (acc, s) => acc + (s.selectedActivity?.incidents_created || 0),
-      0,
-    );
-    const selectedDayFeai = enrichedScopes.reduce(
-      (acc, s) => acc + (s.selectedActivity?.feai.length || 0),
+      (acc, s) => acc + s.selectedDayIncidents,
       0,
     );
     const rate = transformationRate(selectedDayIncidents, selectedDayErrors);
     const trailing = trailingErrors(selectedDayErrors, selectedDayIncidents);
+    const delta = baselineDelta(scopes, selectedDay, nonWorkingDays);
 
     return {
       total,
       completedCount,
-      pendingCount,
+      toProcessCount,
+      inProgressCount,
+      noneCount,
       selectedDayErrors,
       selectedDayIncidents,
-      selectedDayFeai,
       rate,
       trailing,
-      delta: baselineDelta(scopes, selectedDay, nonWorkingDays),
-      coverage: coverageRate(
-        scopes,
-        lastWorkingDays(selectedDay, 7, nonWorkingDays),
-      ),
+      delta,
+      completionPct: total === 0 ? 0 : Math.round((completedCount / total) * 100),
     };
   }, [scopes, enrichedScopes, selectedDay, nonWorkingDays]);
+
+  const filterCounts = useMemo(() => {
+    return {
+      all: enrichedScopes.length,
+      to_process: stats.toProcessCount,
+      errors: enrichedScopes.filter((s) => s.selectedDayErrors > 0).length,
+      incidents: enrichedScopes.filter((s) => s.selectedDayIncidents > 0)
+        .length,
+      completed: stats.completedCount,
+    };
+  }, [enrichedScopes, stats]);
+
+  const quickFilterOptions: { key: QuickFilter; label: string }[] = [
+    { key: "all", label: "Tous" },
+    { key: "to_process", label: "À traiter" },
+    { key: "errors", label: "Erreurs" },
+    { key: "incidents", label: "Incidents" },
+    { key: "completed", label: "Terminés" },
+  ];
+
+  const navigateToDetail = (scope: ScopeMonitoring) => {
+    navigate(`/scopes/${scope.id}`);
+  };
 
   return (
     <div className="space-y-6">
       {/* En-tête de page & Titre */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-nord-6 flex items-center gap-2.5">
             <Layers className="w-6 h-6 text-blue-600 dark:text-nord-9" />
@@ -262,12 +306,22 @@ export function ScopeListPage({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <DateNavigator
             value={selectedDay}
             today={todayIso}
             onChange={setSelectedDay}
           />
+          <button
+            type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            disabled={scopes.length === 0}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 dark:text-nord-5 bg-white dark:bg-nord-1 hover:bg-slate-50 dark:hover:bg-nord-2 border border-slate-300 dark:border-nord-2 rounded-lg shadow-2xs transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Exporter les données sur une plage de dates"
+          >
+            <Download className="w-4 h-4 text-blue-600 dark:text-nord-8" />
+            <span>Exporter</span>
+          </button>
           <button
             type="button"
             onClick={fetchScopes}
@@ -283,40 +337,41 @@ export function ScopeListPage({
         </div>
       </div>
 
-      {/* Cartes de synthèse / Statistiques du jour */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
-            <span className="text-xs font-medium uppercase tracking-wider">
-              Périmètres totaux
+      {/* KPI action-first : À traiter, Terminés, Erreurs, Incidents */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* KPI principal — À traiter */}
+        <div className="bg-amber-50/60 dark:bg-nord-13/10 p-4 rounded-xl border-2 border-amber-300/70 dark:border-nord-13/40 shadow-2xs">
+          <div className="flex items-center justify-between text-amber-800 dark:text-nord-13">
+            <span className="text-xs font-semibold uppercase tracking-wider">
+              À traiter
             </span>
-            <Layers className="w-4 h-4 text-blue-600 dark:text-nord-9" />
+            <Inbox className="w-4 h-4" />
           </div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-nord-6 mt-2">
-            {stats.total}
+          <p className="text-3xl font-bold text-amber-900 dark:text-nord-13 mt-2">
+            {stats.toProcessCount}
           </p>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            Couverture 7 j ouvrés : {stats.coverage} %
+          <p className="text-xs text-amber-800/90 dark:text-nord-4 mt-1">
+            {stats.inProgressCount} en cours · {stats.noneCount} non saisis
           </p>
         </div>
 
+        {/* KPI Terminés */}
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
-              {isSelectedDayToday
-                ? "validé aujourd'hui"
-                : `Terminé ${selectedDayValidationLabel}`}
+              Terminés
             </span>
             <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-nord-14" />
           </div>
-          <p className="text-2xl font-bold text-emerald-600 dark:text-nord-14 mt-2">
-            {stats.completedCount}
+          <p className="text-2xl font-bold text-slate-900 dark:text-nord-6 mt-2">
+            {stats.completedCount} / {stats.total}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            {stats.pendingCount} en cours ou en attente
+            {stats.completionPct} % {isSelectedDayToday ? "aujourd'hui" : selectedDayValidationLabel}
           </p>
         </div>
 
+        {/* KPI Erreurs */}
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
@@ -330,7 +385,7 @@ export function ScopeListPage({
           <p className="text-xs mt-1">
             {stats.delta.deltaPct === null ? (
               <span className="text-slate-400 dark:text-nord-3">
-                Δ baseline (7 j ouvrés) : —
+                vs baseline (7 j) : —
               </span>
             ) : (
               <span
@@ -342,17 +397,18 @@ export function ScopeListPage({
                       : "text-slate-400 dark:text-nord-3"
                 }
               >
-                Δ baseline (7 j ouvrés) : {stats.delta.direction === "up" ? "▲" : "▼"}{" "}
+                vs baseline (7 j) : {stats.delta.direction === "up" ? "▲" : "▼"}{" "}
                 {Math.abs(stats.delta.deltaPct)} %
               </span>
             )}
           </p>
         </div>
 
+        {/* KPI Incidents à suivre */}
         <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 dark:text-nord-4">
             <span className="text-xs font-medium uppercase tracking-wider">
-              {`Incidents créés ${selectedDayLabel}`}
+              Incidents à suivre
             </span>
             <AlertCircle className="w-4 h-4 text-rose-600 dark:text-nord-11" />
           </div>
@@ -362,18 +418,53 @@ export function ScopeListPage({
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
             {stats.rate === null
               ? "Aucune erreur du jour"
-              : `${stats.rate} % des erreurs · ${stats.trailing} non transformée${stats.trailing > 1 ? "s" : ""}`}
+              : `${stats.trailing} non transformé${stats.trailing > 1 ? "s" : ""}`}
           </p>
         </div>
       </div>
 
-      {/* Graphiques KPI */}
+      {lastWorkingDay &&
+        untreatedLastWorkingDayCount > 0 &&
+        selectedDay !== lastWorkingDay && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-nord-13/30 dark:bg-nord-13/15"
+          >
+            <Inbox
+              aria-hidden="true"
+              className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-nord-13"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-950 dark:text-nord-13">
+                {untreatedLastWorkingDayCount === 1
+                  ? "1 périmètre non traité"
+                  : `${untreatedLastWorkingDayCount} périmètres non traités`}
+                {" "}
+                le {formatDateFr(lastWorkingDay)}.
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-nord-4">
+                Certains périmètres du dernier jour ouvré n'ont pas encore été traités.
+              </p>
+              <button
+                type="button"
+                onClick={showUntreatedBacklog}
+                aria-label={`Voir les ${untreatedLastWorkingDayCount} périmètres non traités du ${formatDateFr(lastWorkingDay)}`}
+                className="mt-2 min-h-11 rounded-lg px-2 text-xs font-semibold text-amber-900 underline decoration-amber-300 underline-offset-2 hover:text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-nord-13 dark:decoration-nord-13/50 dark:hover:text-nord-6"
+              >
+                Voir ces périmètres
+              </button>
+            </div>
+          </div>
+        )}
+
+      {/* Graphique & état des périmètres */}
       {scopes.length > 0 && (
         <Suspense
           fallback={
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs h-80 animate-pulse" />
-              <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs h-80 animate-pulse" />
+              <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs h-52 animate-pulse" />
+              <div className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs h-52 animate-pulse" />
             </div>
           }
         >
@@ -385,69 +476,48 @@ export function ScopeListPage({
         </Suspense>
       )}
 
-      {/* Barre d'outils (Recherche & Filtres) */}
-      <div className="bg-white dark:bg-nord-1 p-3.5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-        <div className="relative flex-1">
+      {/* Barre de contrôle de la liste (recherche & filtres rapides) */}
+      <div className="bg-white dark:bg-nord-1 p-3.5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative flex-1 lg:max-w-md">
           <Search className="w-4 h-4 text-slate-400 dark:text-nord-3 absolute left-3 top-2.5" />
           <input
             type="text"
-            placeholder="Rechercher par nom, KB-ID, responsable..."
+            placeholder="Rechercher un périmètre, KB, responsable..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            aria-label="Rechercher un périmètre, KB, responsable"
             className="w-full pl-9 pr-4 py-1.5 text-sm bg-slate-50 dark:bg-nord-0 border border-slate-200 dark:border-nord-2 text-slate-900 dark:text-nord-5 placeholder:text-slate-400 dark:placeholder:text-nord-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 focus:bg-white dark:focus:bg-nord-0 transition-colors"
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-200 dark:border-nord-2 p-0.5 bg-slate-50 dark:bg-nord-0 text-xs">
-            <button
-              type="button"
-              onClick={() => setStatusFilter("all")}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === "all"
-                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
-                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
-              }`}
-            >
-              Tous ({enrichedScopes.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("in_progress")}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === "in_progress"
-                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
-                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
-              }`}
-            >
-              En cours (
-              {enrichedScopes.filter((s) => s.status === "in_progress").length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("none")}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === "none"
-                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
-                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
-              }`}
-            >
-              Non saisi (
-              {enrichedScopes.filter((s) => s.status === "none").length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("completed")}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                statusFilter === "completed"
-                  ? "bg-white dark:bg-nord-2 text-slate-900 dark:text-nord-6 shadow-2xs"
-                  : "text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6"
-              }`}
-            >
-              Terminés (
-              {enrichedScopes.filter((s) => s.selectedDayCompleted).length})
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrer par action">
+          {quickFilterOptions.map((option) => {
+            const isActive = quickFilter === option.key;
+            return (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setQuickFilter(option.key)}
+                aria-pressed={isActive}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 ${
+                  isActive
+                    ? "bg-blue-600 dark:bg-nord-10 text-white shadow-xs"
+                    : "bg-slate-50 dark:bg-nord-0 text-slate-600 dark:text-nord-4 hover:bg-slate-100 dark:hover:bg-nord-2 hover:text-slate-900 dark:hover:text-nord-6 border border-slate-200 dark:border-nord-2"
+                }`}
+              >
+                {option.label}{" "}
+                <span
+                  className={
+                    isActive
+                      ? "text-blue-100 dark:text-nord-6"
+                      : "text-slate-400 dark:text-nord-3"
+                  }
+                >
+                  ({filterCounts[option.key]})
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -520,50 +590,52 @@ export function ScopeListPage({
           </div>
         </div>
       ) : (
-        /* Tableau des périmètres */
-        <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600 dark:text-nord-5">
-              <thead className="bg-slate-50/80 dark:bg-nord-0/60 border-b border-slate-200 dark:border-nord-2 text-xs font-semibold text-slate-700 dark:text-nord-4 uppercase tracking-wider">
-                <tr>
-                  <th scope="col" className="px-5 py-3.5">
-                    Périmètre & Base KB
-                  </th>
-                  <th scope="col" className="px-5 py-3.5">
-                    Responsable Principal
-                  </th>
-                  <th scope="col" className="px-5 py-3.5">
-                    Responsable Suppléant
-                  </th>
-                  <th scope="col" className="px-3 py-3.5 text-left w-80">
-                    {`Activité ${selectedDayLabel}`}
-                    <span className="block text-[10px] font-medium text-slate-400 dark:text-nord-3 normal-case tracking-normal mt-0.5">
-                      Saisie en ligne — sauvegarde auto • Σ FEAI :{' '}
-                      {stats.selectedDayFeai}
-                    </span>
-                  </th>
-                  <th scope="col" className="px-5 py-3.5 text-center">
-                    Statut
-                  </th>
-                  <th scope="col" className="px-5 py-3.5 text-right">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
-                {filteredScopes.map((scope) => {
-                  const selectedActivity = scope.selectedActivity;
-
-                  return (
+        <>
+          {/* Tableau des périmètres (desktop / tablette) */}
+          <div className="hidden md:block bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600 dark:text-nord-5">
+                <thead className="bg-slate-50/80 dark:bg-nord-0/60 border-b border-slate-200 dark:border-nord-2 text-xs font-semibold text-slate-700 dark:text-nord-4 uppercase tracking-wider">
+                  <tr>
+                    <th scope="col" className="px-5 py-3.5">
+                      Périmètre & Base KB
+                    </th>
+                    <th scope="col" className="px-5 py-3.5">
+                      Responsable
+                    </th>
+                    <th scope="col" className="px-5 py-3.5">
+                      {`Activité ${selectedDayLabel}`}
+                    </th>
+                    <th scope="col" className="px-5 py-3.5 text-center">
+                      Statut
+                    </th>
+                    <th scope="col" className="px-5 py-3.5 text-right">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
+                  {filteredScopes.map((scope) => (
                     <tr
                       key={scope.id}
-                      className="hover:bg-slate-50/70 dark:hover:bg-nord-2/50 transition-colors group"
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Ouvrir le détail de ${scope.name}`}
+                      onClick={() => navigateToDetail(scope)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigateToDetail(scope);
+                        }
+                      }}
+                      className="cursor-pointer group hover:bg-slate-50/70 dark:hover:bg-nord-2/50 focus-visible:bg-slate-50/70 dark:focus-visible:bg-nord-2/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 transition-colors"
                     >
                       {/* Nom & KB-ID */}
                       <td className="px-5 py-4">
                         <Link
                           to={`/scopes/${scope.id}`}
-                          className="font-semibold text-slate-900 dark:text-nord-6 group-hover:text-blue-600 dark:group-hover:text-nord-8 transition-colors block"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-semibold text-slate-900 dark:text-nord-6 group-hover:text-blue-600 dark:group-hover:text-nord-8 transition-colors block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
                         >
                           {scope.name}
                         </Link>
@@ -572,13 +644,14 @@ export function ScopeListPage({
                           target="_blank"
                           rel="noopener noreferrer"
                           title="Ouvrir l'article KB"
-                          className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2 hover:text-blue-600 dark:hover:text-nord-8 hover:border-blue-400 dark:hover:border-nord-9/60 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2 hover:text-blue-600 dark:hover:text-nord-8 hover:border-blue-400 dark:hover:border-nord-9/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8"
                         >
                           {scope.knowledge_base_id}
                         </a>
                       </td>
 
-                      {/* Responsable Principal */}
+                      {/* Responsables */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-slate-400 dark:text-nord-3" />
@@ -586,75 +659,189 @@ export function ScopeListPage({
                             {scope.official_main}
                           </span>
                         </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Users className="w-3.5 h-3.5 text-slate-300 dark:text-nord-3" />
+                          <span className="text-xs text-slate-500 dark:text-nord-4">
+                            {scope.official_backup}
+                          </span>
+                        </div>
                       </td>
 
-                      {/* Responsable Backup */}
+                      {/* Synthèse & saisie d'activité */}
                       <td className="px-5 py-4">
-                        <span className="text-slate-600 dark:text-nord-4">
-                          {scope.official_backup}
-                        </span>
-                      </td>
-
-                      {/* Saisie en ligne de l'activité du jour */}
-                      <td className="px-3 py-2">
-                        <TodayActivityEditor
-                          key={`${scope.id}-${selectedDay}`}
+                        <InlineActivityCounters
                           scopeId={scope.id}
                           day={selectedDay}
-                          initialActivity={selectedActivity}
+                          initialActivity={scope.selectedActivity}
                           onChanged={handleActivityChanged}
                         />
                       </td>
 
-                      {/* Statut (en-cours / terminé) */}
+                      {/* Statut & action de complétion */}
                       <td className="px-5 py-4 text-center">
-                        {scope.selectedDayCompleted ? (
-                          <Badge type="completed" label="Terminé" />
-                        ) : (
-                          <div className="flex flex-col items-center gap-1.5">
-                            {selectedActivity ? (
-                              <Badge type="in_progress" label="En cours" />
-                            ) : (
-                              <Badge type="neutral" label="Non saisi" />
-                            )}
-                            <CompleteTodayButton
-                              onClick={() => handleCompleteSelectedDay(scope)}
-                              dayLabel={selectedDayLabel}
-                              disabled={completingIds.includes(scope.id)}
-                              pending={completingIds.includes(scope.id)}
-                            />
-                          </div>
-                        )}
+                        <div className="flex flex-col items-center gap-1.5">
+                          {scope.selectedDayCompleted ? (
+                            <Badge type="completed" label="Terminé" />
+                          ) : (
+                            <>
+                              {scope.hasSelectedDay ? (
+                                <Badge type="in_progress" label="En cours" />
+                              ) : (
+                                <Badge type="none" label="Non saisi" />
+                              )}
+                              <CompleteTodayButton
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCompleteSelectedDay(scope);
+                                }}
+                                onKeyDown={(e) => e.stopPropagation()}
+                                dayLabel={selectedDayLabel}
+                                disabled={completingIds.includes(scope.id)}
+                                pending={completingIds.includes(scope.id)}
+                              />
+                            </>
+                          )}
+                        </div>
                       </td>
 
                       {/* Action Détail */}
                       <td className="px-5 py-4 text-right">
                         <Link
                           to={`/scopes/${scope.id}`}
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-nord-8 hover:text-blue-800 dark:hover:text-nord-7 group-hover:translate-x-0.5 transition-transform"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-nord-8 hover:text-blue-800 dark:hover:text-nord-7 group-hover:translate-x-0.5 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
+                          aria-label={`Voir le détail de ${scope.name}`}
                         >
                           <span>Détail</span>
                           <ChevronRight className="w-4 h-4" />
                         </Link>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="px-5 py-3 border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 text-xs text-slate-500 dark:text-nord-4 flex items-center justify-between">
+              <span>
+                Affichage de {filteredScopes.length} sur {scopes.length}{" "}
+                périmètre(s)
+              </span>
+              <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">
+                Jour affiché : {formatDateFr(selectedDay)}
+              </span>
+            </div>
           </div>
 
-          <div className="px-5 py-3 border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 text-xs text-slate-500 dark:text-nord-4 flex items-center justify-between">
-            <span>
-              Affichage de {filteredScopes.length} sur {scopes.length}{" "}
-              périmètre(s)
-            </span>
-            <span className="font-mono text-[11px] text-slate-500 dark:text-nord-3">
-              Jour affiché : {formatDateFr(selectedDay)}
-            </span>
-          </div>
-        </div>
+          {/* Cartes empilées (mobile) */}
+          <ul
+            className="md:hidden space-y-3"
+            role="list"
+            aria-label="Périmètres de supervision"
+          >
+            {filteredScopes.map((scope) => (
+              <li
+                key={scope.id}
+                role="link"
+                tabIndex={0}
+                aria-label={`Ouvrir le détail de ${scope.name}`}
+                onClick={() => navigateToDetail(scope)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    navigateToDetail(scope);
+                  }
+                }}
+                className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs p-4 cursor-pointer hover:border-blue-300 dark:hover:border-nord-9/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <Link
+                      to={`/scopes/${scope.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-semibold text-slate-900 dark:text-nord-6 block truncate focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
+                    >
+                      {scope.name}
+                    </Link>
+                    <a
+                      href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Ouvrir l'article KB"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-block mt-1 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2"
+                    >
+                      {scope.knowledge_base_id}
+                    </a>
+                  </div>
+                  {scope.selectedDayCompleted ? (
+                    <Badge type="completed" label="Terminé" />
+                  ) : scope.hasSelectedDay ? (
+                    <Badge type="in_progress" label="En cours" />
+                  ) : (
+                    <Badge type="none" label="Non saisi" />
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center gap-1.5 text-xs text-slate-600 dark:text-nord-4">
+                  <Users className="w-3.5 h-3.5 text-slate-400 dark:text-nord-3" />
+                  <span className="font-semibold text-slate-800 dark:text-nord-5">
+                    {scope.official_main}
+                  </span>
+                  <span className="text-slate-300 dark:text-nord-2">/</span>
+                  <span>{scope.official_backup}</span>
+                </div>
+
+                <div className="mt-3">
+                  <InlineActivityCounters
+                    scopeId={scope.id}
+                    day={selectedDay}
+                    initialActivity={scope.selectedActivity}
+                    onChanged={handleActivityChanged}
+                  />
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-nord-2">
+                  {scope.selectedDayCompleted ? (
+                    <span className="text-xs text-slate-400 dark:text-nord-3">
+                      Complété
+                    </span>
+                  ) : (
+                    <CompleteTodayButton
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCompleteSelectedDay(scope);
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      dayLabel={selectedDayLabel}
+                      disabled={completingIds.includes(scope.id)}
+                      pending={completingIds.includes(scope.id)}
+                    />
+                  )}
+                  <Link
+                    to={`/scopes/${scope.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-nord-8 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
+                    aria-label={`Voir le détail de ${scope.name}`}
+                  >
+                    <span>Détail</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
+
+      {/* Modale d'export des données */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        scopes={scopes}
+        filteredScopes={filteredScopes}
+        filteredCount={filteredScopes.length}
+      />
     </div>
   );
 }

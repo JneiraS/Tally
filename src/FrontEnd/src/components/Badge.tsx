@@ -1,7 +1,7 @@
 import { Check, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 interface BadgeProps {
-  type: 'handled' | 'completed' | 'in_progress' | 'incident' | 'error' | 'neutral';
+  type: 'handled' | 'completed' | 'in_progress' | 'incident' | 'error' | 'none' | 'neutral';
   label?: string;
   size?: 'sm' | 'md';
 }
@@ -59,6 +59,17 @@ export function Badge({ type, label, size = 'sm' }: BadgeProps) {
         className={`inline-flex items-center gap-1 font-medium rounded-full bg-orange-100 dark:bg-nord-12/20 text-orange-800 dark:text-nord-12 border border-orange-200 dark:border-nord-12/30 ${sizeClasses}`}
       >
         <span>{label || 'Erreur'}</span>
+      </span>
+    );
+  }
+
+  if (type === 'none') {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 font-semibold rounded-full bg-amber-100 dark:bg-nord-13/25 text-amber-900 dark:text-nord-13 border border-amber-300 dark:border-nord-13/50 ${sizeClasses}`}
+      >
+        <AlertTriangle className="w-3.5 h-3.5 text-amber-700 dark:text-nord-13" />
+        <span>{label || 'Non saisi'}</span>
       </span>
     );
   }
