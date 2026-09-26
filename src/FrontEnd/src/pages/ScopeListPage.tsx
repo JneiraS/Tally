@@ -22,6 +22,7 @@ import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
 import {
   baselineDelta,
+  previousWorkingDays,
   trailingErrors,
   transformationRate,
 } from "../utils/kpi";
@@ -79,6 +80,27 @@ export function ScopeListPage({
   const selectedDayValidationLabel = isSelectedDayToday
     ? "aujourd'hui"
     : `le ${formatDateFr(selectedDay)}`;
+
+  const lastWorkingDay = useMemo(
+    () => previousWorkingDays(todayIso, 1, nonWorkingDays)[0],
+    [todayIso, nonWorkingDays],
+  );
+
+  const untreatedLastWorkingDayCount = useMemo(() => {
+    if (!lastWorkingDay) return 0;
+    return scopes.filter((scope) => {
+      const activity = (scope.daily_activities || []).find(
+        (item) => item.day === lastWorkingDay,
+      );
+      return !activity || !activity.handled;
+    }).length;
+  }, [scopes, lastWorkingDay]);
+
+  const showUntreatedBacklog = () => {
+    if (!lastWorkingDay) return;
+    setSelectedDay(lastWorkingDay);
+    setQuickFilter("to_process");
+  };
 
   const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
     setScopes((prev) =>
@@ -400,6 +422,41 @@ export function ScopeListPage({
           </p>
         </div>
       </div>
+
+      {lastWorkingDay &&
+        untreatedLastWorkingDayCount > 0 &&
+        selectedDay !== lastWorkingDay && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-nord-13/30 dark:bg-nord-13/15"
+          >
+            <Inbox
+              aria-hidden="true"
+              className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-nord-13"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-950 dark:text-nord-13">
+                {untreatedLastWorkingDayCount === 1
+                  ? "1 périmètre non traité"
+                  : `${untreatedLastWorkingDayCount} périmètres non traités`}
+                {" "}
+                le {formatDateFr(lastWorkingDay)}.
+              </p>
+              <p className="mt-0.5 text-xs text-amber-800 dark:text-nord-4">
+                Certains périmètres du dernier jour ouvré n'ont pas encore été traités.
+              </p>
+              <button
+                type="button"
+                onClick={showUntreatedBacklog}
+                aria-label={`Voir les ${untreatedLastWorkingDayCount} périmètres non traités du ${formatDateFr(lastWorkingDay)}`}
+                className="mt-2 min-h-11 rounded-lg px-2 text-xs font-semibold text-amber-900 underline decoration-amber-300 underline-offset-2 hover:text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-nord-13 dark:decoration-nord-13/50 dark:hover:text-nord-6"
+              >
+                Voir ces périmètres
+              </button>
+            </div>
+          </div>
+        )}
 
       {/* Graphique & état des périmètres */}
       {scopes.length > 0 && (

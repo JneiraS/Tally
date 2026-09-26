@@ -9,6 +9,7 @@ import { ScopeListPage } from '../pages/ScopeListPage';
 import { ToastProvider } from '../hooks/useToast';
 import { KNOWLEDGE_BASE_URL } from '../utils/knowledgeBase';
 import { protabApi } from '../services/api';
+import { getTodayIsoDate } from '../utils/date';
 
 vi.mock('../services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/api')>();
@@ -29,13 +30,126 @@ vi.mock('../utils/date', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/date')>();
   return {
     ...actual,
-    getTodayIsoDate: () => '2026-09-19',
+    getTodayIsoDate: vi.fn(() => '2026-09-19'),
   };
 });
 
 describe('ScopeListPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-19');
+  });
+
+  it('signale les périmètres non traités du dernier jour ouvré', async () => {
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'scope-untreated',
+        name: 'Scope non traité',
+        knowledge_base_id: 'KB-UNTREATED',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [],
+      },
+      {
+        id: 'scope-handled',
+        name: 'Scope traité',
+        knowledge_base_id: 'KB-HANDLED',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-18',
+            errors_reported: 0,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: false,
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('1 périmètre non traité');
+    expect(screen.getByText(/18 sept. 2026/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /voir les 1 périmètres/i })).toBeInTheDocument();
+  });
+
+  it('masque le bandeau lorsqu’on consulte le dernier jour ouvré', async () => {
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'scope-untreated',
+        name: 'Scope non traité',
+        knowledge_base_id: 'KB-UNTREATED',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /voir les 1 périmètres/i }));
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /à traiter/i }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Activité du 18 sept. 2026')).toBeInTheDocument();
+  });
+
+  it('remonte au vendredi depuis un lundi pour le dernier jour ouvré', async () => {
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-21');
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'scope-untreated',
+        name: 'Scope non traité',
+        knowledge_base_id: 'KB-UNTREATED',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/18 sept. 2026/)).toBeInTheDocument();
+    });
   });
 
   it('affiche le chargement puis la liste des périmètres', async () => {
