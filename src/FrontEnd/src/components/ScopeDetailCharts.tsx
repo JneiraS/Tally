@@ -61,7 +61,7 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
           </span>
         </div>
 
-        <div className="h-64 min-w-0">
+        <div className="h-64 min-w-0 [&_.recharts-surface]:outline-none [&_.recharts-surface]:focus-visible:outline-2 [&_.recharts-surface]:focus-visible:outline-solid [&_.recharts-surface]:focus-visible:outline-offset-2 [&_.recharts-surface]:focus-visible:outline-blue-500 dark:[&_.recharts-surface]:focus-visible:outline-nord-8">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={trendData}
@@ -136,7 +136,7 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
           </p>
         </div>
 
-        <div className="h-64 min-w-0">
+        <div className="h-64 min-w-0 [&_.recharts-surface]:outline-none [&_.recharts-surface]:focus-visible:outline-2 [&_.recharts-surface]:focus-visible:outline-solid [&_.recharts-surface]:focus-visible:outline-offset-2 [&_.recharts-surface]:focus-visible:outline-blue-500 dark:[&_.recharts-surface]:focus-visible:outline-nord-8">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={cumulativeData}

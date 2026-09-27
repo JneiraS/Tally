@@ -20,6 +20,17 @@ import { AuthSession, protabApi } from "./services/api";
 import { AUDIT_LOG_PATH } from "./constants/routes";
 
 export default function App() {
+  // The provider wraps every branch, including the pre-session and login
+  // screens: a page rendered outside it would have no theme at all, and the
+  // saved preference would only apply once authenticated (visible flash).
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
+function AppContent() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [isCreateScopeOpen, setIsCreateScopeOpen] = useState(false);
@@ -68,9 +79,8 @@ export default function App() {
   };
 
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <ToastProvider>
+    <BrowserRouter>
+      <ToastProvider>
           <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-nord-0 text-slate-900 dark:text-nord-5 selection:bg-blue-100 dark:selection:bg-nord-9/30 dark:selection:text-nord-6 transition-colors duration-150">
             {/* Barre de navigation */}
             <Navbar
@@ -147,7 +157,6 @@ export default function App() {
             <ToastContainer />
           </div>
         </ToastProvider>
-      </BrowserRouter>
-    </ThemeProvider>
+    </BrowserRouter>
   );
 }

@@ -44,4 +44,21 @@ describe('ScopeDetailCharts', () => {
       }),
     ).toBeInTheDocument();
   });
+
+  it("retire l'outline par défaut des <svg> des graphiques et le remplace au focus-visible", () => {
+    const { container } = render(<ScopeDetailCharts scope={scope} />);
+
+    // Voir DashboardCharts.test.tsx : sous jsdom le <svg class="recharts-surface">
+    // n'est pas rendu, le conteneur est donc le seul point d'ancrage vérifiable.
+    const charts = container.querySelectorAll('div.h-64');
+
+    expect(charts).toHaveLength(2);
+    charts.forEach((chart) => {
+      expect(chart.className).toContain('[&_.recharts-surface]:outline-none');
+      expect(chart.className).toContain('[&_.recharts-surface]:focus-visible:outline-2');
+      // Voir DashboardCharts.test.tsx : sans outline-solid, var(--tw-outline-style)
+      // reste à none et l'outline de remplacement ne se peint pas.
+      expect(chart.className).toContain('[&_.recharts-surface]:focus-visible:outline-solid');
+    });
+  });
 });

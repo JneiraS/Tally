@@ -1165,6 +1165,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
 - `node_modules` n'est **jamais** versionné : dépendances résolues depuis `package-lock.json` (`npm ci`).
+  Même règle pour les artefacts de build front (`*.tsbuildinfo`, régénéré par `tsc -b` derrière
+  `npm run build`) : déclarés dans `src/FrontEnd/.gitignore`, pas à la racine.
+- **`src/FrontEnd/.dockerignore` est distinct de celui de la racine** : le contexte de build de l'image
+  `frontend` est `./src/FrontEnd` (`docker-compose.yml`), donc seul ce fichier filtre ce que `COPY . .`
+  embarque. Un artefact absent du `.gitignore` racine peut malgré tout entrer dans l'image.
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
 
@@ -1188,7 +1193,36 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   détail. Le flush de la saisie en cours au unmount (`useEffect` de nettoyage) reste ainsi correct.
 - Vérifier une correction de saisie avec un test qui **change de jour** : un test qui ne fait qu'afficher
   la journée du jour passe même avec des compteurs périmés.
-- Tests : `npm test` (vitest, 101 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- **Les images sont importées depuis `src/assets/`**, jamais référencées par une URL `public/` : l'import
+  laisse Vite hasher le fichier et valide le chemin à la compilation. `tsconfig.json` déclare déjà
+  `"types": ["vite/client"]`, un `import x from './x.svg'` type-check donc sans configuration ajoutée.
+  Attention en test : Vite *inline* en `data:` URI l'asset sous `assetsInlineLimit` (4 Ko par défaut) et
+  sert l'autre en fichier, donc la valeur du `src` dépend du bundler. Comparer le `src` à l'asset importé,
+  jamais à un nom de fichier.
+- **`ThemeProvider` enveloppe toute l'application, page de connexion comprise.** Il est monté dans `App`,
+  qui n'est qu'une coquille au-dessus d'`AppContent` : une branche rendue en dehors (chargement de session,
+  `LoginPage`) n'avait aucun contexte, donc aucune classe `dark:` ne pouvait s'activer et la préférence
+  enregistrée n'était appliquée qu'**après** connexion — un flash de thème à chaque login. Tout composant
+  qui dépend du thème passe par `useTheme()` ; ne jamais dupliquer l'état de thème ni lire `localStorage`.
+- Un fond décoratif est masqué aux lecteurs d'écran (`alt=""` + `aria-hidden="true"`) et ne capte pas le
+  pointeur. Sur une page en `flex`, le conteneur doit être `relative` et la carte `relative z-10` : un
+  enfant `absolute` sans `z-index` est peint **au-dessus** du contenu non positionné.
+- **L'outline d'un graphique se retire sur le `<svg>`, pas sur le wrapper.** Tant que recharts n'a pas
+  `accessibilityLayer`, il n'est pas focusable et aucun anneau n'est peint : `rootTabIndex` vaut alors
+  `undefined` et aucun `tabIndex` n'est posé. L'outline par défaut ne disparaît donc que le jour où le mode
+  accessible est activé, où `RootSurface` pose `tabIndex={0}` et `role="application"` **sur le `<svg
+  class="recharts-surface">`**. Le `className` passé à `<LineChart>` atterrit sur le `.recharts-wrapper`
+  (`RechartsWrapper.js:347`) et ne l'atteint pas : il faut une variante arbitraire descendant
+  `[&_.recharts-surface]:…` portée par notre conteneur, ou le `outline: none` est un no-op.
+- **`outline-none` sans `outline-solid` ne remplace rien, il supprime.** `focus-visible:outline-2` compile
+  en `outline-style: var(--tw-outline-style)`, et c'est `outline-none` qui met cette variable à `none` sur le
+  même élément : le substitut ne serait jamais peint, et l'on perdrait l'anneau du navigateur *et* le
+  nôtre. Toujours parejaire `outline-none` et `focus-visible:outline-solid` — c'est vérifiable dans le CSS
+  compilé, pas à l'œil. **`ring-*` ne convient pas ici** : Tailwind l'implémente en `box-shadow`, que le
+  `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
+  `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
+  monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
+- Tests : `npm test` (vitest, 105 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 

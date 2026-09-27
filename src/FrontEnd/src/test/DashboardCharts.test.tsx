@@ -51,4 +51,28 @@ describe('DashboardCharts', () => {
     expect(screen.queryByText(/Couverture de saisie/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Périmètres à risque/i)).not.toBeInTheDocument();
   });
+
+  it("retire l'outline par défaut du <svg> du graphique et le remplace au focus-visible", () => {
+    const { container } = render(
+      <DashboardCharts
+        scopes={[scope('s1', 'Périmètre Alpha', [])]}
+        day="2026-09-19"
+        nonWorkingDays={{ excluded_weekdays: [6, 7], excluded_dates: [] }}
+      />,
+    );
+
+    // recharts ne rend le <svg> qu'à largeur/hauteur positives, ce que jsdom ne
+    // fournit pas : le garde-fou porte donc sur notre conteneur, seul nœud qui rend.
+    // Le nom de classe visé est bien celui produit par recharts 3.10
+    // (RechartsWrapper.js:347 pour le wrapper, RootSurface.js:64 pour le <svg>).
+    const chart = container.querySelector('div.h-40');
+
+    expect(chart).not.toBeNull();
+    expect(chart?.className).toContain('[&_.recharts-surface]:outline-none');
+    expect(chart?.className).toContain('[&_.recharts-surface]:focus-visible:outline-2');
+    // outline-2 compile en `outline-style: var(--tw-outline-style)`, et c'est
+    // outline-none qui met cette variable à none sur le même élément : sans
+    // outline-solid, le substitut ne serait jamais peint.
+    expect(chart?.className).toContain('[&_.recharts-surface]:focus-visible:outline-solid');
+  });
 });

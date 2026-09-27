@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Activity, LockKeyhole, UserRound } from 'lucide-react';
+import { LoginBackground } from '../components/LoginBackground';
 import { Project, protabApi } from '../services/api';
 
 interface LoginPageProps {
@@ -40,8 +41,9 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-nord-0 text-slate-900 dark:text-nord-5 flex items-center justify-center px-4 py-10">
-      <section className="w-full max-w-md rounded-2xl border border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 p-7 shadow-xl">
+    <main className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-nord-0 text-slate-900 dark:text-nord-5 flex items-center justify-center px-4 py-10">
+      <LoginBackground />
+      <section className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 p-7 shadow-xl">
         <div className="mb-7 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white dark:bg-nord-9">
             <Activity className="h-6 w-6" />
