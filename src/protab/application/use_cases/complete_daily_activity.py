@@ -3,6 +3,7 @@ from protab.application.commands.daily_activity import (
     CompleteDailyActivityCommand,
 )
 from protab.domain.entities.audit_event import AuditEvent, build_changes
+from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     ScopeMonitoringNotFoundError,
@@ -27,6 +28,9 @@ class CompleteDailyActivityUseCase:
                 f"ScopeMonitoring {command.scope_id!r} not found."
             )
 
+        # Resolve every day before mutating any of them, so a missing day
+        # cannot leave the earlier ones completed: the command is all-or-none.
+        activities: list[DailyActivity] = []
         completed_days: list = []
         for day in command.days:
             activity = scope.daily_activity_for(day)
@@ -35,10 +39,13 @@ class CompleteDailyActivityUseCase:
                     f"No DailyActivity for day {day!r} on scope {command.scope_id!r}."
                 )
             before = {"handled": activity.handled, "completed": activity.completed}
-            activity.mark_completed()
+            activities.append(activity)
             completed_days.append((day, before))
 
-        self.repository.save(scope)
+        for activity in activities:
+            activity.mark_completed()
+
+        self.repository.mark_activities_completed(command.scope_id, list(command.days))
 
         if self.audit_trail is not None:
             for day, before in completed_days:

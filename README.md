@@ -177,9 +177,16 @@ L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables 
 `daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
 `feai TEXT[]`, `handled`, `completed`). Le schéma est créé de façon **idempotente au démarrage**
 (`CREATE TABLE IF NOT EXISTS`, index `scope_monitorings(project_id, name)`, aucun outil de migration).
-L'index couvre le filtrage par projet et l'ordre par nom des listes de périmètres. Un `save()` remplace tout l'agrégat dans une
-**transaction** (atomicité préservée) ; les contraintes DB (nom unique, jour unique) traduisent les erreurs
-en exceptions de domaine (→ `409`).
+L'index couvre le filtrage par projet et l'ordre par nom des listes de périmètres. Les contraintes DB
+(nom unique, jour unique) traduisent les erreurs en exceptions de domaine (→ `409`).
+
+L'écriture d'une activité est **ciblée** : `insert_daily_activity`, `update_daily_activity` et
+`mark_activities_completed` ne touchent que les lignes nommées, et `rowcount == 0` devient
+`DailyActivityNotFoundError`. `save()` est réservé à la création d'agrégat — il remplace tout
+(`DELETE` + réinsertion) dans une **transaction**, donc un cas d'usage qui mute un périmètre existant
+réécrirait des jours qu'il n'a pas relus et écraserait une édition concurrente. Comme
+`daily_activities` ne porte pas de `project_id`, chaque écriture ciblée joint `scope_monitorings` et
+filtre le projet courant sans condition.
 Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
 avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
 

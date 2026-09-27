@@ -1061,9 +1061,26 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   - `InMemoryScopeMonitoringRepository` — utilisé uniquement par injection explicite dans les tests.
   - `PostgresScopeMonitoringRepository` — obligatoire pour l'API quand `DATABASE_URL` est défini ;
     `psycopg` (sync) + `psycopg_pool`. Le schéma est créé **idempotemment au démarrage**
-    (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Chaque `save()` remplace l'agrégat
-    dans une transaction ; les contraintes DB (nom unique, unique `(scope_id, day)`) sont traduites
-    en exceptions de domaine par l'adapter.
+    (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Les contraintes DB (nom unique, unique
+    `(scope_id, day)`) sont traduites en exceptions de domaine par l'adapter.
+- **`save()` est réservé à la création d'agrégat.** Il remplace tout (`DELETE` + réinsertion des
+  activités dans une transaction) : un cas d'usage qui mute un périmètre existant l'interdit, sinon il
+  réécrit des jours qu'il n'a pas relus après une édition concurrente et écrase silencieusement la
+  modification d'un autre utilisateur. Les trois mutations d'activité passent donc par des écritures
+  ciblées du port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
+  chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
+  `DailyActivityNotFoundError`.
+- **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les trois
+  écritures ciblées joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en plus
+  conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
+  accepterait un `scope_id` d'un autre tenant. Une écriture qui ne filtre pas le projet est un défaut,
+  même si la ligne visée existe.
+- `InMemoryScopeMonitoringRepository` renvoie **les objets qu'elle stocke**. Elle ne peut donc pas
+  prouver qu'un cas d'usage écrit de façon ciblée : `tests/unit/application/recording_repository.py`
+  enregistre les appels au port pour cela, et la garantie « les autres jours sont intacts » se vérifie
+  dans `postgres_scope_monitoring_repository_test.py`. Un nouveau port doit être implémenté par les
+  **deux** adapters (Liskov, AGENTS.md §11) : le dépôt n'a pas de CI, c'est donc à vérifier à la main
+  quand on ajoute une méthode.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
 - La table `scope_monitorings` impose une clé étrangère `project_id -> projects.id` avec suppression en

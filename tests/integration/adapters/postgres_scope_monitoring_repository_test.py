@@ -25,7 +25,11 @@ from protab.domain.entities.scope_monitoring import (
     Officials,
     ScopeMonitoring,
 )
-from protab.domain.exceptions import ScopeMonitoringNameAlreadyExistsError
+from protab.domain.exceptions import (
+    DailyActivityNotFoundError,
+    DuplicateDailyActivityError,
+    ScopeMonitoringNameAlreadyExistsError,
+)
 
 TEST_DATABASE_URL = os.getenv("PROTAB_TEST_DATABASE_URL")
 
@@ -151,6 +155,163 @@ def test_save_replaces_aggregate_on_second_save(repo):
 
     loaded = repo.find_by_id("scope-001")
     assert set(loaded.daily_activities.keys()) == {date(2026, 9, 20)}
+
+
+# --- Targeted activity writes ---------------------------------------------
+#
+# The activity endpoints are hot paths: a user editing one day of a scope must
+# not rewrite the other days. These tests pin that guarantee at the only level
+# where it is observable, since the in-memory adapter shares object references
+# and would pass even if every write rewrote the whole aggregate.
+
+
+def seed_three_days(repo) -> None:
+    scope = make_scope()
+    for day, errors in (
+        (date(2026, 9, 18), 1),
+        (date(2026, 9, 19), 2),
+        (date(2026, 9, 25), 11),
+    ):
+        scope.add_daily_activity(
+            DailyActivity(
+                day=day,
+                errors_reported=errors,
+                incidents_created=errors - 1,
+                feai=[f"INC{day:%d}0000000"],
+            )
+        )
+    repo.save(scope)
+
+
+def test_update_daily_activity_leaves_other_days_untouched(repo):
+    seed_three_days(repo)
+
+    repo.update_daily_activity(
+        "scope-001",
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=42,
+            incidents_created=7,
+            feai=["INC000000099"],
+        ),
+    )
+
+    loaded = repo.find_by_id("scope-001")
+    assert loaded.daily_activity_for(date(2026, 9, 19)).errors_reported == 42
+    assert loaded.daily_activity_for(date(2026, 9, 19)).feai == ["INC000000099"]
+    for untouched, errors in ((date(2026, 9, 18), 1), (date(2026, 9, 25), 11)):
+        activity = loaded.daily_activity_for(untouched)
+        assert activity.errors_reported == errors
+        assert activity.incidents_created == errors - 1
+
+
+def test_update_daily_activity_preserves_the_completion_flags(repo):
+    scope = make_scope(day=date(2026, 9, 19))
+    scope.daily_activity_for(date(2026, 9, 19)).mark_completed()
+    repo.save(scope)
+
+    repo.update_daily_activity(
+        "scope-001",
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=9,
+            incidents_created=1,
+            feai=[],
+        ),
+    )
+
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.errors_reported == 9
+    assert activity.handled is True
+    assert activity.completed is True
+
+
+def test_update_daily_activity_on_missing_day_raises(repo):
+    repo.save(make_scope(day=date(2026, 9, 19)))
+
+    with pytest.raises(DailyActivityNotFoundError):
+        repo.update_daily_activity(
+            "scope-001",
+            DailyActivity(
+                day=date(2026, 9, 22),
+                errors_reported=1,
+                incidents_created=0,
+                feai=[],
+            ),
+        )
+
+
+def test_insert_daily_activity_leaves_other_days_untouched(repo):
+    seed_three_days(repo)
+
+    repo.insert_daily_activity(
+        "scope-001",
+        DailyActivity(
+            day=date(2026, 9, 21),
+            errors_reported=3,
+            incidents_created=3,
+            feai=["INC000000003"],
+        ),
+    )
+
+    loaded = repo.find_by_id("scope-001")
+    assert set(loaded.daily_activities) == {
+        date(2026, 9, 18),
+        date(2026, 9, 19),
+        date(2026, 9, 21),
+        date(2026, 9, 25),
+    }
+    assert loaded.daily_activity_for(date(2026, 9, 25)).errors_reported == 11
+
+
+def test_insert_daily_activity_on_duplicate_day_translates_to_domain_error(repo):
+    repo.save(make_scope(day=date(2026, 9, 19)))
+
+    with pytest.raises(DuplicateDailyActivityError):
+        repo.insert_daily_activity(
+            "scope-001",
+            DailyActivity(
+                day=date(2026, 9, 19),
+                errors_reported=5,
+                incidents_created=1,
+                feai=[],
+            ),
+        )
+
+
+def test_mark_activities_completed_flips_only_the_named_days(repo):
+    seed_three_days(repo)
+
+    repo.mark_activities_completed(
+        "scope-001", [date(2026, 9, 19), date(2026, 9, 25)]
+    )
+
+    loaded = repo.find_by_id("scope-001")
+    assert loaded.daily_activity_for(date(2026, 9, 19)).completed is True
+    assert loaded.daily_activity_for(date(2026, 9, 25)).handled is True
+    untouched = loaded.daily_activity_for(date(2026, 9, 18))
+    assert untouched.completed is False
+    assert untouched.handled is False
+    assert untouched.errors_reported == 1
+
+
+def test_activity_writes_are_tenant_scoped(repo):
+    """A write must not reach across tenants, even on a known scope id."""
+    seed_three_days(repo)
+    other = set_current_project("other-project")
+    try:
+        with pytest.raises(DailyActivityNotFoundError):
+            repo.update_daily_activity(
+                "scope-001",
+                DailyActivity(
+                    day=date(2026, 9, 19),
+                    errors_reported=0,
+                    incidents_created=0,
+                    feai=[],
+                ),
+            )
+    finally:
+        reset_current_project(other)
 
 
 def test_find_by_name_returns_matching_scope(repo):

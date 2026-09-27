@@ -43,7 +43,7 @@ class UpdateDailyActivityUseCase:
             feai=command.feai,
         )
 
-        self.repository.save(scope)
+        self.repository.update_daily_activity(command.scope_id, activity)
 
         if self.audit_trail is not None:
             after = {

@@ -19,6 +19,9 @@ from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     ScopeMonitoringNotFoundError,
 )
+from tests.unit.application.recording_repository import (
+    RecordingScopeMonitoringRepository,
+)
 
 
 def make_scope(scope_id="scope-001"):
@@ -27,6 +30,15 @@ def make_scope(scope_id="scope-001"):
         name="Scope A",
         knowledge=KnowledgeBase(id="KB-00000001"),
         officials=Officials(main="Main", backup="Backup"),
+    )
+
+
+def make_activity(day, **kwargs):
+    return DailyActivity(
+        day=day,
+        errors_reported=kwargs.get("errors_reported", 1),
+        incidents_created=kwargs.get("incidents_created", 0),
+        feai=kwargs.get("feai", ["INC000000001"]),
     )
 
 
@@ -77,6 +89,52 @@ def test_complete_multiple_days():
     saved = repo.find_by_id("scope-001")
     assert saved.daily_activity_for(date(2026, 9, 19)).completed is True
     assert saved.daily_activity_for(date(2026, 9, 20)).completed is True
+
+
+def test_complete_writes_only_the_requested_days():
+    repo = RecordingScopeMonitoringRepository(InMemoryScopeMonitoringRepository())
+    scope = make_scope()
+    for day in (date(2026, 9, 19), date(2026, 9, 20), date(2026, 9, 21)):
+        scope.add_daily_activity(make_activity(day))
+    repo.save(scope)
+    repo.reset()
+
+    CompleteDailyActivityUseCase(repo).execute(
+        CompleteDailyActivityCommand(
+            scope_id="scope-001", days=[date(2026, 9, 20)]
+        )
+    )
+
+    assert repo.writes == [
+        ("mark_activities_completed", "scope-001", (date(2026, 9, 20),))
+    ]
+
+
+def test_complete_does_not_touch_earlier_days_when_a_later_day_is_missing():
+    """All days are resolved before anything is written.
+
+    Completing day 1 then failing on day 2 must not leave day 1 completed:
+    the command is all-or-nothing.
+    """
+    repo = RecordingScopeMonitoringRepository(InMemoryScopeMonitoringRepository())
+    scope = make_scope()
+    for day in (date(2026, 9, 19), date(2026, 9, 20)):
+        scope.add_daily_activity(make_activity(day))
+    repo.save(scope)
+    repo.reset()
+
+    with pytest.raises(DailyActivityNotFoundError):
+        CompleteDailyActivityUseCase(repo).execute(
+            CompleteDailyActivityCommand(
+                scope_id="scope-001",
+                days=[date(2026, 9, 19), date(2026, 9, 22)],
+            )
+        )
+
+    assert repo.writes == []
+    assert repo.find_by_id("scope-001").daily_activity_for(
+        date(2026, 9, 19)
+    ).completed is False
 
 
 def test_complete_scope_not_found():

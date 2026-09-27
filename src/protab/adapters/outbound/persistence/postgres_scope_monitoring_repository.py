@@ -2,9 +2,18 @@
 
 The aggregate ``ScopeMonitoring`` is persisted across two tables:
 ``scope_monitorings`` (one row per scope) and ``daily_activities``
-(one row per day, FK to the scope). A single ``save`` replaces the whole
-aggregate inside one transaction, preserving the atomicity contract that
-the in-memory adapter guarantees.
+(one row per day, FK to the scope).
+
+``save`` replaces the whole aggregate inside one transaction and is reserved
+for aggregate creation. Mutating an existing scope goes through the targeted
+``insert_daily_activity`` / ``update_daily_activity`` /
+``mark_activities_completed`` methods, which touch only the rows they name: a
+full rewrite would persist every day read before the call and silently drop a
+concurrent edit to another day of the same scope.
+
+``daily_activities`` carries no ``project_id`` of its own, so every targeted
+write joins ``scope_monitorings`` and filters on the current project without
+condition, as the multi-tenant invariant requires.
 """
 
 from contextvars import ContextVar
@@ -24,8 +33,10 @@ from protab.domain.entities.scope_monitoring import (
     ScopeMonitoring,
 )
 from protab.domain.exceptions import (
+    DailyActivityNotFoundError,
     DuplicateDailyActivityError,
     ScopeMonitoringNameAlreadyExistsError,
+    ScopeMonitoringNotFoundError,
 )
 
 _SCHEMA_STATEMENTS: tuple[str, ...] = (
@@ -305,6 +316,96 @@ class PostgresScopeMonitoringRepository:
         return ScopeMonitoringNameAlreadyExistsError(
             f"ScopeMonitoring with name {scope.name!r} already exists."
         )
+
+    def insert_daily_activity(self, scope_id: str, activity: DailyActivity) -> None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn:
+            try:
+                with conn.transaction():
+                    # The foreign key alone would happily accept another
+                    # tenant's scope, so the insert is gated on the scope being
+                    # visible in the current project.
+                    cursor = conn.execute(
+                        f"""
+                        INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, handled, completed"})
+                        SELECT %s, %s, %s, %s, %s, %s, %s
+                        WHERE EXISTS (
+                            SELECT 1 FROM scope_monitorings
+                            WHERE id = %s AND project_id = %s
+                        )
+                        """,
+                        (
+                            scope_id,
+                            activity.day,
+                            activity.errors_reported,
+                            activity.incidents_created,
+                            activity.feai,
+                            activity.handled,
+                            activity.completed,
+                            scope_id,
+                            project_id,
+                        ),
+                    )
+                    if cursor.rowcount == 0:
+                        raise ScopeMonitoringNotFoundError(
+                            f"ScopeMonitoring {scope_id!r} not found."
+                        )
+            except psycopg.errors.UniqueViolation as exc:
+                raise DuplicateDailyActivityError(
+                    f"ScopeMonitoring {scope_id!r} already has a DailyActivity "
+                    f"for day {activity.day!r}."
+                ) from exc
+
+    def update_daily_activity(self, scope_id: str, activity: DailyActivity) -> None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                cursor = conn.execute(
+                    f"""
+                    UPDATE daily_activities AS a
+                    SET errors_reported = %s, incidents_created = %s, feai = %s
+                    FROM scope_monitorings AS s
+                    WHERE a.scope_id = s.id
+                      AND s.project_id = %s
+                      AND a.scope_id = %s
+                      AND a.day = %s
+                    """,
+                    (
+                        activity.errors_reported,
+                        activity.incidents_created,
+                        activity.feai,
+                        project_id,
+                        scope_id,
+                        activity.day,
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    raise DailyActivityNotFoundError(
+                        f"No DailyActivity for day {activity.day!r} on scope "
+                        f"{scope_id!r}."
+                    )
+
+    def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                cursor = conn.execute(
+                    """
+                    UPDATE daily_activities AS a
+                    SET handled = TRUE, completed = TRUE
+                    FROM scope_monitorings AS s
+                    WHERE a.scope_id = s.id
+                      AND s.project_id = %s
+                      AND a.scope_id = %s
+                      AND a.day = ANY(%s)
+                    """,
+                    (project_id, scope_id, list(days)),
+                )
+                if cursor.rowcount != len(set(days)):
+                    raise DailyActivityNotFoundError(
+                        f"No DailyActivity for every requested day on scope "
+                        f"{scope_id!r}."
+                    )
 
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         project_id = require_current_project()
