@@ -10,13 +10,13 @@ from dataclasses import replace
 import psycopg
 from psycopg.types.json import Jsonb
 
-from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
-    current_project_id,
-)
 from protab.adapters.outbound.persistence.postgres_pool import (
     POOL_MAX_SIZE,
     POOL_MIN_SIZE,
     build_connection_pool,
+)
+from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+    require_current_project,
 )
 from protab.domain.entities.audit_event import AuditEvent
 from protab.ports.outbound.audit_trail_repository import AuditEventQuery
@@ -79,7 +79,7 @@ class PostgresAuditTrailRepository:
         self._pool.close()
 
     def record(self, event: AuditEvent) -> None:
-        event = replace(event, project_id=current_project_id() or "protab")
+        event = replace(event, project_id=require_current_project())
         with self._pool.connection() as conn:
             conn.execute(
                 "INSERT INTO audit_log "
@@ -98,9 +98,8 @@ class PostgresAuditTrailRepository:
             )
 
     def list(self, query: AuditEventQuery) -> list[AuditEvent]:
-        project_id = current_project_id() or "protab"
         clauses = ["project_id = %s"]
-        params: list = [project_id]
+        params: list = [require_current_project()]
 
         if query.scope_id:
             clauses.append("scope_id = %s")

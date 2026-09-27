@@ -17,6 +17,7 @@ import { NonWorkingDays } from "./types";
 import { DEFAULT_NON_WORKING_DAYS } from "./utils/kpi";
 import { ExternalLink, Terminal } from "lucide-react";
 import { AuthSession, protabApi } from "./services/api";
+import { AUDIT_LOG_PATH } from "./constants/routes";
 
 export default function App() {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -25,6 +26,13 @@ export default function App() {
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isWorkingDaysOpen, setIsWorkingDaysOpen] = useState(false);
+
+  useEffect(() => {
+    // A 401 anywhere means the cookie expired: drop the session so the login
+    // screen shows instead of a "failed to load" box that retrying cannot fix.
+    protabApi.setUnauthorizedHandler(() => setSession(null));
+    return () => protabApi.setUnauthorizedHandler(null);
+  }, []);
 
   useEffect(() => {
     protabApi
@@ -93,10 +101,7 @@ export default function App() {
                   }
                 />
                 <Route path="/scopes/:id" element={<ScopeDetailPage />} />
-                <Route
-                  path="/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9"
-                  element={<AuditLogPage />}
-                />
+                <Route path={AUDIT_LOG_PATH} element={<AuditLogPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>

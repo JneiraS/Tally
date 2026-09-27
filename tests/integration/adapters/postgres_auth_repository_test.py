@@ -38,6 +38,16 @@ def truncate_all() -> None:
         )
 
 
+@pytest.fixture(autouse=True)
+def bootstrap_password(monkeypatch):
+    """The bootstrap project password is mandatory: no default is provided.
+
+    ``PostgresAuthRepository.connect()`` refuses to seed the first project
+    without it, so the test suite must supply one explicitly.
+    """
+    monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_PASSWORD", "test-bootstrap-password")
+
+
 @pytest.fixture
 def auth():
     assert TEST_DATABASE_URL is not None
@@ -56,6 +66,60 @@ def scopes():
     repository.connect()
     yield repository
     repository.close()
+
+
+def empty_database() -> None:
+    """Create the schema, then drop every project so a bootstrap is pending."""
+    assert TEST_DATABASE_URL is not None
+    seed = PostgresAuthRepository(TEST_DATABASE_URL)
+    seed.connect()
+    truncate_all()
+    seed.close()
+
+
+def test_connect_refuses_to_bootstrap_without_password(monkeypatch):
+    """Seeding the first project demands an explicit, non-guessable password.
+
+    No default is provided on purpose: ``GET /projects`` is unauthenticated, so
+    a well-known fallback would hand the first project to anyone who guesses
+    its code.
+    """
+    empty_database()
+    monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_PASSWORD", raising=False)
+
+    assert TEST_DATABASE_URL is not None
+    repository = PostgresAuthRepository(TEST_DATABASE_URL)
+    try:
+        with pytest.raises(RuntimeError, match="PROTAB_DEFAULT_PROJECT_PASSWORD"):
+            repository.connect()
+    finally:
+        repository.close()
+
+
+def test_connect_restarts_without_password_when_project_already_exists(monkeypatch):
+    """The password is only needed to seed; a restart must not require it.
+
+    Requiring the secret on every boot would break every existing deployment
+    on upgrade, for a value that is never used once the project exists.
+    """
+    empty_database()
+
+    # Seed the project while the secret is still available.
+    assert TEST_DATABASE_URL is not None
+    monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_CODE", "protab")
+    monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_NAME", "Projet principal")
+    seed = PostgresAuthRepository(TEST_DATABASE_URL)
+    seed.connect()
+    seed.close()
+
+    monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_PASSWORD", raising=False)
+
+    repository = PostgresAuthRepository(TEST_DATABASE_URL)
+    try:
+        repository.connect()
+        assert repository.get_project("protab") is not None
+    finally:
+        repository.close()
 
 
 @pytest.fixture(autouse=True)
@@ -118,11 +182,21 @@ def test_backup_split_tolerates_spaces(auth, scopes):
     assert auth.authenticate(PROJECT_ID, "mram", "secret") is True
 
 
-def test_main_does_not_split(auth, scopes):
+def test_main_split_form_auths_both_codes(auth, scopes):
+    """``official_main`` encodes several codes just like ``official_backup``."""
     add_scope(scopes, main="ABCD/EFGH", backup="WXYZ")
 
-    assert auth.authenticate(PROJECT_ID, "ABCD", "secret") is False
-    assert auth.authenticate(PROJECT_ID, "EFGH", "secret") is False
+    assert auth.authenticate(PROJECT_ID, "ABCD", "secret") is True
+    assert auth.authenticate(PROJECT_ID, "EFGH", "secret") is True
+    assert auth.authenticate(PROJECT_ID, "ABCD/EFGH", "secret") is False
+
+
+def test_backup_placeholder_is_not_a_login_code(auth, scopes):
+    """``?`` marks the absence of a backup official, it is not a code."""
+    add_scope(scopes, main="ABCD", backup="MRAM/ ?")
+
+    assert auth.authenticate(PROJECT_ID, "MRAM", "secret") is True
+    assert auth.authenticate(PROJECT_ID, "?", "secret") is False
 
 
 def test_project_non_working_days_default_and_update(auth):

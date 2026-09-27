@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from fastapi import HTTPException, Request, Response, status
 
+from protab.adapters.inbound.api.config import cookie_secure_from_env
 from protab.adapters.outbound.persistence.postgres_auth_repository import (
     AuthSession,
     PostgresAuthRepository,
@@ -43,7 +44,7 @@ def set_session_cookie(response: Response, token: str) -> None:
         token,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=cookie_secure_from_env(),
         max_age=12 * 60 * 60,
     )
 

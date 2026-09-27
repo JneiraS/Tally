@@ -7,6 +7,8 @@ load_dotenv()
 DEFAULT_HOST = "0.0.0.0"
 DEFAULT_PORT = 8000
 
+_TRUTHY = {"1", "true", "yes", "on"}
+
 
 class InvalidPortError(Exception):
     pass
@@ -39,3 +41,17 @@ def database_url_from_env() -> str | None:
     """Return the PostgreSQL DSN from DATABASE_URL, or None when unset."""
     value = os.getenv("DATABASE_URL")
     return value.strip() if value and value.strip() else None
+
+
+def cookie_secure_from_env(value: str | None = None) -> bool:
+    """Whether the session cookie must carry the ``Secure`` attribute.
+
+    Defaults to False so plain-HTTP local development keeps working. Production
+    deployments terminate TLS on the reverse proxy and MUST set
+    ``PROTAB_COOKIE_SECURE=1``, otherwise the session token is sent in cleartext.
+    """
+    if value is None:
+        value = os.getenv("PROTAB_COOKIE_SECURE")
+    if not value:
+        return False
+    return value.strip().lower() in _TRUTHY

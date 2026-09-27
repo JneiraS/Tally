@@ -33,25 +33,25 @@ describe("AuditShortcut Component", () => {
     vi.clearAllMocks();
   });
 
-  it("navigue vers /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9 avec Ctrl+Alt+L", () => {
+  it("navigue vers /audit-log avec Ctrl+Alt+L", () => {
     renderWithShortcut("/");
 
     pressKeys({ ctrlKey: true, altKey: true });
 
     expect(getPath()).toBe(
-      "/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9",
+      "/audit-log",
     );
   });
 
-  it("ne fait rien quand on est déjà sur /6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9", () => {
+  it("ne fait rien quand on est déjà sur /audit-log", () => {
     renderWithShortcut(
-      "/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9",
+      "/audit-log",
     );
 
     pressKeys({ ctrlKey: true, altKey: true });
 
     expect(getPath()).toBe(
-      "/6d857a9d14aa1d6ce76921219a77b5214f9a293c81717605c2c76d4d83747e9ef1bbd04a2ea1dbe80ade21e5f5ba66d9",
+      "/audit-log",
     );
   });
 

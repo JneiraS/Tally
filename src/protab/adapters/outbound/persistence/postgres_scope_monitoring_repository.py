@@ -2,9 +2,18 @@
 
 The aggregate ``ScopeMonitoring`` is persisted across two tables:
 ``scope_monitorings`` (one row per scope) and ``daily_activities``
-(one row per day, FK to the scope). A single ``save`` replaces the whole
-aggregate inside one transaction, preserving the atomicity contract that
-the in-memory adapter guarantees.
+(one row per day, FK to the scope).
+
+``save`` replaces the whole aggregate inside one transaction and is reserved
+for aggregate creation. Mutating an existing scope goes through the targeted
+``insert_daily_activity`` / ``update_daily_activity`` /
+``mark_activities_completed`` methods, which touch only the rows they name: a
+full rewrite would persist every day read before the call and silently drop a
+concurrent edit to another day of the same scope.
+
+``daily_activities`` carries no ``project_id`` of its own, so every targeted
+write joins ``scope_monitorings`` and filters on the current project without
+condition, as the multi-tenant invariant requires.
 """
 
 from contextvars import ContextVar
@@ -24,8 +33,10 @@ from protab.domain.entities.scope_monitoring import (
     ScopeMonitoring,
 )
 from protab.domain.exceptions import (
+    DailyActivityNotFoundError,
     DuplicateDailyActivityError,
     ScopeMonitoringNameAlreadyExistsError,
+    ScopeMonitoringNotFoundError,
 )
 
 _SCHEMA_STATEMENTS: tuple[str, ...] = (
@@ -42,7 +53,7 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
     CREATE TABLE IF NOT EXISTS scope_monitorings (
         id TEXT PRIMARY KEY,
-        project_id TEXT,
+        project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
         name TEXT NOT NULL UNIQUE,
         knowledge_base_id TEXT NOT NULL,
         official_main TEXT NOT NULL,
@@ -78,6 +89,26 @@ def reset_current_project(token) -> None:
 
 def current_project_id() -> str | None:
     return _CURRENT_PROJECT_ID.get()
+
+
+class MissingProjectContextError(RuntimeError):
+    """No authenticated request established the project to read or write."""
+
+
+def require_current_project() -> str:
+    """Return the current project id, or refuse to touch the database.
+
+    Every read and write is scoped to a single tenant. Falling back to a
+    default project, or emitting an unfiltered ``SELECT``, would silently
+    expose every tenant's scopes, so the adapters fail closed instead.
+    """
+    project_id = current_project_id()
+    if project_id is None:
+        raise MissingProjectContextError(
+            "Contexte projet absent : refusing to read or write scopes across "
+            "tenants. The request must go through the project_context dependency."
+        )
+    return project_id
 
 
 _SCOPE_SELECT = (
@@ -138,6 +169,20 @@ class PostgresScopeMonitoringRepository:
         )
         conn.execute(
             "UPDATE scope_monitorings SET project_id = 'protab' WHERE project_id IS NULL"
+        )
+        conn.execute(
+            "DO $$\n"
+            "BEGIN\n"
+            "    IF NOT EXISTS (\n"
+            "        SELECT 1 FROM pg_constraint\n"
+            "        WHERE conrelid = 'scope_monitorings'::regclass\n"
+            "          AND conname = 'scope_monitorings_project_id_fkey'\n"
+            "    ) THEN\n"
+            "        ALTER TABLE scope_monitorings\n"
+            "        ADD CONSTRAINT scope_monitorings_project_id_fkey\n"
+            "        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE;\n"
+            "    END IF;\n"
+            "END $$"
         )
         conn.execute(
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
@@ -212,7 +257,7 @@ class PostgresScopeMonitoringRepository:
         return activities_by_scope
 
     def save(self, scope: ScopeMonitoring) -> None:
-        project_id = current_project_id() or "protab"
+        project_id = require_current_project()
         with self._pool.connection() as conn:
             try:
                 with conn.transaction():
@@ -272,13 +317,102 @@ class PostgresScopeMonitoringRepository:
             f"ScopeMonitoring with name {scope.name!r} already exists."
         )
 
-    def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
+    def insert_daily_activity(self, scope_id: str, activity: DailyActivity) -> None:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
+            try:
+                with conn.transaction():
+                    # The foreign key alone would happily accept another
+                    # tenant's scope, so the insert is gated on the scope being
+                    # visible in the current project.
+                    cursor = conn.execute(
+                        f"""
+                        INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, handled, completed"})
+                        SELECT %s, %s, %s, %s, %s, %s, %s
+                        WHERE EXISTS (
+                            SELECT 1 FROM scope_monitorings
+                            WHERE id = %s AND project_id = %s
+                        )
+                        """,
+                        (
+                            scope_id,
+                            activity.day,
+                            activity.errors_reported,
+                            activity.incidents_created,
+                            activity.feai,
+                            activity.handled,
+                            activity.completed,
+                            scope_id,
+                            project_id,
+                        ),
+                    )
+                    if cursor.rowcount == 0:
+                        raise ScopeMonitoringNotFoundError(
+                            f"ScopeMonitoring {scope_id!r} not found."
+                        )
+            except psycopg.errors.UniqueViolation as exc:
+                raise DuplicateDailyActivityError(
+                    f"ScopeMonitoring {scope_id!r} already has a DailyActivity "
+                    f"for day {activity.day!r}."
+                ) from exc
+
+    def update_daily_activity(self, scope_id: str, activity: DailyActivity) -> None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                cursor = conn.execute(
+                    """
+                    UPDATE daily_activities AS a
+                    SET errors_reported = %s, incidents_created = %s, feai = %s
+                    FROM scope_monitorings AS s
+                    WHERE a.scope_id = s.id
+                      AND s.project_id = %s
+                      AND a.scope_id = %s
+                      AND a.day = %s
+                    """,
+                    (
+                        activity.errors_reported,
+                        activity.incidents_created,
+                        activity.feai,
+                        project_id,
+                        scope_id,
+                        activity.day,
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    raise DailyActivityNotFoundError(
+                        f"No DailyActivity for day {activity.day!r} on scope "
+                        f"{scope_id!r}."
+                    )
+
+    def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn:
+            with conn.transaction():
+                cursor = conn.execute(
+                    """
+                    UPDATE daily_activities AS a
+                    SET handled = TRUE, completed = TRUE
+                    FROM scope_monitorings AS s
+                    WHERE a.scope_id = s.id
+                      AND s.project_id = %s
+                      AND a.scope_id = %s
+                      AND a.day = ANY(%s)
+                    """,
+                    (project_id, scope_id, list(days)),
+                )
+                if cursor.rowcount != len(set(days)):
+                    raise DailyActivityNotFoundError(
+                        f"No DailyActivity for every requested day on scope "
+                        f"{scope_id!r}."
+                    )
+
+    def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn:
             row = conn.execute(
-                f"{_SCOPE_SELECT} WHERE id = %s"
-                + (" AND project_id = %s" if project_id else ""),
-                (scope_id, project_id) if project_id else (scope_id,),
+                f"{_SCOPE_SELECT} WHERE id = %s AND project_id = %s",
+                (scope_id, project_id),
             ).fetchone()
             if row is None:
                 return None
@@ -286,12 +420,11 @@ class PostgresScopeMonitoringRepository:
             return self._scope_from_row(row, activities)
 
     def find_by_name(self, name: str) -> ScopeMonitoring | None:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             row = conn.execute(
-                f"{_SCOPE_SELECT} WHERE name = %s"
-                + (" AND project_id = %s" if project_id else ""),
-                (name, project_id) if project_id else (name,),
+                f"{_SCOPE_SELECT} WHERE name = %s AND project_id = %s",
+                (name, project_id),
             ).fetchone()
             if row is None:
                 return None
@@ -299,28 +432,24 @@ class PostgresScopeMonitoringRepository:
             return self._scope_from_row(row, activities)
 
     def find_all(self) -> list[ScopeMonitoring]:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             rows = conn.execute(
-                f"{_SCOPE_SELECT}"
-                + (" WHERE project_id = %s" if project_id else "")
-                + " ORDER BY name",
-                (project_id,) if project_id else (),
+                f"{_SCOPE_SELECT} WHERE project_id = %s ORDER BY name",
+                (project_id,),
             ).fetchall()
             activities_by_scope = self._load_activities_batched(
                 conn, [row[0] for row in rows]
             )
             return [
-                self._scope_from_row(row, activities_by_scope[row[0]])
-                for row in rows
+                self._scope_from_row(row, activities_by_scope[row[0]]) for row in rows
             ]
 
     def find_all_scope_names(self) -> dict[str, str]:
+        project_id = require_current_project()
         with self._pool.connection() as conn:
-            project_id = current_project_id()
             rows = conn.execute(
-                "SELECT id, name FROM scope_monitorings"
-                + (" WHERE project_id = %s" if project_id else ""),
-                (project_id,) if project_id else (),
+                "SELECT id, name FROM scope_monitorings WHERE project_id = %s",
+                (project_id,),
             ).fetchall()
             return {scope_id: name for scope_id, name in rows}

@@ -9,6 +9,7 @@ from protab.application.commands.daily_activity import CreateDailyActivityComman
 from protab.application.use_cases.create_daily_activity import (
     CreateDailyActivityUseCase,
 )
+from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
@@ -18,6 +19,9 @@ from protab.domain.exceptions import (
     DuplicateDailyActivityError,
     IncidentsExceedErrorsError,
     ScopeMonitoringNotFoundError,
+)
+from tests.unit.application.recording_repository import (
+    RecordingScopeMonitoringRepository,
 )
 
 
@@ -62,6 +66,25 @@ def test_create_daily_activity():
     assert activity.completed is False
 
 
+def test_create_inserts_a_single_row_instead_of_rewriting_the_scope():
+    repo = RecordingScopeMonitoringRepository(InMemoryScopeMonitoringRepository())
+    scope = make_scope()
+    scope.add_daily_activity(
+        DailyActivity(
+            day=date(2026, 9, 18),
+            errors_reported=1,
+            incidents_created=0,
+            feai=[],
+        )
+    )
+    repo.save(scope)
+    repo.reset()
+
+    CreateDailyActivityUseCase(repo).execute(make_command())
+
+    assert repo.writes == [("insert_daily_activity", "scope-001", date(2026, 9, 19))]
+
+
 def test_create_scope_not_found_raises():
     repo = InMemoryScopeMonitoringRepository()
     with pytest.raises(ScopeMonitoringNotFoundError):
@@ -98,8 +121,6 @@ def test_create_invalid_invariant_raises():
 
 
 def make_scope_daily_activity():
-    from protab.domain.entities.daily_activity import DailyActivity
-
     return DailyActivity(
         day=date(2026, 9, 19),
         errors_reported=2,

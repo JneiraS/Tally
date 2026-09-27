@@ -23,16 +23,17 @@ class CreateDailyActivityUseCase:
                 f"ScopeMonitoring {command.scope_id!r} not found."
             )
 
-        scope.add_daily_activity(
-            DailyActivity(
-                day=command.day,
-                errors_reported=command.errors_reported,
-                incidents_created=command.incidents_created,
-                feai=command.feai,
-            )
+        # The aggregate is deliberately left untouched: the adapter owns both
+        # the insert and the duplicate detection (a UNIQUE violation becomes
+        # DuplicateDailyActivityError at that boundary).
+        activity = DailyActivity(
+            day=command.day,
+            errors_reported=command.errors_reported,
+            incidents_created=command.incidents_created,
+            feai=command.feai,
         )
 
-        self.repository.save(scope)
+        self.repository.insert_daily_activity(scope.id, activity)
 
         if self.audit_trail is not None:
             self.audit_trail.record(

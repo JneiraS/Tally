@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Node dependencies (resolved from package-lock.json, never vendored)
+node_modules/
+
 # Local environment
 .env
 graphify-out/cache/last_query_stamp

@@ -20,6 +20,9 @@ from protab.domain.exceptions import (
     IncidentsExceedErrorsError,
     ScopeMonitoringNotFoundError,
 )
+from tests.unit.application.recording_repository import (
+    RecordingScopeMonitoringRepository,
+)
 
 
 def make_scope_with_activity(scope_id="scope-001", day=date(2026, 9, 19)):
@@ -59,6 +62,30 @@ def test_update_daily_activity():
     assert activity.errors_reported == 5
     assert activity.incidents_created == 3
     assert activity.feai == ["INC000000001", "INC000000002"]
+
+
+def test_update_writes_only_the_targeted_day():
+    """A PATCH must not rewrite the whole scope.
+
+    Rewriting the aggregate persists every day read earlier, so a concurrent
+    edit to another day of the same scope is silently overwritten. Only the
+    targeted day may be written.
+    """
+    repo = RecordingScopeMonitoringRepository(InMemoryScopeMonitoringRepository())
+    repo.save(make_scope_with_activity())
+    repo.reset()
+
+    UpdateDailyActivityUseCase(repo).execute(
+        UpdateDailyActivityCommand(
+            scope_id="scope-001",
+            day=date(2026, 9, 19),
+            errors_reported=5,
+            incidents_created=3,
+            feai=["INC000000001"],
+        )
+    )
+
+    assert repo.writes == [("update_daily_activity", "scope-001", date(2026, 9, 19))]
 
 
 def test_update_scope_not_found():

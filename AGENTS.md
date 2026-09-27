@@ -1061,26 +1061,102 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   - `InMemoryScopeMonitoringRepository` — utilisé uniquement par injection explicite dans les tests.
   - `PostgresScopeMonitoringRepository` — obligatoire pour l'API quand `DATABASE_URL` est défini ;
     `psycopg` (sync) + `psycopg_pool`. Le schéma est créé **idempotemment au démarrage**
-    (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Chaque `save()` remplace l'agrégat
-    dans une transaction ; les contraintes DB (nom unique, unique `(scope_id, day)`) sont traduites
-    en exceptions de domaine par l'adapter.
+    (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Les contraintes DB (nom unique, unique
+    `(scope_id, day)`) sont traduites en exceptions de domaine par l'adapter.
+- **`save()` est réservé à la création d'agrégat.** Il remplace tout (`DELETE` + réinsertion des
+  activités dans une transaction) : un cas d'usage qui mute un périmètre existant l'interdit, sinon il
+  réécrit des jours qu'il n'a pas relus après une édition concurrente et écrase silencieusement la
+  modification d'un autre utilisateur. Les trois mutations d'activité passent donc par des écritures
+  ciblées du port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
+  chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
+  `DailyActivityNotFoundError`.
+- **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les trois
+  écritures ciblées joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en plus
+  conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
+  accepterait un `scope_id` d'un autre tenant. Une écriture qui ne filtre pas le projet est un défaut,
+  même si la ligne visée existe.
+- `InMemoryScopeMonitoringRepository` renvoie **les objets qu'elle stocke**. Elle ne peut donc pas
+  prouver qu'un cas d'usage écrit de façon ciblée : `tests/unit/application/recording_repository.py`
+  enregistre les appels au port pour cela, et la garantie « les autres jours sont intacts » se vérifie
+  dans `postgres_scope_monitoring_repository_test.py`. Un nouveau port doit être implémenté par les
+  **deux** adapters (Liskov, AGENTS.md §11) : le dépôt n'a pas de CI, c'est donc à vérifier à la main
+  quand on ajoute une méthode.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
+- La table `scope_monitorings` impose une clé étrangère `project_id -> projects.id` avec suppression en
+  cascade, comme `auth_sessions` et `daily_activities`. L'adapter applique cette contrainte de façon
+  idempotente au démarrage pour les bases existantes ; toute réparation de données doit donc restaurer un
+  `project_id` valide avant de l'ajouter.
 - L'API de production utilise une session HTTP-only et filtre les périmètres par `project_id` ; les routes
   métier sont protégées par l'authentification projet/quadrigramme.
+- **Isolation multi-tenant par défaut** : le projet courant est porté par un `ContextVar` posé par la
+  dépendance `project_context`. Les adaptateurs PostgreSQL appellent `require_current_project()` et
+  lèvent `MissingProjectContextError` si le contexte est absent — aucun repli sur un projet par défaut.
+  Toute requête SQL d'un adapter doit filtrer sur `project_id` **sans condition**.
+- **Allowlist de routes** : l'authentification est activée par la dépendance `project_context`, donc une
+  nouvelle route qui l'oublierait fuiterait entre tenants. `tests/integration/adapters/route_authorization_test.py`
+  inverse la polarité : seules les routes de `PUBLIC_ROUTES` (`/healthz`, `/projects`, `/auth/*`, docs)
+  peuvent être non authentifiées. Ajouter une route publique = ajouter son chemin à cette liste.
+- **Chemins d'API** : déclarés une seule fois côté front dans `src/FrontEnd/src/constants/routes.ts`
+  (`AUDIT_LOG_PATH`) et symétriquement dans `app.py` / `nginx.conf` / `vite.config.ts`. Ne pas restaurer
+  l'ancien chemin haché `6d857a9d…-log` : la sécurité repose sur le cookie de session, pas sur l'opacité
+  du chemin. Le journal d'audit est ainsi `GET /audit-log`.
 
 ## 28.2 Configuration
 
 - Chargée via `load_dotenv()` (`src/protab/adapters/inbound/api/config.py`) + `os.getenv`.
-- Variables : `PROTAB_HOST`, `PROTAB_PORT`, `DATABASE_URL` (DSN PostgreSQL), `PROTAB_TEST_DATABASE_URL` (tests).
+- Variables : `PROTAB_HOST`, `PROTAB_PORT`, `DATABASE_URL` (DSN PostgreSQL),
+  `PROTAB_TEST_DATABASE_URL` (tests), `PROTAB_COOKIE_SECURE` (drapeau `Secure` du cookie de session),
+  `PROTAB_DEFAULT_PROJECT_PASSWORD` (obligatoire au premier démarrage).
 - Seuls des défauts/conteneurs de dev sont commités (cf. `.env.example`) ; aucun secret réel.
+- **Fail-closed** : aucun secret devinable ne doit être réintroduit. `PROTAB_DEFAULT_PROJECT_PASSWORD` et le
+  contexte de projet lèvent une `RuntimeError` explicite quand elles sont absentes, plutôt que de retomber
+  sur une valeur par défaut. Toute nouvelle dépendance de sécurité suit la même règle.
+- **Fail-closed là où le secret sert, pas à chaque démarrage** : `resolve_bootstrap_password()` n'est
+  appelé que si la ligne du projet bootstrap est absente. Exiger le secret à chaque `connect()` casserait
+  le redémarrage de toute installation déjà initialisée, pour une valeur jamais utilisée.
+  `docker-compose.yml` transmet donc la variable sans garde (`${…:-}`) : l'application est l'unique
+  point d'application de la règle, Compose ne doit pas la rejouer.
+- Le cookie de session est `HttpOnly` + `SameSite=Lax` ; `Secure` n'est activé que si `PROTAB_COOKIE_SECURE`
+  est truthy (`1`, `true`, `yes`, `on`). En Docker Compose l'API est publiée sur `127.0.0.1` uniquement.
+- **401 = session perdue, pas panne réseau** : le frontend le traite globalement via
+  `protabApi.setUnauthorizedHandler` (branché dans `App.tsx`) et revient à `LoginPage`, au lieu d'afficher
+  une boîte « Échec du chargement » dont « Réessayer » ne peut pas réussir. `POST /auth/login` est exclu :
+  un 401 y signifie mot de passe erroné et reste une erreur de formulaire. Tout nouveau client HTTP doit
+  conserver cette exclusion, sinon un mauvais mot de passe vide le formulaire.
 
-## 28.3 Tests d'intégration PostgreSQL
+## 28.3 Authentification : quadrigrammes et rotation du mot de passe
+
+- **Les deux colonnes `officials` sont des listes, pas des scalaires.** `official_main` et `official_backup`
+  encodent un ou plusieurs quadrigrammes séparés par `/`. Le parseur commun est `_official_codes()` dans
+  `postgres_auth_repository.py`, utilisé par `authenticate()` pour **les deux** colonnes ; casse et espaces
+  ignorés. Traiter `official_main` comme un scalaire (le cas avant ce correctif) rendait `LAMA/JMAB`
+  inutilisable et, à l'inverse, la chaîne brute `"LAMA/JMAB"` recevable comme code.
+- **Un substitut de saisie n'est pas un code.** Le `?` des données réelles signifie « pas de suppléant ».
+  Toute partie sans caractère alphanumérique est écartée. La chaîne complète n'est jamais un code valide, même
+  si elle satisfait le `min_length`/`max_length` du schéma : c'est une usurpation dans le journal d'audit.
+- **Ne pas resserrer la validation du quadrigramme sans vérifier les données.** Le login accepte
+  volontairement des formes larges car un projet sans périmètre doit accepter n'importe quel quadrigramme
+  (bootstrap du premier périmètre). Une contrainte de format stricte risquerait de verrouiller des saisies
+  manuelles déjà en base.
+- **Rotation : `protab-project set-password <code>`** (`src/protab/project_admin.py`). Mot de passe saisi par
+  `getpass`, jamais en argument. `PostgresAuthRepository.set_project_password()` remplace le hash **et
+  supprime les `auth_sessions` du projet**. Cette révocation n'est pas cosmétique : c'est le geste correct
+  quand un mot de passe a été divulgué, et elle est couverte par
+  `tests/integration/adapters/project_admin_test.py`. La forme historique `protab-project <code> <nom>`
+  reste valide.
+
+## 28.4 Tests d'intégration PostgreSQL
 
 - `tests/integration/adapters/postgres_scope_monitoring_repository_test.py` est ignoré (`skip`) tant que
   `PROTAB_TEST_DATABASE_URL` n'est pas défini. Le lancer via `make test-db` (base `protab_test` créée si absente).
+- `tests/integration/adapters/postgres_auth_repository_test.py` fournit lui-même
+  `PROTAB_DEFAULT_PROJECT_PASSWORD` via `monkeypatch`, puisque l'authent refuse de démarrer sans.
+- `tests/integration/adapters/project_admin_test.py` dépend également de `PROTAB_TEST_DATABASE_URL` et fait de
+  même. Il exercise la CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) : c'est
+  volontaire, il vérifie le SQL de rotation et la révocation des sessions, pas la logique d'argparse.
 
-## 28.4 Conteneurisation & commandes utiles
+## 28.5 Conteneurisation & commandes utiles
 
 - `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
@@ -1088,6 +1164,34 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
+- `node_modules` n'est **jamais** versionné : dépendances résolues depuis `package-lock.json` (`npm ci`).
+
+## 28.6 FrontEnd : vue mono-jour et état local des saisies
+
+- **La page principale est mono-jour, pas un cumul.** `ScopeListPage` n'affiche que les compteurs du
+  jour sélectionné ; le jour à l'ouverture est `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour
+  si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
+  et l'ouvrir sur la date du jour rendait un historique réimporté invisible alors qu'il était présent
+  dans le détail de chaque périmètre.
+- **Un état « aucune saisie » doit rester atteignable.** Si le jour affiché ne contient aucune activité
+  alors qu'une autre journée en contient, un bandeau `role="status"` nomme la dernière saisie et propose
+  de l'afficher. Le bandeau « N périmètres non traités » du dernier jour ouvré l'emporte : il nomme les
+  périmètres concernés et filtre la liste sur eux, la notice « aucune saisie » n'est qu'un repli. Deux
+  `role="status"` simultanés rendraient l'un des deux inatteignable.
+- **`InlineActivityCounters` ne rejoue pas `initialActivity`.** Ses `useState` sont initialisés au
+  montage seulement, et `existsRef` (existe-t-il déjà une ligne pour ce jour ?) n'est jamais
+  resynchronisé. Sans remontage, changer de jour laisse les compteurs affichés sur la journée précédente
+  **et** l'autosave `PATCH` réécrit alors la journée affichée avec ces valeurs périmées : perte de
+  données silencieuse, d'autant plus grave qu'elle n'apparaît que dans le journal d'audit. D'où
+  l'invariant : toute occurrence rendue pour un jour données doit porter
+  `key={`${scope.id}-${selectedDay}`}` — c'est déjà le cas de `TodayActivityEditor` sur la page de
+  détail. Le flush de la saisie en cours au unmount (`useEffect` de nettoyage) reste ainsi correct.
+- Vérifier une correction de saisie avec un test qui **change de jour** : un test qui ne fait qu'afficher
+  la journée du jour passe même avec des compteurs périmés.
+- Tests : `npm test` (vitest, 101 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+  `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
+  sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
+
 
 ## graphify
 

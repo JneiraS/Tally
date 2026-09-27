@@ -14,7 +14,10 @@ from fastapi.testclient import TestClient
 
 from protab.adapters.inbound.api.app import create_app
 from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+    MissingProjectContextError,
     PostgresScopeMonitoringRepository,
+    reset_current_project,
+    set_current_project,
 )
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
@@ -22,7 +25,11 @@ from protab.domain.entities.scope_monitoring import (
     Officials,
     ScopeMonitoring,
 )
-from protab.domain.exceptions import ScopeMonitoringNameAlreadyExistsError
+from protab.domain.exceptions import (
+    DailyActivityNotFoundError,
+    DuplicateDailyActivityError,
+    ScopeMonitoringNameAlreadyExistsError,
+)
 
 TEST_DATABASE_URL = os.getenv("PROTAB_TEST_DATABASE_URL")
 
@@ -37,6 +44,8 @@ VALID_ITEM = {
     "official_main": "Main",
     "official_backup": "Backup",
 }
+
+TEST_PROJECT_ID = "protab"
 
 
 def make_scope(
@@ -68,6 +77,11 @@ def truncate_all() -> None:
         conn.execute(
             "TRUNCATE daily_activities, scope_monitorings RESTART IDENTITY CASCADE"
         )
+        conn.execute(
+            "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s) "
+            "ON CONFLICT (id) DO NOTHING",
+            (TEST_PROJECT_ID, "Test project", "test-hash"),
+        )
 
 
 @pytest.fixture
@@ -78,6 +92,19 @@ def repo():
     truncate_all()
     yield repository
     repository.close()
+
+
+@pytest.fixture(autouse=True)
+def project_context():
+    """Every read and write is tenant-scoped: name the project under test.
+
+    The adapters fail closed when no project context is established, so the
+    tests must declare which tenant they operate in rather than relying on a
+    default. Teardown restores the previous (empty) context.
+    """
+    token = set_current_project(TEST_PROJECT_ID)
+    yield token
+    reset_current_project(token)
 
 
 # --- Round-trip ------------------------------------------------------------
@@ -128,6 +155,163 @@ def test_save_replaces_aggregate_on_second_save(repo):
 
     loaded = repo.find_by_id("scope-001")
     assert set(loaded.daily_activities.keys()) == {date(2026, 9, 20)}
+
+
+# --- Targeted activity writes ---------------------------------------------
+#
+# The activity endpoints are hot paths: a user editing one day of a scope must
+# not rewrite the other days. These tests pin that guarantee at the only level
+# where it is observable, since the in-memory adapter shares object references
+# and would pass even if every write rewrote the whole aggregate.
+
+
+def seed_three_days(repo) -> None:
+    scope = make_scope()
+    for day, errors in (
+        (date(2026, 9, 18), 1),
+        (date(2026, 9, 19), 2),
+        (date(2026, 9, 25), 11),
+    ):
+        scope.add_daily_activity(
+            DailyActivity(
+                day=day,
+                errors_reported=errors,
+                incidents_created=errors - 1,
+                feai=[f"INC{day:%d}0000000"],
+            )
+        )
+    repo.save(scope)
+
+
+def test_update_daily_activity_leaves_other_days_untouched(repo):
+    seed_three_days(repo)
+
+    repo.update_daily_activity(
+        "scope-001",
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=42,
+            incidents_created=7,
+            feai=["INC000000099"],
+        ),
+    )
+
+    loaded = repo.find_by_id("scope-001")
+    assert loaded.daily_activity_for(date(2026, 9, 19)).errors_reported == 42
+    assert loaded.daily_activity_for(date(2026, 9, 19)).feai == ["INC000000099"]
+    for untouched, errors in ((date(2026, 9, 18), 1), (date(2026, 9, 25), 11)):
+        activity = loaded.daily_activity_for(untouched)
+        assert activity.errors_reported == errors
+        assert activity.incidents_created == errors - 1
+
+
+def test_update_daily_activity_preserves_the_completion_flags(repo):
+    scope = make_scope(day=date(2026, 9, 19))
+    scope.daily_activity_for(date(2026, 9, 19)).mark_completed()
+    repo.save(scope)
+
+    repo.update_daily_activity(
+        "scope-001",
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=9,
+            incidents_created=1,
+            feai=[],
+        ),
+    )
+
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.errors_reported == 9
+    assert activity.handled is True
+    assert activity.completed is True
+
+
+def test_update_daily_activity_on_missing_day_raises(repo):
+    repo.save(make_scope(day=date(2026, 9, 19)))
+
+    with pytest.raises(DailyActivityNotFoundError):
+        repo.update_daily_activity(
+            "scope-001",
+            DailyActivity(
+                day=date(2026, 9, 22),
+                errors_reported=1,
+                incidents_created=0,
+                feai=[],
+            ),
+        )
+
+
+def test_insert_daily_activity_leaves_other_days_untouched(repo):
+    seed_three_days(repo)
+
+    repo.insert_daily_activity(
+        "scope-001",
+        DailyActivity(
+            day=date(2026, 9, 21),
+            errors_reported=3,
+            incidents_created=3,
+            feai=["INC000000003"],
+        ),
+    )
+
+    loaded = repo.find_by_id("scope-001")
+    assert set(loaded.daily_activities) == {
+        date(2026, 9, 18),
+        date(2026, 9, 19),
+        date(2026, 9, 21),
+        date(2026, 9, 25),
+    }
+    assert loaded.daily_activity_for(date(2026, 9, 25)).errors_reported == 11
+
+
+def test_insert_daily_activity_on_duplicate_day_translates_to_domain_error(repo):
+    repo.save(make_scope(day=date(2026, 9, 19)))
+
+    with pytest.raises(DuplicateDailyActivityError):
+        repo.insert_daily_activity(
+            "scope-001",
+            DailyActivity(
+                day=date(2026, 9, 19),
+                errors_reported=5,
+                incidents_created=1,
+                feai=[],
+            ),
+        )
+
+
+def test_mark_activities_completed_flips_only_the_named_days(repo):
+    seed_three_days(repo)
+
+    repo.mark_activities_completed(
+        "scope-001", [date(2026, 9, 19), date(2026, 9, 25)]
+    )
+
+    loaded = repo.find_by_id("scope-001")
+    assert loaded.daily_activity_for(date(2026, 9, 19)).completed is True
+    assert loaded.daily_activity_for(date(2026, 9, 25)).handled is True
+    untouched = loaded.daily_activity_for(date(2026, 9, 18))
+    assert untouched.completed is False
+    assert untouched.handled is False
+    assert untouched.errors_reported == 1
+
+
+def test_activity_writes_are_tenant_scoped(repo):
+    """A write must not reach across tenants, even on a known scope id."""
+    seed_three_days(repo)
+    other = set_current_project("other-project")
+    try:
+        with pytest.raises(DailyActivityNotFoundError):
+            repo.update_daily_activity(
+                "scope-001",
+                DailyActivity(
+                    day=date(2026, 9, 19),
+                    errors_reported=0,
+                    incidents_created=0,
+                    feai=[],
+                ),
+            )
+    finally:
+        reset_current_project(other)
 
 
 def test_find_by_name_returns_matching_scope(repo):
@@ -212,6 +396,17 @@ def test_connect_creates_project_name_index(repo):
 
     assert row is not None
     assert "(project_id, name)" in row[0]
+
+
+def test_connect_creates_project_foreign_key(repo):
+    with repo._pool.connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM pg_constraint "
+            "WHERE conrelid = 'scope_monitorings'::regclass "
+            "AND conname = 'scope_monitorings_project_id_fkey'"
+        ).fetchone()
+
+    assert row is not None
 
 
 def test_connect_is_idempotent_for_project_name_index(repo):
@@ -351,3 +546,32 @@ def test_duplicate_name_via_api_returns_409(repo):
         json=[{**VALID_ITEM, "name": "Scope A"}],
     )
     assert response.status_code == 409
+
+
+# --- Tenant isolation --------------------------------------------------------
+
+
+def test_adapters_refuse_to_read_or_write_without_project_context(repo):
+    """No project context must raise, never fall back to a default tenant."""
+    set_current_project(None)
+
+    with pytest.raises(MissingProjectContextError):
+        repo.find_all()
+    with pytest.raises(MissingProjectContextError):
+        repo.find_all_scope_names()
+    with pytest.raises(MissingProjectContextError):
+        repo.find_by_id("scope-001")
+    with pytest.raises(MissingProjectContextError):
+        repo.find_by_name("Scope A")
+    with pytest.raises(MissingProjectContextError):
+        repo.save(make_scope())
+
+
+def test_find_all_returns_only_the_requesting_project_scopes(repo):
+    repo.save(make_scope(scope_id="scope-alpha", name="Scope Alpha"))
+    set_current_project("other-project")
+
+    assert repo.find_all() == []
+    assert repo.find_by_id("scope-alpha") is None
+    assert repo.find_by_name("Scope Alpha") is None
+    assert repo.find_all_scope_names() == {}

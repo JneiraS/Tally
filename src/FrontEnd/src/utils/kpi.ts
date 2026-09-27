@@ -73,6 +73,37 @@ export function previousWorkingDays(
   return lastWorkingDays(date.toISOString().split("T")[0], n, config);
 }
 
+/**
+ * Jour à afficher à l'ouverture d'une vue mono-jour.
+ *
+ * Un jour non ouvré ne peut pas être saisi : l'ouvrir sur la date du jour
+ * offrirait une liste vide et inviterait à écrire un dimanche. On retombe
+ * donc sur le dernier jour ouvré, qui est le seul état de travail utile.
+ */
+export function defaultDisplayDay(
+  today: string,
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+): string {
+  if (isWorkingDay(today, config)) return today;
+  return previousWorkingDays(today, 1, config)[0] ?? today;
+}
+
+/**
+ * Jour le plus récent ayant au moins une activité, tous périmètres confondus.
+ *
+ * Sert à pointer vers des données existantes quand le jour affiché n'en
+ * contient aucune (historique réimporté, jour non encore saisi).
+ */
+export function latestActivityDay(scopes: ScopeMonitoring[]): string | null {
+  let latest: string | null = null;
+  scopes.forEach((scope) => {
+    (scope.daily_activities || []).forEach((activity) => {
+      if (latest === null || activity.day > latest) latest = activity.day;
+    });
+  });
+  return latest;
+}
+
 export function buildDailyTrend(
   scopes: ScopeMonitoring[],
   day: string,
