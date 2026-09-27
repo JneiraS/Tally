@@ -24,8 +24,8 @@
     "semantic_hash": "ce430b734575012345cea7428aa1d2a1"
   },
   "src/FrontEnd/src/App.tsx": {
-    "mtime": 1790512469.9637885,
-    "seen": 1790512578.5204809,
+    "mtime": 1790518628.6207495,
+    "seen": 1790527147.3728745,
     "ast_hash": "fc1fbb180f8f94e8f7953075d3dcd6a8",
     "semantic_hash": ""
   },
@@ -72,8 +72,8 @@
     "semantic_hash": "9577497355eef25948de7b483a912b5e"
   },
   "src/FrontEnd/src/components/DashboardCharts.tsx": {
-    "mtime": 1790518030.9140153,
-    "seen": 1790518115.657508,
+    "mtime": 1790518628.621528,
+    "seen": 1790527147.3729033,
     "ast_hash": "e70ba8075fdddad69b833d941ce30fdc",
     "semantic_hash": ""
   },
@@ -108,14 +108,14 @@
     "semantic_hash": "7c88d96ba78c6bc0592496a18d33e8cd"
   },
   "src/FrontEnd/src/components/Navbar.tsx": {
-    "mtime": 1790410838.4376929,
-    "seen": 1790412924.6052952,
-    "ast_hash": "58b804fd82b0ced6b0bca240592ab00a",
-    "semantic_hash": "58b804fd82b0ced6b0bca240592ab00a"
+    "mtime": 1790527070.095147,
+    "seen": 1790527147.3729293,
+    "ast_hash": "2a7e488d81ffbe613acb70cec349dea9",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ScopeDetailCharts.tsx": {
-    "mtime": 1790518030.9151533,
-    "seen": 1790518115.6575358,
+    "mtime": 1790518628.6217496,
+    "seen": 1790527147.3729322,
     "ast_hash": "55d85ee4abce56ccc808f4a543c05439",
     "semantic_hash": ""
   },
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/pages/LoginPage.tsx": {
-    "mtime": 1790512374.5012057,
-    "seen": 1790512578.5205905,
-    "ast_hash": "6763562df6a06d0e3a6cd8615b75dae6",
+    "mtime": 1790527076.9409444,
+    "seen": 1790527147.372962,
+    "ast_hash": "b0045bf79bf9aa00bf115868a3d775ba",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/pages/NotFoundPage.tsx": {
@@ -216,8 +216,8 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/DashboardCharts.test.tsx": {
-    "mtime": 1790518049.2363153,
-    "seen": 1790518115.657593,
+    "mtime": 1790518628.6237495,
+    "seen": 1790527147.3729877,
     "ast_hash": "48c46df1d9f88db923c31bd459d52dab",
     "semantic_hash": ""
   },
@@ -234,8 +234,8 @@
     "semantic_hash": "f4a0f89205e30ae66001ca77e0e63c60"
   },
   "src/FrontEnd/src/test/ScopeDetailCharts.test.tsx": {
-    "mtime": 1790518053.112298,
-    "seen": 1790518115.6576056,
+    "mtime": 1790518628.6247497,
+    "seen": 1790527147.3729987,
     "ast_hash": "e0f912516e0bb9676273cdefe13040bc",
     "semantic_hash": ""
   },
@@ -852,8 +852,8 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790518102.7460783,
-    "seen": 1790518115.6579328,
+    "mtime": 1790518628.5987496,
+    "seen": 1790527147.3733323,
     "ast_hash": "12505b7d61d06221172ae9d029b5dab4",
     "semantic_hash": ""
   },
@@ -870,10 +870,10 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/index.html": {
-    "mtime": 1789830139.9163666,
-    "seen": 1790410609.1051302,
-    "ast_hash": "03a4cd1d5713a9a6c7b8cb9fdc874e53",
-    "semantic_hash": "03a4cd1d5713a9a6c7b8cb9fdc874e53"
+    "mtime": 1790527053.8986347,
+    "seen": 1790527147.3733404,
+    "ast_hash": "e5a9f4c00382898e2c14b6b3e343e08c",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/constants/routes.ts": {
     "mtime": 1790511097.6238902,
@@ -930,27 +930,27 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/LoginBackground.tsx": {
-    "mtime": 1790512327.004412,
-    "seen": 1790512578.5205367,
+    "mtime": 1790518628.6217496,
+    "seen": 1790527147.372921,
     "ast_hash": "cd5f628d18efb4c2b29ffb24f405e249",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/LoginBackground.test.tsx": {
-    "mtime": 1790512359.5462706,
-    "seen": 1790512578.5206335,
+    "mtime": 1790518628.6247497,
+    "seen": 1790527147.3729959,
     "ast_hash": "4844fa88a909b7dec5cac479aea9f88a",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/assets/layered-waves-dark.svg": {
-    "mtime": 1790513276.0366588,
-    "seen": 1790514356.9157665,
-    "ast_hash": "58b019dcd558100ad3febd7e7919f777",
+    "mtime": 1790523054.2947462,
+    "seen": 1790527147.373343,
+    "ast_hash": "fb3dedaf6bb3d1eb2782f9259bc2e29c",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/assets/layered-waves-light.svg": {
-    "mtime": 1790511790.6346464,
-    "seen": 1790512578.521133,
-    "ast_hash": "66cdc7da1cf4fd2350ab5308e3ba79c5",
+    "mtime": 1790523298.1406672,
+    "seen": 1790527147.3733451,
+    "ast_hash": "3673e4867155da475e7b2f1d25cc2995",
     "semantic_hash": ""
   }
 }
