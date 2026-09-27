@@ -1207,7 +1207,22 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - Un fond décoratif est masqué aux lecteurs d'écran (`alt=""` + `aria-hidden="true"`) et ne capte pas le
   pointeur. Sur une page en `flex`, le conteneur doit être `relative` et la carte `relative z-10` : un
   enfant `absolute` sans `z-index` est peint **au-dessus** du contenu non positionné.
-- Tests : `npm test` (vitest, 103 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- **L'outline d'un graphique se retire sur le `<svg>`, pas sur le wrapper.** Tant que recharts n'a pas
+  `accessibilityLayer`, il n'est pas focusable et aucun anneau n'est peint : `rootTabIndex` vaut alors
+  `undefined` et aucun `tabIndex` n'est posé. L'outline par défaut ne disparaît donc que le jour où le mode
+  accessible est activé, où `RootSurface` pose `tabIndex={0}` et `role="application"` **sur le `<svg
+  class="recharts-surface">`**. Le `className` passé à `<LineChart>` atterrit sur le `.recharts-wrapper`
+  (`RechartsWrapper.js:347`) et ne l'atteint pas : il faut une variante arbitraire descendant
+  `[&_.recharts-surface]:…` portée par notre conteneur, ou le `outline: none` est un no-op.
+- **`outline-none` sans `outline-solid` ne remplace rien, il supprime.** `focus-visible:outline-2` compile
+  en `outline-style: var(--tw-outline-style)`, et c'est `outline-none` qui met cette variable à `none` sur le
+  même élément : le substitut ne serait jamais peint, et l'on perdrait l'anneau du navigateur *et* le
+  nôtre. Toujours parejaire `outline-none` et `focus-visible:outline-solid` — c'est vérifiable dans le CSS
+  compilé, pas à l'œil. **`ring-*` ne convient pas ici** : Tailwind l'implémente en `box-shadow`, que le
+  `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
+  `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
+  monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
+- Tests : `npm test` (vitest, 105 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 

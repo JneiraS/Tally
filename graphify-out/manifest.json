@@ -72,10 +72,10 @@
     "semantic_hash": "9577497355eef25948de7b483a912b5e"
   },
   "src/FrontEnd/src/components/DashboardCharts.tsx": {
-    "mtime": 1790410838.4357576,
-    "seen": 1790412924.6052842,
-    "ast_hash": "64357ea7f735599dcee2defaf94ac7d1",
-    "semantic_hash": "64357ea7f735599dcee2defaf94ac7d1"
+    "mtime": 1790518030.9140153,
+    "seen": 1790518115.657508,
+    "ast_hash": "e70ba8075fdddad69b833d941ce30fdc",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/DateNavigator.tsx": {
     "mtime": 1790410838.4357576,
@@ -114,10 +114,10 @@
     "semantic_hash": "58b804fd82b0ced6b0bca240592ab00a"
   },
   "src/FrontEnd/src/components/ScopeDetailCharts.tsx": {
-    "mtime": 1790091251.4882793,
-    "seen": 1790410609.104971,
-    "ast_hash": "fc8c79db1ed1dd286ea4f38d9deb1870",
-    "semantic_hash": "fc8c79db1ed1dd286ea4f38d9deb1870"
+    "mtime": 1790518030.9151533,
+    "seen": 1790518115.6575358,
+    "ast_hash": "55d85ee4abce56ccc808f4a543c05439",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ScopeFormModal.tsx": {
     "mtime": 1789830139.9190423,
@@ -216,10 +216,10 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/DashboardCharts.test.tsx": {
-    "mtime": 1790410838.4377577,
-    "seen": 1790412924.6053302,
-    "ast_hash": "9e6b6dcf886ca0911757196668aa25ca",
-    "semantic_hash": "9e6b6dcf886ca0911757196668aa25ca"
+    "mtime": 1790518049.2363153,
+    "seen": 1790518115.657593,
+    "ast_hash": "48c46df1d9f88db923c31bd459d52dab",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/test/DateNavigator.test.tsx": {
     "mtime": 1789839703.6795905,
@@ -234,10 +234,10 @@
     "semantic_hash": "f4a0f89205e30ae66001ca77e0e63c60"
   },
   "src/FrontEnd/src/test/ScopeDetailCharts.test.tsx": {
-    "mtime": 1790091251.4892795,
-    "seen": 1790410609.104997,
-    "ast_hash": "7204e39a309aa0034d061eded05f5662",
-    "semantic_hash": "7204e39a309aa0034d061eded05f5662"
+    "mtime": 1790518053.112298,
+    "seen": 1790518115.6576056,
+    "ast_hash": "e0f912516e0bb9676273cdefe13040bc",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/test/ScopeListPage.test.tsx": {
     "mtime": 1790511097.62489,
@@ -852,9 +852,9 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790514343.6129668,
-    "seen": 1790514356.9157555,
-    "ast_hash": "de9e699a3d8ffbd8eda5ddffe73f10d8",
+    "mtime": 1790518102.7460783,
+    "seen": 1790518115.6579328,
+    "ast_hash": "12505b7d61d06221172ae9d029b5dab4",
     "semantic_hash": ""
   },
   "README.md": {
