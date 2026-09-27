@@ -361,7 +361,7 @@ class PostgresScopeMonitoringRepository:
         with self._pool.connection() as conn:
             with conn.transaction():
                 cursor = conn.execute(
-                    f"""
+                    """
                     UPDATE daily_activities AS a
                     SET errors_reported = %s, incidents_created = %s, feai = %s
                     FROM scope_monitorings AS s
@@ -442,8 +442,7 @@ class PostgresScopeMonitoringRepository:
                 conn, [row[0] for row in rows]
             )
             return [
-                self._scope_from_row(row, activities_by_scope[row[0]])
-                for row in rows
+                self._scope_from_row(row, activities_by_scope[row[0]]) for row in rows
             ]
 
     def find_all_scope_names(self) -> dict[str, str]:
