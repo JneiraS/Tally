@@ -852,9 +852,9 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790512567.2933602,
-    "seen": 1790512578.521115,
-    "ast_hash": "52487a76cf2dcaabb2897cb2f3ee3854",
+    "mtime": 1790514343.6129668,
+    "seen": 1790514356.9157555,
+    "ast_hash": "de9e699a3d8ffbd8eda5ddffe73f10d8",
     "semantic_hash": ""
   },
   "README.md": {
@@ -942,9 +942,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/assets/layered-waves-dark.svg": {
-    "mtime": 1790511633.4765975,
-    "seen": 1790512578.5211291,
-    "ast_hash": "61a70960249f6db53049eb70a97820eb",
+    "mtime": 1790513276.0366588,
+    "seen": 1790514356.9157665,
+    "ast_hash": "58b019dcd558100ad3febd7e7919f777",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/assets/layered-waves-light.svg": {

@@ -1165,6 +1165,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
 - `node_modules` n'est **jamais** versionné : dépendances résolues depuis `package-lock.json` (`npm ci`).
+  Même règle pour les artefacts de build front (`*.tsbuildinfo`, régénéré par `tsc -b` derrière
+  `npm run build`) : déclarés dans `src/FrontEnd/.gitignore`, pas à la racine.
+- **`src/FrontEnd/.dockerignore` est distinct de celui de la racine** : le contexte de build de l'image
+  `frontend` est `./src/FrontEnd` (`docker-compose.yml`), donc seul ce fichier filtre ce que `COPY . .`
+  embarque. Un artefact absent du `.gitignore` racine peut malgré tout entrer dans l'image.
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
 
