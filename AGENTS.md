@@ -1188,7 +1188,21 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   détail. Le flush de la saisie en cours au unmount (`useEffect` de nettoyage) reste ainsi correct.
 - Vérifier une correction de saisie avec un test qui **change de jour** : un test qui ne fait qu'afficher
   la journée du jour passe même avec des compteurs périmés.
-- Tests : `npm test` (vitest, 101 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- **Les images sont importées depuis `src/assets/`**, jamais référencées par une URL `public/` : l'import
+  laisse Vite hasher le fichier et valide le chemin à la compilation. `tsconfig.json` déclare déjà
+  `"types": ["vite/client"]`, un `import x from './x.svg'` type-check donc sans configuration ajoutée.
+  Attention en test : Vite *inline* en `data:` URI l'asset sous `assetsInlineLimit` (4 Ko par défaut) et
+  sert l'autre en fichier, donc la valeur du `src` dépend du bundler. Comparer le `src` à l'asset importé,
+  jamais à un nom de fichier.
+- **`ThemeProvider` enveloppe toute l'application, page de connexion comprise.** Il est monté dans `App`,
+  qui n'est qu'une coquille au-dessus d'`AppContent` : une branche rendue en dehors (chargement de session,
+  `LoginPage`) n'avait aucun contexte, donc aucune classe `dark:` ne pouvait s'activer et la préférence
+  enregistrée n'était appliquée qu'**après** connexion — un flash de thème à chaque login. Tout composant
+  qui dépend du thème passe par `useTheme()` ; ne jamais dupliquer l'état de thème ni lire `localStorage`.
+- Un fond décoratif est masqué aux lecteurs d'écran (`alt=""` + `aria-hidden="true"`) et ne capte pas le
+  pointeur. Sur une page en `flex`, le conteneur doit être `relative` et la carte `relative z-10` : un
+  enfant `absolute` sans `z-index` est peint **au-dessus** du contenu non positionné.
+- Tests : `npm test` (vitest, 103 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 
