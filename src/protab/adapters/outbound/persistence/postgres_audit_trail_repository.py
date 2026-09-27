@@ -10,13 +10,13 @@ from dataclasses import replace
 import psycopg
 from psycopg.types.json import Jsonb
 
-from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
-    require_current_project,
-)
 from protab.adapters.outbound.persistence.postgres_pool import (
     POOL_MAX_SIZE,
     POOL_MIN_SIZE,
     build_connection_pool,
+)
+from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+    require_current_project,
 )
 from protab.domain.entities.audit_event import AuditEvent
 from protab.ports.outbound.audit_trail_repository import AuditEventQuery
