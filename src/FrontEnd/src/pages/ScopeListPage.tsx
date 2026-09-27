@@ -13,6 +13,7 @@ import {
   Activity as ActivityIcon,
   Inbox,
   Download,
+  CalendarClock,
 } from "lucide-react";
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
@@ -22,6 +23,8 @@ import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
 import {
   baselineDelta,
+  defaultDisplayDay,
+  latestActivityDay,
   previousWorkingDays,
   trailingErrors,
   transformationRate,
@@ -72,7 +75,9 @@ export function ScopeListPage({
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const todayIso = getTodayIsoDate();
-  const [selectedDay, setSelectedDay] = useState(todayIso);
+  const [selectedDay, setSelectedDay] = useState(() =>
+    defaultDisplayDay(todayIso, nonWorkingDays),
+  );
   const isSelectedDayToday = selectedDay === todayIso;
   const selectedDayLabel = isSelectedDayToday
     ? "du jour"
@@ -101,6 +106,39 @@ export function ScopeListPage({
     setSelectedDay(lastWorkingDay);
     setQuickFilter("to_process");
   };
+
+  // Dernière journée réellement saisie : sert à pointer vers des données
+  // existantes quand le jour affiché n'en contient aucune (historique
+  // réimporté via un dump, ou journée du jour pas encore renseignée).
+  const latestData = useMemo(() => {
+    const day = latestActivityDay(scopes);
+    if (!day) return null;
+    return scopes.reduce(
+      (acc, scope) => {
+        const activity = (scope.daily_activities || []).find((a) => a.day === day);
+        if (!activity) return acc;
+        return {
+          day,
+          scopes: acc.scopes + 1,
+          errors: acc.errors + (activity.errors_reported || 0),
+          incidents: acc.incidents + (activity.incidents_created || 0),
+        };
+      },
+      { day, scopes: 0, errors: 0, incidents: 0 },
+    );
+  }, [scopes]);
+
+  // Deux informations peuvent concerner des journées différentes : le backlog
+  // du dernier jour ouvré et l'absence de saisie sur la journée affichée. Le
+  // backlog l'emporte car il nomme les périmètres concernés et filtre la liste
+  // sur eux ; le message « aucune saisie » ne sert que de repli.
+  const hasUntreatedBacklog = Boolean(
+    lastWorkingDay &&
+      untreatedLastWorkingDayCount > 0 &&
+      selectedDay !== lastWorkingDay,
+  );
+  const showEmptyDayNotice =
+    !hasUntreatedBacklog && latestData !== null && latestData.day !== selectedDay;
 
   const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
     setScopes((prev) =>
@@ -423,9 +461,7 @@ export function ScopeListPage({
         </div>
       </div>
 
-      {lastWorkingDay &&
-        untreatedLastWorkingDayCount > 0 &&
-        selectedDay !== lastWorkingDay && (
+      {hasUntreatedBacklog && lastWorkingDay && (
           <div
             role="status"
             aria-live="polite"
@@ -457,6 +493,41 @@ export function ScopeListPage({
             </div>
           </div>
         )}
+
+      {/* Aucune saisie le jour affiché : pointer vers la dernière journée
+          contenant des données, sinon un historique réimporté resterait
+          invisible depuis la page principale. */}
+      {showEmptyDayNotice && latestData && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 dark:border-nord-2 dark:bg-nord-1/40"
+        >
+          <CalendarClock
+            aria-hidden="true"
+            className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-nord-4"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-slate-800 dark:text-nord-6">
+              {`Aucune saisie le ${formatDateFr(selectedDay)}`}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-nord-4">
+              {`Les dernières données saisies datent du ${formatDateFr(latestData.day)} : `}
+              {`${latestData.scopes} ${latestData.scopes > 1 ? "périmètres" : "périmètre"}, `}
+              {`${latestData.errors} ${latestData.errors > 1 ? "erreurs" : "erreur"}, `}
+              {`${latestData.incidents} ${latestData.incidents > 1 ? "incidents" : "incident"}.`}
+            </p>
+            <button
+              type="button"
+              onClick={() => setSelectedDay(latestData.day)}
+              aria-label={`Voir les données du ${formatDateFr(latestData.day)}`}
+              className="mt-2 min-h-11 rounded-lg px-2 text-xs font-semibold text-blue-700 underline decoration-blue-300 underline-offset-2 hover:text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-nord-8 dark:decoration-nord-8/50 dark:hover:text-nord-7"
+            >
+              Voir cette journée
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Graphique & état des périmètres */}
       {scopes.length > 0 && (
@@ -670,6 +741,7 @@ export function ScopeListPage({
                       {/* Synthèse & saisie d'activité */}
                       <td className="px-5 py-4">
                         <InlineActivityCounters
+                          key={`${scope.id}-${selectedDay}`}
                           scopeId={scope.id}
                           day={selectedDay}
                           initialActivity={scope.selectedActivity}
@@ -794,6 +866,7 @@ export function ScopeListPage({
 
                 <div className="mt-3">
                   <InlineActivityCounters
+                    key={`${scope.id}-${selectedDay}`}
                     scopeId={scope.id}
                     day={selectedDay}
                     initialActivity={scope.selectedActivity}

@@ -100,6 +100,14 @@ Les jours non travaillés sont configurables par projet via `GET /project/settin
 `PUT /project/settings`. Par défaut, samedi et dimanche sont exclus ; les dates ponctuelles
 peuvent également être ajoutées.
 
+La page principale est une vue **mono-jour** : elle affiche les compteurs du jour sélectionné, et
+non un cumul. Le jour à l'ouverture est la date du jour s'il est ouvré, sinon le **dernier jour
+ouvré** — un dimanche n'a rien à faire afficher et n'a rien à faire saisir. Si le jour affiché
+ne contient aucune activité alors qu'une autre journée en contient, un bandeau indique la dernière
+saisie et propose d'y accéder d'un clic ; sans ce point de repère, un historique réimporté
+(restauration d'un dump) resterait invisible depuis la page principale, les données n'étant
+visibles que dans le détail de chaque périmètre.
+
 Restriction du quadrigramme : une fois qu'un projet possède au moins un périmètre, le quadrigramme fourni au
 login doit correspondre exactement à l'un des quadrigrammes déclarés par un périmètre du projet. Les colonnes
 `official_main` et `official_backup` sont toutes deux interpretées comme une liste : un ou plusieurs

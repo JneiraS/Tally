@@ -1149,6 +1149,33 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
 - `node_modules` n'est **jamais** versionné : dépendances résolues depuis `package-lock.json` (`npm ci`).
 
+## 28.6 FrontEnd : vue mono-jour et état local des saisies
+
+- **La page principale est mono-jour, pas un cumul.** `ScopeListPage` n'affiche que les compteurs du
+  jour sélectionné ; le jour à l'ouverture est `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour
+  si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
+  et l'ouvrir sur la date du jour rendait un historique réimporté invisible alors qu'il était présent
+  dans le détail de chaque périmètre.
+- **Un état « aucune saisie » doit rester atteignable.** Si le jour affiché ne contient aucune activité
+  alors qu'une autre journée en contient, un bandeau `role="status"` nomme la dernière saisie et propose
+  de l'afficher. Le bandeau « N périmètres non traités » du dernier jour ouvré l'emporte : il nomme les
+  périmètres concernés et filtre la liste sur eux, la notice « aucune saisie » n'est qu'un repli. Deux
+  `role="status"` simultanés rendraient l'un des deux inatteignable.
+- **`InlineActivityCounters` ne rejoue pas `initialActivity`.** Ses `useState` sont initialisés au
+  montage seulement, et `existsRef` (existe-t-il déjà une ligne pour ce jour ?) n'est jamais
+  resynchronisé. Sans remontage, changer de jour laisse les compteurs affichés sur la journée précédente
+  **et** l'autosave `PATCH` réécrit alors la journée affichée avec ces valeurs périmées : perte de
+  données silencieuse, d'autant plus grave qu'elle n'apparaît que dans le journal d'audit. D'où
+  l'invariant : toute occurrence rendue pour un jour données doit porter
+  `key={`${scope.id}-${selectedDay}`}` — c'est déjà le cas de `TodayActivityEditor` sur la page de
+  détail. Le flush de la saisie en cours au unmount (`useEffect` de nettoyage) reste ainsi correct.
+- Vérifier une correction de saisie avec un test qui **change de jour** : un test qui ne fait qu'afficher
+  la journée du jour passe même avec des compteurs périmés.
+- Tests : `npm test` (vitest, 101 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+  `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
+  sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
+
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.

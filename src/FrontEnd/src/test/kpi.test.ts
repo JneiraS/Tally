@@ -8,9 +8,11 @@ import {
   buildCumulativeTrend,
   buildDailyTrend,
   coverageRate,
+  defaultDisplayDay,
   isWorkingDay,
   lastNDays,
   lastWorkingDays,
+  latestActivityDay,
   sumFeai,
   trailingErrors,
   transformationRate,
@@ -203,5 +205,44 @@ describe('buildCumulativeTrend', () => {
 
   it('renvoie une série vide sans activité', () => {
     expect(buildCumulativeTrend([])).toEqual([]);
+  });
+});
+
+describe('defaultDisplayDay', () => {
+  it('conserve le jour courant quand il est ouvré', () => {
+    expect(defaultDisplayDay('2026-09-18')).toBe('2026-09-18');
+  });
+
+  it('retombe sur le dernier jour ouvré quand le jour courant ne l’est pas', () => {
+    // 2026-09-27 est un dimanche : la page doit s'ouvrir sur le vendredi 25.
+    expect(defaultDisplayDay('2026-09-27')).toBe('2026-09-25');
+    expect(defaultDisplayDay('2026-09-26')).toBe('2026-09-25');
+  });
+
+  it('respecte les jours non ouvrés configurés par le projet', () => {
+    const config = { excluded_weekdays: [6, 7], excluded_dates: ['2026-09-25'] };
+    expect(defaultDisplayDay('2026-09-25', config)).toBe('2026-09-24');
+    expect(
+      defaultDisplayDay('2026-09-27', {
+        excluded_weekdays: [6, 7],
+        excluded_dates: [],
+      }),
+    ).toBe('2026-09-25');
+  });
+});
+
+describe('latestActivityDay', () => {
+  it('renvoie le jour le plus récent saisi, tous périmètres confondus', () => {
+    const scopes = [
+      scope('a', 'A', [activity('2026-09-18', 1, 0), activity('2026-09-25', 2, 1)]),
+      scope('b', 'B', [activity('2026-09-24', 4, 2)]),
+    ];
+
+    expect(latestActivityDay(scopes)).toBe('2026-09-25');
+  });
+
+  it('renvoie null si rien n’a jamais été saisi', () => {
+    expect(latestActivityDay([])).toBeNull();
+    expect(latestActivityDay([scope('a', 'A', [])])).toBeNull();
   });
 });

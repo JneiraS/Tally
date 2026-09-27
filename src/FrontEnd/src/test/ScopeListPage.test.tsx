@@ -30,14 +30,14 @@ vi.mock('../utils/date', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/date')>();
   return {
     ...actual,
-    getTodayIsoDate: vi.fn(() => '2026-09-19'),
+    getTodayIsoDate: vi.fn(() => '2026-09-21'),
   };
 });
 
 describe('ScopeListPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-19');
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-21');
   });
 
   it('signale les périmètres non traités du dernier jour ouvré', async () => {
@@ -162,7 +162,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -218,7 +218,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -288,7 +288,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -313,7 +313,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
@@ -362,7 +362,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -387,7 +387,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
@@ -436,7 +436,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -453,7 +453,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
@@ -500,7 +500,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -535,7 +535,7 @@ describe('ScopeListPage Component', () => {
     await waitFor(() => {
       expect(protabApi.completeActivities).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
-        { days: ['2026-09-19'] }
+        { days: ['2026-09-21'] }
       );
       expect(protabApi.createActivity).not.toHaveBeenCalled();
     });
@@ -585,11 +585,11 @@ describe('ScopeListPage Component', () => {
     await waitFor(() => {
       expect(protabApi.createActivity).toHaveBeenCalledWith(
         '987e6543-e21b-23c4-a456-426614174000',
-        { day: '2026-09-19', errors_reported: 0, incidents_created: 0, feai: [] }
+        { day: '2026-09-21', errors_reported: 0, incidents_created: 0, feai: [] }
       );
       expect(protabApi.completeActivities).toHaveBeenCalledWith(
         '987e6543-e21b-23c4-a456-426614174000',
-        { days: ['2026-09-19'] }
+        { days: ['2026-09-21'] }
       );
     });
 
@@ -608,7 +608,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
@@ -644,7 +644,7 @@ describe('ScopeListPage Component', () => {
     await waitFor(() => {
       expect(protabApi.completeActivities).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
-        { days: ['2026-09-19'] }
+        { days: ['2026-09-21'] }
       );
     });
 
@@ -699,7 +699,7 @@ describe('ScopeListPage Component', () => {
       () => {
         expect(protabApi.createActivity).toHaveBeenCalledWith(
           '987e6543-e21b-23c4-a456-426614174000',
-          { day: '2026-09-19', errors_reported: 3, incidents_created: 1, feai: [] }
+          { day: '2026-09-21', errors_reported: 3, incidents_created: 1, feai: [] }
         );
       },
       { timeout: 3000 }
@@ -722,7 +722,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -760,7 +760,7 @@ describe('ScopeListPage Component', () => {
       () => {
         expect(protabApi.updateActivity).toHaveBeenCalledWith(
           'acbd1234-e21b-23c4-a456-426614174000',
-          '2026-09-19',
+          '2026-09-21',
           { errors_reported: 5, incidents_created: 1, feai: ['INC000000001'] }
         );
       },
@@ -782,7 +782,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
@@ -834,7 +834,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
@@ -871,7 +871,7 @@ describe('ScopeListPage Component', () => {
       () => {
         expect(protabApi.updateActivity).toHaveBeenCalledWith(
           '55551234-e21b-23c4-a456-426614174000',
-          '2026-09-19',
+          '2026-09-21',
           {
             errors_reported: 2,
             incidents_created: 1,
@@ -927,7 +927,7 @@ describe('ScopeListPage Component', () => {
         expect(protabApi.createActivity).toHaveBeenCalledWith(
           '66664321-e21b-23c4-a456-426614174000',
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 0,
             incidents_created: 0,
             feai: ['INC000000007'],
@@ -948,7 +948,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         daily_activities: [
           {
-            day: '2026-09-19',
+            day: '2026-09-21',
             errors_reported: 1,
             incidents_created: 0,
             feai: ['INC000000001'],
@@ -986,7 +986,7 @@ describe('ScopeListPage Component', () => {
       () => {
         expect(protabApi.updateActivity).toHaveBeenCalledWith(
           '77774321-e21b-23c4-a456-426614174000',
-          '2026-09-19',
+          '2026-09-21',
           {
             errors_reported: 1,
             incidents_created: 0,
@@ -996,5 +996,209 @@ describe('ScopeListPage Component', () => {
       },
       { timeout: 3000 }
     );
+  });
+
+  it('ouvre sur le dernier jour ouvré quand la date du jour n\'est pas ouvrée', async () => {
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-27');
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'aaaa1111-e21b-23c4-a456-426614174000',
+        name: 'Scope Historique',
+        knowledge_base_id: 'KB-HISTOR-01',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-25',
+            errors_reported: 5,
+            incidents_created: 2,
+            feai: ['INC000000009'],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Activité du 25 sept. 2026')).toBeInTheDocument();
+    });
+
+    const table = within(screen.getByRole('table'));
+    expect(table.getByLabelText('Erreurs signalées 2026-09-25')).toHaveValue(5);
+    expect(table.getByLabelText('Incidents créés 2026-09-25')).toHaveValue(2);
+    expect(table.getByText('Terminé')).toBeInTheDocument();
+  });
+
+  it('affiche les compteurs du jour sélectionné après un changement de jour', async () => {
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-25');
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'bbbb2222-e21b-23c4-a456-426614174000',
+        name: 'Scope Deux Jours',
+        knowledge_base_id: 'KB-DEUXJOURS-1',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-25',
+            errors_reported: 5,
+            incidents_created: 2,
+            feai: [],
+            handled: false,
+            completed: false,
+          },
+          {
+            day: '2026-09-24',
+            errors_reported: 9,
+            incidents_created: 4,
+            feai: ['INC000000042'],
+            handled: false,
+            completed: false,
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('table')).getByLabelText('Erreurs signalées 2026-09-25'),
+      ).toHaveValue(5);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Afficher le jour précédent/i }));
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('table')).getByLabelText('Erreurs signalées 2026-09-24'),
+      ).toHaveValue(9);
+    });
+    expect(
+      within(screen.getByRole('table')).getByLabelText('Incidents créés 2026-09-24'),
+    ).toHaveValue(4);
+  });
+
+  it('signale la dernière saisie et permet d\'afficher cette journée', async () => {
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-28');
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'cccc3333-e21b-23c4-a456-426614174000',
+        name: 'Scope Retard',
+        knowledge_base_id: 'KB-RETARD-001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-25',
+            errors_reported: 5,
+            incidents_created: 2,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    const notice = await screen.findByRole('status');
+    expect(notice).toHaveTextContent('Aucune saisie le 28 sept. 2026');
+    expect(notice).toHaveTextContent('25 sept. 2026');
+    expect(notice).toHaveTextContent('1 périmètre');
+    expect(notice).toHaveTextContent('5 erreurs');
+    expect(notice).toHaveTextContent('2 incidents');
+
+    fireEvent.click(
+      within(notice).getByRole('button', { name: /Voir les données du 25 sept. 2026/i })
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Activité du 25 sept. 2026')).toBeInTheDocument();
+    });
+    expect(
+      within(screen.getByRole('table')).getByLabelText('Erreurs signalées 2026-09-25'),
+    ).toHaveValue(5);
+  });
+
+  it('n\'affiche pas le bandeau « dernière saisie » quand le jour affiché contient des données', async () => {
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-25');
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      {
+        id: 'dddd4444-e21b-23c4-a456-426614174000',
+        name: 'Scope A Jour',
+        knowledge_base_id: 'KB-AJOUR-0001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        daily_activities: [
+          {
+            day: '2026-09-25',
+            errors_reported: 5,
+            incidents_created: 2,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+          {
+            day: '2026-09-24',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: [],
+            handled: true,
+            completed: true,
+          },
+        ],
+      },
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(
+        within(screen.getByRole('table')).getByLabelText('Erreurs signalées 2026-09-25'),
+      ).toHaveValue(5);
+    });
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 });
