@@ -1193,6 +1193,34 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   détail. Le flush de la saisie en cours au unmount (`useEffect` de nettoyage) reste ainsi correct.
 - Vérifier une correction de saisie avec un test qui **change de jour** : un test qui ne fait qu'afficher
   la journée du jour passe même avec des compteurs périmés.
+- **La croix FEAI supprime immédiatement et propose « Annuler », sans confirmation.** Ces éditeurs sont
+  en ligne et à autosave : la croix déclenche le `PATCH` comme n'importe quelle autre saisie, il n'y a
+  pas de brouillon à annuler. Une modale avant chaque suppression taxerait l'interaction la plus rapide
+  de l'app, casserait la parité avec `Backspace` (qui supprime déjà la dernière référence) et ne
+  corrigerait pas la vraie cause des mauvais taps : la taille de la cible. C'est **l'annulation qui
+  rend acceptable une cible de 24 px** (plancher AA, et non les 44 px d'Apple) — si l'on retire
+  l'annulation, il faut remonter la cible, pas ajouter une modale. Un appui long ne serait pas une
+  alternative : geste caché, inaccessible au clavier, et il slows down chaque suppression.
+  `ActivityFormModal` est le contre-exemple volontaire : là la liste est un brouillon avec « Annuler »
+  et « Enregistrer les modifications », la suppression est donc réversible gratuitement — ni modale, ni
+  toast d'annulation.
+- **L'annulation réinsère à sa position d'origine, sur l'état courant, pas sur un instantané.** La
+  fermeture capturée au clic rejoue « retirer puis insérer à l'index » sur `latestValuesRef` : elle est
+  donc idempotente (un parent qui n'a pas re-rendu rend quand même la liste d'origine) et préserve une
+  référence ajoutée pendant la fenêtre d'annulation. Filtrer puis slicer à `index + 1` décalerait la
+  référence d'un rang — l'ordre des `feai` est significatif, `filter` le préserve. C'est aussi ce qui
+  permet de ne pas dépendre d'un re-rendu du parent pour qu'« Annuler » ait un effet visible.
+- **Le toast d'annulation est unique et ne touche pas les autres toasts.** `showUndo` réutilise un id
+  fixe, donc deux suppressions successives ne coexistent pas ; les toasts d'erreur ou de succès, eux,
+  ne sont pas remplacés. Les minuteries sont conservées par id dans une `Map` : sans cela, le timer du
+  toast remplacé effacerait le nouveau avant sa durée.
+- **Un composant qui n'émet que des toasts consomme `useToastActions()`, pas `useToast()`.** Les deux
+  contextes sont distincts et la valeur du premier est stable : un `FeaiTagInput` abonné à `useToast()`
+  re-renderait à chaque toast de l'app, et il y en a deux instances par périmètre (table + carte mobile,
+  toutes deux au DOM). `useToast()` reste la porte de sortie pour qui doit lire `toasts`.
+- `React.memo` n'aurait rien acheté ici : le parent crée une nouvelle fonction `onChange` à chaque rendu,
+  donc la comparaison de props échoue de toute façon. Le découpage des contextes est ce qui règle le
+  coût de rendu, pas la mémoïsation.
 - **Les images sont importées depuis `src/assets/`**, jamais référencées par une URL `public/` : l'import
   laisse Vite hasher le fichier et valide le chemin à la compilation. `tsconfig.json` déclare déjà
   `"types": ["vite/client"]`, un `import x from './x.svg'` type-check donc sans configuration ajoutée.
@@ -1222,7 +1250,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
   `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
   monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
-- Tests : `npm test` (vitest, 105 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- Tests : `npm test` (vitest, 113 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 

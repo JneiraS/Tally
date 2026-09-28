@@ -7,6 +7,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { BrowserRouter } from 'react-router-dom';
 import { ScopeListPage } from '../pages/ScopeListPage';
 import { ToastProvider } from '../hooks/useToast';
+import { ToastContainer } from '../components/Toast';
 import { KNOWLEDGE_BASE_URL } from '../utils/knowledgeBase';
 import { protabApi } from '../services/api';
 import { getTodayIsoDate } from '../utils/date';
@@ -992,6 +993,77 @@ describe('ScopeListPage Component', () => {
             incidents_created: 0,
             feai: [],
           }
+        );
+      },
+      { timeout: 3000 }
+    );
+  });
+
+  it('restaure une référence FEAI annihilée par le bouton Annuler', async () => {
+    const mockScopes = [
+      {
+        id: '88884321-e21b-23c4-a456-426614174000',
+        name: 'Scope FEAI Annulation',
+        knowledge_base_id: 'KB-FEAI-04',
+        official_main: 'Eve',
+        official_backup: 'Frank',
+        daily_activities: [
+          {
+            day: '2026-09-21',
+            errors_reported: 1,
+            incidents_created: 0,
+            feai: ['INC000000001'],
+            handled: true,
+            completed: false,
+          },
+        ],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+    vi.mocked(protabApi.updateActivity).mockResolvedValue(undefined);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+          <ToastContainer />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope FEAI Annulation')).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      within(screen.getByRole('table')).getByRole('button', {
+        name: 'Supprimer la référence INC000000001',
+      })
+    );
+
+    await waitFor(
+      () => {
+        expect(protabApi.updateActivity).toHaveBeenCalledWith(
+          '88884321-e21b-23c4-a456-426614174000',
+          '2026-09-21',
+          { errors_reported: 1, incidents_created: 0, feai: [] }
+        );
+      },
+      { timeout: 3000 }
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }));
+
+    await waitFor(
+      () => {
+        expect(protabApi.updateActivity).toHaveBeenLastCalledWith(
+          '88884321-e21b-23c4-a456-426614174000',
+          '2026-09-21',
+          { errors_reported: 1, incidents_created: 0, feai: ['INC000000001'] }
         );
       },
       { timeout: 3000 }

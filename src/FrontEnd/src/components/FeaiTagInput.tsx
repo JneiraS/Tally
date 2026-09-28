@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X, Plus, CheckCircle2 } from "lucide-react";
 import { isValidFeai } from "../utils/validation";
+import { useToastActions } from "../hooks/useToast";
 
 interface FeaiTagInputProps {
   values: string[];
@@ -15,6 +16,10 @@ export function FeaiTagInput({
 }: FeaiTagInputProps) {
   const [draft, setDraft] = useState("");
   const [itemError, setItemError] = useState<string | null>(null);
+  const { showUndo } = useToastActions();
+
+  const latestValuesRef = useRef<string[]>(values);
+  latestValuesRef.current = values;
 
   const addCode = (raw: string) => {
     const code = raw.trim().toUpperCase();
@@ -34,12 +39,23 @@ export function FeaiTagInput({
     onChange([...values, code]);
   };
 
+  const handleRemove = (code: string) => {
+    const index = values.indexOf(code);
+    if (index === -1) return;
+
+    onChange(values.filter((c) => c !== code));
+    showUndo(`Référence ${code} retirée`, () => {
+      const without = latestValuesRef.current.filter((c) => c !== code);
+      onChange([...without.slice(0, index), code, ...without.slice(index)]);
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addCode(draft);
     } else if (e.key === "Backspace" && draft === "" && values.length > 0) {
-      onChange(values.slice(0, -1));
+      handleRemove(values[values.length - 1]);
     }
   };
 
@@ -63,9 +79,9 @@ export function FeaiTagInput({
             {code}
             <button
               type="button"
-              onClick={() => onChange(values.filter((c) => c !== code))}
+              onClick={() => handleRemove(code)}
               aria-label={`Supprimer la référence ${code}`}
-              className="text-slate-400 hover:text-rose-600 dark:text-nord-3 dark:hover:text-nord-11"
+              className="-m-1 inline-flex min-h-6 min-w-6 touch-manipulation select-none items-center justify-center rounded text-slate-400 hover:text-rose-600 dark:text-nord-3 dark:hover:text-nord-11"
             >
               <X className="w-2.5 h-2.5" />
             </button>
