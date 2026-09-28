@@ -7,7 +7,6 @@ so that reads are always scoped to the authenticated project.
 
 from dataclasses import replace
 
-import psycopg
 from psycopg.types.json import Jsonb
 
 from protab.adapters.outbound.persistence.postgres_pool import (
