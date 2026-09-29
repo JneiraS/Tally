@@ -252,10 +252,17 @@ class PostgresAuthRepository:
                 "Le code, le nom et le mot de passe du projet sont obligatoires."
             )
         with self._pool.connection() as conn:
-            conn.execute(
-                "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s)",
-                (project_id, name, _hash_password(password)),
-            )
+            try:
+                conn.execute(
+                    "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s)",
+                    (project_id, name, _hash_password(password)),
+                )
+            except psycopg.errors.UniqueViolation as exc:
+                raise ValueError(
+                    f"Le projet {project_id} existe déjà. "
+                    "Choisissez un autre code, ou utilisez set-password pour "
+                    "changer son mot de passe."
+                ) from exc
         return Project(project_id, name, _normalize_non_working_days(None))
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:

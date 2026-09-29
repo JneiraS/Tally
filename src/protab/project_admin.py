@@ -22,6 +22,31 @@ ADD_ADMIN = "add-admin"
 REMOVE_ADMIN = "remove-admin"
 LIST_ADMINS = "list-admins"
 
+HELP_FLAGS = ("-h", "--help", "help")
+
+_USAGE = f"""Administration d'hôte ProTab : projets, mots de passe, administrateurs.
+Ne gère ni les périmètres, ni les activités, ni les données de production.
+
+Forme positionnelle
+  protab-project <code> <nom> [--admin QUADRIGRAMME]
+      Crée un projet. Le mot de passe est saisi sans écho.
+
+Sous-commandes
+  {SET_PASSWORD} <code>
+      Remplace le mot de passe du projet et révoque ses sessions.
+  {ADD_ADMIN} <code> <quadrigramme>
+      Autorise un quadrigramme sur ce projet, qu'il y soit déclaré ou non.
+  {REMOVE_ADMIN} <code> <quadrigramme>
+      Retire cet accès et révoque ses sessions. Refuse le dernier.
+  {LIST_ADMINS} <code>
+      Liste les administrateurs du projet.
+
+  -h, --help
+      Affiche cette aide, ou l'aide détaillée d'une sous-commande.
+
+Le projet vient toujours en premier. Référence complète : docs/cli.md
+"""
+
 
 def _open_repository() -> PostgresAuthRepository:
     dsn = database_url_from_env()
@@ -51,12 +76,18 @@ def _read_password(prompt: str) -> str:
 def _read_admin_code(value: str) -> str:
     """Refuse a code the login screen would reject, rather than storing it.
 
-    An administrator nobody can type is a lockout presented as a grant.
+    An administrator nobody can type is a lockout presented as a grant. The
+    domain states the rule in English; the wrapper keeps this interface in the
+    language it speaks everywhere else.
     """
     try:
         return OfficialCode(value).value
     except InvalidOfficialCodeError as error:
-        raise SystemExit(str(error)) from error
+        raise SystemExit(
+            f"Quadrigramme d'administrateur refusé ({error}). Il doit tenir sur "
+            "2 à 20 caractères, contenir au moins une lettre ou un chiffre, et "
+            "ne pas contenir le séparateur « / »."
+        ) from error
 
 
 def _create_project(argv: list[str]) -> None:
@@ -78,7 +109,10 @@ def _create_project(argv: list[str]) -> None:
     admin = _read_admin_code(args.admin) if args.admin else None
     repository = _open_repository()
     try:
-        project = repository.create_project(args.code, args.name, password)
+        try:
+            project = repository.create_project(args.code, args.name, password)
+        except ValueError as error:
+            raise SystemExit(str(error)) from error
         if admin is not None:
             repository.add_admin(project.id, admin)
     finally:
@@ -198,14 +232,25 @@ def _list_admins(argv: list[str]) -> None:
 
 
 def main() -> None:
+    argv = sys.argv[1:]
+    # The subcommands are resolved before argparse, so the top-level help used
+    # to be the create parser: it advertised nothing but `code` and `name`.
+    if argv and argv[0] in HELP_FLAGS:
+        print(_USAGE)
+        return
+    if not argv:
+        # Still an error, so a script cannot mistake an empty invocation for a
+        # success; only the message improves.
+        print(_USAGE, file=sys.stderr)
+        raise SystemExit(2)
+
     subcommands = {
         SET_PASSWORD: _set_password,
         ADD_ADMIN: _add_admin,
         REMOVE_ADMIN: _remove_admin,
         LIST_ADMINS: _list_admins,
     }
-    argv = sys.argv[1:]
-    handler = subcommands.get(argv[0]) if argv else None
+    handler = subcommands.get(argv[0])
     if handler is None:
         # Historical form: `protab-project <code> <name>`.
         _create_project(argv)

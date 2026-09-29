@@ -147,7 +147,8 @@ Un administrateur est un quadrigramme autorisé à se connecter à **un seul pro
 non dans l'un de ses périmètres. Sans lui, un projet qui possède des périmètres n'est plus ouvert que par les
 officials de ces périmètres : la personne qui crée le premier périmètre perd son accès à l'instant où elle
 l'enregistre. L'administrateur n'a aucun pouvoir supplémentaire une fois connecté ; c'est un accès permanent,
-pas un rôle.
+pas un rôle. Il donne un accès **par projet** : un code administrateur d'un projet n'ouvre aucun autre projet,
+même avec le bon mot de passe.
 
 ```bash
 uv run protab-project add-admin projet-alpha MLOZ   # autorise MLOZ sur ce projet
@@ -158,11 +159,18 @@ uv run protab-project remove-admin projet-alpha MLOZ # retire l'accès
 Ces commandes demandent la base de données, pas une session : c'est la seule voie de secours quand un projet
 est verrouillé. `add-admin` refuse un code que l'écran de connexion ne pourrait pas saisir (liste `A/B`,
 caractère seul, hors 2–20 caractères) — un administrateur que personne ne peut taper serait un verrouillage
-présenté comme une autorisation. `remove-admin` refuse de retirer le dernier administrateur et indique la
-commande SQL de contournement.
+présenté comme une autorisation. `remove-admin` refuse de retirer le dernier administrateur.
 
-Un administrateur donne un accès **par projet** : un code administrateur d'un projet n'ouvre aucun autre
-projet, même avec le bon mot de passe.
+### Administration d'hôte : `protab-project`
+
+La gestion des projets, des mots de passe et des administrateurs passe par la CLI `protab-project`. Son
+inventaire, ses arguments, ses messages d'erreur, la procédure de dépannage d'un projet verrouillé et son
+usage dans Docker sont documentés dans **[`docs/cli.md`](docs/cli.md)** :
+
+```bash
+uv run protab-project --help                              # liste les cinq formes
+make project-admin ARGS="list-admins protab"             # dans le conteneur api
+```
 
 | Méthode & path                                                                                              | Body                                                                                        | Succès                                                                     | Erreurs                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -236,6 +244,7 @@ make docker-up    # docker compose up -d --build
 | `docker-up` / `docker-down` | Construit et démarre / arrête toute la stack                                   |
 | `db-shell`                  | Shell `psql` dans le conteneur Postgres                                        |
 | `test-db`                   | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
+| `project-admin`             | Lance `protab-project` dans le conteneur `api` (`make project-admin ARGS="…"`)  |
 
 Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
 via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).
