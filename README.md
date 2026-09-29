@@ -229,13 +229,17 @@ avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de c
 ## Docker
 
 La stack complète (`db` PostgreSQL + `api` FastAPI + `frontend` React/nginx) est définie dans
-`docker-compose.yml`. Le frontend est servi par nginx (SPA) qui proxiie `/scope-monitorings` vers `api`
-— même origine, aucun CORS requis.
+`docker-compose.yml`. Le frontend est servi par nginx (SPA) qui relaie les routes métier vers `api` —
+même origine, aucun CORS requis.
+
+L'architecture elle-même — réseau, ports publiés, ordre de démarrage encodé par les healthchecks, chaîne
+de construction des deux images et flux de requêtes à travers nginx — est décrite dans
+**[`docs/docker-architecture.md`](docs/docker-architecture.md)**.
 
 ```bash
 make docker-up    # docker compose up -d --build
-# → API :      http://localhost:8000   (Swagger : /docs)
 # → Frontend : http://localhost:5173
+# → API :      http://127.0.0.1:8874   (Swagger : /docs) — boucle locale seulement
 ```
 
 | Cible Makefile              | Effet                                                                          |

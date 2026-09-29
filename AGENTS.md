@@ -1215,6 +1215,10 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 
 ## 28.5 Conteneurisation & commandes utiles
 
+- **`docs/docker-architecture.md` est la référence de la topologie** : réseau bridge par défaut, statut
+  des trois ports publiés (dont `api` en boucle locale seule et `db` sur `0.0.0.0`), ordre de démarrage
+  encodé par les healthchecks, chaîne de construction des deux images et blocs `location` de nginx. Toute
+  évolution de `docker-compose.yml`, d'un `Dockerfile` ou de `nginx.conf` s'y répercute.
 - `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
 - Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `project-admin`, `test-db`.
