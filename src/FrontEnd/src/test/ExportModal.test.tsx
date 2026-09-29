@@ -24,6 +24,7 @@ const scope = (name: string, kb: string): ScopeMonitoring => ({
   knowledge_base_id: kb,
   official_main: 'Alice',
   official_backup: 'Bob',
+  billing_code: 'FACT-2026-PAI',
   daily_activities: [
     {
       day: '2026-09-15',
@@ -107,7 +108,7 @@ describe('ExportModal', () => {
     expect(mimeType).toBe('text/csv;charset=utf-8;');
     expect(content.charCodeAt(0)).toBe(0xfeff);
     const [, header] = content.slice(1).split('\n');
-    expect(header.split(';')).toHaveLength(10);
+    expect(header.split(';')).toHaveLength(11);
   });
 
   it('permet de choisir le séparateur virgule', async () => {
@@ -121,7 +122,7 @@ describe('ExportModal', () => {
     });
     const [content] = vi.mocked(exportUtils.downloadFile).mock.calls[0];
     const [, header] = content.slice(1).split('\n');
-    expect(header.split(',')).toHaveLength(10);
+    expect(header.split(',')).toHaveLength(11);
     expect(header.split(';')).toHaveLength(1);
   });
 

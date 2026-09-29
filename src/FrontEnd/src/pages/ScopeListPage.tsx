@@ -18,6 +18,7 @@ import {
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
+import { BillingCodeBadge } from "../components/BillingCodeBadge";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
@@ -249,7 +250,10 @@ export function ScopeListPage({
           .toLowerCase()
           .includes(searchQuery.toLowerCase()) ||
         scope.official_main.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scope.official_backup.toLowerCase().includes(searchQuery.toLowerCase());
+        scope.official_backup.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (scope.billing_code ?? '')
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
@@ -718,9 +722,12 @@ export function ScopeListPage({
                           onClick={(e) => e.stopPropagation()}
                           className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2 hover:text-blue-600 dark:hover:text-nord-8 hover:border-blue-400 dark:hover:border-nord-9/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8"
                         >
-                          {scope.knowledge_base_id}
-                        </a>
-                      </td>
+                        {scope.knowledge_base_id}
+                      </a>
+                      <span className="inline-block mt-1">
+                        <BillingCodeBadge code={scope.billing_code} />
+                      </span>
+                    </td>
 
                       {/* Responsables */}
                       <td className="px-5 py-4">
@@ -845,6 +852,9 @@ export function ScopeListPage({
                     >
                       {scope.knowledge_base_id}
                     </a>
+                    <span className="block mt-1">
+                      <BillingCodeBadge code={scope.billing_code} />
+                    </span>
                   </div>
                   {scope.selectedDayCompleted ? (
                     <Badge type="completed" label="Terminé" />

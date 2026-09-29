@@ -57,7 +57,8 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         name TEXT NOT NULL UNIQUE,
         knowledge_base_id TEXT NOT NULL,
         official_main TEXT NOT NULL,
-        official_backup TEXT NOT NULL
+        official_backup TEXT NOT NULL,
+        billing_code TEXT
     )
     """,
     """
@@ -112,7 +113,8 @@ def require_current_project() -> str:
 
 
 _SCOPE_SELECT = (
-    "SELECT id, name, knowledge_base_id, official_main, official_backup "
+    "SELECT id, name, knowledge_base_id, official_main, official_backup, "
+    "billing_code "
     "FROM scope_monitorings"
 )
 
@@ -187,6 +189,14 @@ class PostgresScopeMonitoringRepository:
         conn.execute(
             "ALTER TABLE projects ADD COLUMN IF NOT EXISTS non_working_days JSONB"
         )
+        # ``billing_code`` est obligatoire pour un périmètre créé aujourd'hui
+        # (invariant porté par le domaine et le schéma Pydantic) mais la colonne
+        # reste nullable : les lignes antérieures à son introduction ne peuvent
+        # pas porter de valeur inventée, et un NOT NULL ferait échouer cet ALTER
+        # sur une table déjà peuplée.
+        conn.execute(
+            "ALTER TABLE scope_monitorings ADD COLUMN IF NOT EXISTS billing_code TEXT"
+        )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_scope_monitorings_project_name "
             "ON scope_monitorings (project_id, name)"
@@ -197,12 +207,13 @@ class PostgresScopeMonitoringRepository:
         row: tuple,
         activities: dict[date, DailyActivity],
     ) -> ScopeMonitoring:
-        scope_id, name, kb_id, main, backup = row[:5]
+        scope_id, name, kb_id, main, backup, billing_code = row[:6]
         scope = ScopeMonitoring(
             id=scope_id,
             name=name,
             knowledge=KnowledgeBase(id=kb_id),
             officials=Officials(main=main, backup=backup),
+            billing_code=billing_code,
         )
         scope.daily_activities = activities
         return scope
@@ -263,14 +274,15 @@ class PostgresScopeMonitoringRepository:
                 with conn.transaction():
                     conn.execute(
                         f"""
-                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup"})
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup, billing_code"})
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO UPDATE SET
                             project_id = EXCLUDED.project_id,
                             name = EXCLUDED.name,
                             knowledge_base_id = EXCLUDED.knowledge_base_id,
                             official_main = EXCLUDED.official_main,
-                            official_backup = EXCLUDED.official_backup
+                            official_backup = EXCLUDED.official_backup,
+                            billing_code = EXCLUDED.billing_code
                         """,
                         (
                             scope.id,
@@ -279,6 +291,7 @@ class PostgresScopeMonitoringRepository:
                             scope.knowledge.id,
                             scope.officials.main,
                             scope.officials.backup,
+                            scope.billing_code,
                         ),
                     )
                     conn.execute(

@@ -27,6 +27,7 @@ VALID_ITEM = {
     "knowledge_base_id": "KB-00000001",
     "official_main": "Main",
     "official_backup": "Backup",
+    "billing_code": "FACT-2026-PAI",
 }
 
 
@@ -118,6 +119,30 @@ def test_create_invalid_payload_returns_422(client):
     assert response.status_code == 422
 
 
+def test_create_missing_billing_code_returns_422(client):
+    http, repo = client
+    payload = {k: v for k, v in VALID_ITEM.items() if k != "billing_code"}
+
+    response = http.post("/scope-monitorings", json=[payload])
+
+    assert response.status_code == 422
+    assert repo.find_by_name("Scope A") is None
+
+
+def test_create_empty_billing_code_returns_400(client):
+    # Pydantic's min_length counts characters, so a whitespace-only code
+    # passes the boundary and is caught by the domain rule instead.
+    http, repo = client
+
+    response = http.post(
+        "/scope-monitorings",
+        json=[{**VALID_ITEM, "billing_code": "   "}],
+    )
+
+    assert response.status_code == 400
+    assert repo.find_by_name("Scope A") is None
+
+
 # --- CSV import -----------------------------------------------------------
 
 
@@ -125,9 +150,9 @@ def test_import_csv_creates_scopes(client):
     http, _ = client
 
     csv_content = (
-        "name,knowledge_base_id,official_main,official_backup\n"
-        "Scope A,KB-00000001,Main,Backup\n"
-        "Scope B,KB-00000002,Paul,Jean\n"
+        "name,knowledge_base_id,official_main,official_backup,billing_code\n"
+        "Scope A,KB-00000001,Main,Backup,FACT-2026-PAI\n"
+        "Scope B,KB-00000002,Paul,Jean,FACT-2026-BAT\n"
     )
     response = http.post(
         "/scope-monitorings/import-csv",
@@ -155,8 +180,8 @@ def test_import_csv_business_error_returns_400(client):
     http, _ = client
 
     csv_content = (
-        "name,knowledge_base_id,official_main,official_backup\n"
-        "Scope A,short,Main,Backup\n"
+        "name,knowledge_base_id,official_main,official_backup,billing_code\n"
+        "Scope A,short,Main,Backup,FACT-2026-PAI\n"
     )
     response = http.post(
         "/scope-monitorings/import-csv",
@@ -407,6 +432,7 @@ def test_get_scope_returns_detail(client):
     assert body["knowledge_base_id"] == "KB-00000001"
     assert body["official_main"] == "Main"
     assert body["official_backup"] == "Backup"
+    assert body["billing_code"] == "FACT-2026-PAI"
 
 
 def test_get_scope_unknown_returns_404(client):

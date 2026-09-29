@@ -1087,6 +1087,22 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   quand on ajoute une méthode.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
+- **`scope_monitorings.billing_code` est obligatoire à la création mais nullable en base.** Les deux
+  règles sont dans le domaine (`ScopeMonitoring.create()` → `EmptyBillingCodeError`) et dans le schéma
+  Pydantic, jamais dans la colonne : `NOT NULL` ferait échouer l'`ALTER TABLE ... ADD COLUMN IF NOT
+  EXISTS` du démarrage sur une table déjà peuplée, et surtout le constructeur — chemin de réhydratation des
+  deux adapters — refuse de lever sur une ligne lue, donc une seule ligne ancienne illisible viderait
+  toute la liste. Le champ est `str | None` côté domaine, API (`ScopeResponse`) et TypeScript
+  (`ScopeMonitoring.billing_code` : `string | null`) ; les lignes sans code s'affichent « — ». Format
+  **libre**, `strip`é, **non unique** : deux périmètres peuvent partager un code. Aucun `UNIQUE` en base.
+  Il n'existe **toujours aucune route de mise à jour d'un périmètre** (§28.3 bis) : la reprise d'un code
+  manquant se fait en SQL, procédure dans `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log`
+  ne voit que les use cases.
+- **Le CSV d'import a gagné une 5e colonne** (`name, knowledge_base_id, official_main, official_backup,
+  billing_code`), donc `REQUIRED_HEADERS` la rend obligatoire : un fichier préparé avant l'évolution est
+  rejeté en `400 « Invalid headers » ». C'est la conséquence directe de l'obligation, pas un durcissement
+  opportun. L'export, lui, ajoute `code_facturation` **en dernier** pour ne pas décaler les colonnes
+  existantes des fichiers déjà produits.
 - La table `scope_monitorings` impose une clé étrangère `project_id -> projects.id` avec suppression en
   cascade, comme `auth_sessions` et `daily_activities`. L'adapter applique cette contrainte de façon
   idempotente au démarrage pour les bases existantes ; toute réparation de données doit donc restaurer un

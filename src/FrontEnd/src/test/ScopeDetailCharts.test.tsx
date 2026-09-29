@@ -12,6 +12,7 @@ const scope = {
   knowledge_base_id: 'KB-ALPHA-0001',
   official_main: 'Alice',
   official_backup: 'Bob',
+  billing_code: 'FACT-2026-PAI',
   daily_activities: [
     {
       day: '2026-09-19',

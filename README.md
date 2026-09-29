@@ -12,8 +12,9 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ├── name: str                                         ├── errors_reported: int ← >= 0
 ├── knowledge: KnowledgeBase                          ├── incidents_created: int ← >= 0 et <= errors_reported
 ├── officials: Officials                              ├── feai: list[str]      ← format INC\d{9}, sans doublon
-└── daily_activities: dict[date, DailyActivity]       ├── handled: bool
-     └── clé = jour → une seule activité par jour     └── completed: bool      ← completed ⇒ handled
+├── billing_code: str | None                          ├── handled: bool
+└── daily_activities: dict[date, DailyActivity]       └── completed: bool      ← completed ⇒ handled
+     └── clé = jour → une seule activité par jour
 ```
 
 ### Décisions de modélisation
@@ -31,6 +32,10 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 - Références FEAI : format `INC` suivi d'exactement 9 chiffres (`^INC\d{9}$`), aucune doublon.
 - Une seule `DailyActivity` par `ScopeMonitoring` et par jour.
 - `mark_completed()` force `handled = True` (`completed` ⇒ `handled`).
+- Un `ScopeMonitoring` **créé** porte un `billing_code` non vide, de format libre : c'est
+  `ScopeMonitoring.create()` qui l'exige, via `EmptyBillingCodeError`. Le constructeur direct, que les
+  repositories utilisent pour réhydrater, accepte l'absence : le champ a été introduit après les
+  premiers périmètres enregistrés, et il n'existe aucune route de mise à jour d'un périmètre.
 
 ## Use cases (couche application)
 
@@ -39,7 +44,7 @@ Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
 
 | Use case                       | Commande                                                                                | Comportement                                                                                                                         |
 | ------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté.               |
+| `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup, billing_code)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté.               |
 | `CreateDailyActivityUseCase`   | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`.                                               |
 | `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)`                                          | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
 | `UpdateDailyActivityUseCase`   | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués.                                               |
@@ -53,7 +58,10 @@ Chaque use case de mutation enregistre un événement d'audit via le port `Audit
 ## Import CSV
 
 Adapter inbound `adapters/inbound/csv/scope_monitoring_csv_reader.py` : transforme les lignes du fichier
-(colonnes `name, knowledge_base_id, official_main, official_backup`) en `CreateScopeMonitoringCommand`.
+(colonnes `name, knowledge_base_id, official_main, official_backup, billing_code`) en
+`CreateScopeMonitoringCommand`. Le code de facturation étant obligatoire, un fichier qui ne le
+contient pas est rejeté (400 « Invalid headers ») : il faut ajouter la colonne aux CSV préparés avant
+cette évolution.
 En-têtes et nombre de colonnes sont vérifiés structurellement ; les règles métier sont levées par le domaine.
 
 ## API HTTP (FastAPI)
@@ -174,7 +182,7 @@ make project-admin ARGS="list-admins protab"             # dans le conteneur api
 
 | Méthode & path                                                                                              | Body                                                                                        | Succès                                                                     | Erreurs                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `POST /scope-monitorings`                                                                                   | `[{name, knowledge_base_id, official_main, official_backup}]`                               | `201 {ids: [...]}`                                                         | `409` nom existant, `400` validation domaine                               |
+| `POST /scope-monitorings`                                                                                   | `[{name, knowledge_base_id, official_main, official_backup, billing_code}]`                               | `201 {ids: [...]}`                                                         | `409` nom existant, `400` validation domaine                               |
 | `POST /scope-monitorings/import-csv`                                                                        | multipart, champ `csv_file`                                                                 | `201 {ids: [...]}`                                                         | `400` CSV invalide ou ligne non conforme                                   |
 | `POST /scope-monitorings/{id}/activities`                                                                   | `{day, errors_reported, incidents_created, feai}`                                           | `201`                                                                      | `404` périmètre inconnu, `409` jour déjà enregistré, `400` invariant violé |
 | `POST /scope-monitorings/{id}/activities/complete`                                                          | `{days: ["YYYY-MM-DD"]}`                                                                    | `204`                                                                      | `404` périmètre ou jour inconnu                                            |
@@ -209,7 +217,8 @@ Le repository mémoire reste disponible pour l'injection explicite dans les test
 | PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py`  | Obligatoire pour l'API                  |
 
 L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables :
-`scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`) et
+`scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`,
+`billing_code` **nullable**) et
 `daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
 `feai TEXT[]`, `handled`, `completed`). Le schéma est créé de façon **idempotente au démarrage**
 (`CREATE TABLE IF NOT EXISTS`, index `scope_monitorings(project_id, name)`, aucun outil de migration).
@@ -223,6 +232,12 @@ L'écriture d'une activité est **ciblée** : `insert_daily_activity`, `update_d
 réécrirait des jours qu'il n'a pas relus et écraserait une édition concurrente. Comme
 `daily_activities` ne porte pas de `project_id`, chaque écriture ciblée joint `scope_monitorings` et
 filtre le projet courant sans condition.
+
+`billing_code` est obligatoire pour un périmètre créé aujourd'hui — invariant porté par le domaine et
+par le schéma Pydantic — mais la colonne reste **nullable** : les lignes antérieures ne peuvent pas
+porter de valeur inventée, et un `NOT NULL` ferait échouer l'`ALTER TABLE` idempotent du démarrage sur
+une table déjà peuplée. Ces lignes sont donc lues avec un code absent, affiché « — », et se complètent
+en SQL direct (`docs/cli.md`).
 Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
 avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
 

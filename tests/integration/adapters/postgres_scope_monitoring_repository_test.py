@@ -43,6 +43,7 @@ VALID_ITEM = {
     "knowledge_base_id": "KB-00000001",
     "official_main": "Main",
     "official_backup": "Backup",
+    "billing_code": "FACT-2026-PAI",
 }
 
 TEST_PROJECT_ID = "protab"
@@ -52,12 +53,14 @@ def make_scope(
     scope_id: str = "scope-001",
     name: str = "Scope A",
     day: date | None = None,
+    billing_code: str | None = "FACT-2026-PAI",
 ) -> ScopeMonitoring:
     scope = ScopeMonitoring(
         id=scope_id,
         name=name,
         knowledge=KnowledgeBase(id="KB-00000001"),
         officials=Officials(main="Main", backup="Backup"),
+        billing_code=billing_code,
     )
     if day is not None:
         scope.add_daily_activity(
@@ -129,6 +132,7 @@ def test_save_and_find_by_id_roundtrip(repo):
     assert loaded.knowledge.id == "KB-00000001"
     assert loaded.officials.main == "Main"
     assert loaded.officials.backup == "Backup"
+    assert loaded.billing_code == "FACT-2026-PAI"
     assert set(loaded.daily_activities.keys()) == {date(2026, 9, 18), date(2026, 9, 19)}
     activity = loaded.daily_activity_for(date(2026, 9, 19))
     assert activity.errors_reported == 2
@@ -136,6 +140,42 @@ def test_save_and_find_by_id_roundtrip(repo):
     assert activity.feai == ["INC000000001"]
     assert activity.handled is False
     assert activity.completed is False
+
+
+def test_scope_without_billing_code_roundtrips_as_none(repo):
+    # Un périmètre créé avant l'introduction du code porte NULL en base. Il doit
+    # rester lisible : find_all hydrate tout l'inventaire, une ligne illisible
+    # viderait la page entière.
+    repo.save(make_scope(billing_code=None))
+
+    loaded = repo.find_by_id("scope-001")
+
+    assert loaded is not None
+    assert loaded.billing_code is None
+
+
+def test_billing_code_column_is_nullable(repo):
+    # L'obligation est portée par le domaine et le schéma Pydantic, pas par la
+    # base : un NOT NULL ferait échouer l'ALTER sur une table déjà peuplée.
+    with repo._pool.connection() as conn:
+        conn.execute(
+            "INSERT INTO scope_monitorings (id, project_id, name, "
+            "knowledge_base_id, official_main, official_backup, billing_code) "
+            "VALUES (%s, %s, %s, %s, %s, %s, NULL)",
+            (
+                "scope-legacy",
+                TEST_PROJECT_ID,
+                "Legacy Scope",
+                "KB-00000002",
+                "Main",
+                "Backup",
+            ),
+        )
+
+    loaded = repo.find_by_id("scope-legacy")
+
+    assert loaded is not None
+    assert loaded.billing_code is None
 
 
 def test_save_replaces_aggregate_on_second_save(repo):
@@ -505,10 +545,12 @@ def test_api_flow_persists_in_postgres(repo):
     activity = scope.daily_activity_for(date(2026, 9, 19))
     assert activity.completed is True
     assert activity.handled is True
+    assert scope.billing_code == "FACT-2026-PAI"
 
     listing = http.get("/scope-monitorings").json()
     assert len(listing) == 1
     assert listing[0]["name"] == "Scope A"
+    assert listing[0]["billing_code"] == "FACT-2026-PAI"
 
 
 def test_complete_unknown_day_does_not_partially_persist(repo):

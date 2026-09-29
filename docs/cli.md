@@ -32,7 +32,7 @@ export DATABASE_URL=postgresql://protab:protab@localhost:5432/protab
 ```
 
 En stack Docker, le conteneur `api` la reçoit déjà de `docker-compose.yml` : rien à exporter. Voir
-[§9](#9-en-docker).
+[§10](#10-en-docker).
 
 Toutes les commandes se terminent par `SystemExit`, donc par un code de sortie non nul en cas d'erreur :
 **2** pour une erreur d'usage (argument manquant, sous-commande mal orthographiée, aucun argument) et **1**
@@ -223,7 +223,34 @@ verrouillé et vous perdez les sessions encore ouvertes.
    exportées, et exportez-les d'abord. La cascade `ON DELETE CASCADE` supprime
    toutes les lignes `daily_activities` du projet.
 
-## 9. En Docker
+## 9. Compléter un code de facturation manquant
+
+Le code de facturation (`scope_monitorings.billing_code`) est **obligatoire à la
+création** d'un périmètre, mais la colonne est nullable : les périmètres
+enregistrés avant son introduction l'ont vide, et l'interface l'affiche « — ».
+Il n'existe aucune route de mise à jour d'un périmètre, la reprise passe donc par
+SQL.
+
+```bash
+# Périmètres sans code, tous projets confondus
+docker compose exec db psql -U protab -d protab -c \
+  "SELECT id, project_id, name FROM scope_monitorings
+   WHERE billing_code IS NULL ORDER BY project_id, name;"
+
+# Renseignement
+docker compose exec db psql -U protab -d protab -c \
+  "UPDATE scope_monitorings SET billing_code = 'FACT-2026-PAI'
+   WHERE id = '<uuid>';"
+```
+
+Le format est libre (la seule règle est non vide, et il est `strip`é) et le code
+n'est **pas unique** : deux périmètres peuvent partager le même code de
+facturation.
+
+⚠️ Ces écritures sont directes et **ne passent pas par le journal d'audit**, qui
+ne connaît que les use cases. Exportez avant, si la traçabilité importe.
+
+## 10. En Docker
 
 Le conteneur `api` reçoit `DATABASE_URL` par `docker-compose.yml` : la CLI y fonctionne directement.
 
@@ -243,8 +270,9 @@ Dans un conteneur, `protab-project` crée aussi le projet bootstrap s'il est abs
 `PROTAB_DEFAULT_PROJECT_PASSWORD` et `PROTAB_DEFAULT_PROJECT_ADMIN_CODE`. Ces deux variables ne sont
 lues qu'à la création : une installation déjà initialisée redémarre sans elles.
 
-## 10. Voir aussi
+## 11. Voir aussi
 
 - `README.md` § « Authentification par projet » — le modèle d'authentification et les invariants
 - `AGENTS.md` §28.3 et §28.3 bis — pourquoi ces règles existent
+- `docs/architecture.md` §9 — pourquoi `billing_code` est nullable en base
 - `make help` — les cibles Makefile disponibles

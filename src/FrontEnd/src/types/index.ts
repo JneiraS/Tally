@@ -18,6 +18,9 @@ export interface ScopeMonitoring {
   knowledge_base_id: string; // Doit contenir au moins 9 caractères
   official_main: string;
   official_backup: string;
+  // Obligatoire à la création, mais null sur les périmètres enregistrés avant
+  // son introduction : le backend ne réécrit pas l'historique.
+  billing_code: string | null;
   daily_activities: DailyActivity[];
 }
 
@@ -31,6 +34,7 @@ export interface CreateScopeInput {
   knowledge_base_id: string;
   official_main: string;
   official_backup: string;
+  billing_code: string;
 }
 
 export interface CreateScopeResponse {

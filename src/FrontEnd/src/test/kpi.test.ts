@@ -40,6 +40,7 @@ function scope(
     knowledge_base_id: 'KB-00000001',
     official_main: 'MAIN',
     official_backup: 'BACK',
+    billing_code: 'FACT-2026-PAI',
     daily_activities,
   };
 }

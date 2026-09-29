@@ -18,6 +18,7 @@ def test_daily_activity_full_flow_over_http():
                 "knowledge_base_id": "KB-00000001",
                 "official_main": "Main",
                 "official_backup": "Backup",
+                "billing_code": "FACT-2026-PAI",
             }
         ],
     )

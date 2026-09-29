@@ -7,6 +7,7 @@ REQUIRED_HEADERS = (
     "knowledge_base_id",
     "official_main",
     "official_backup",
+    "billing_code",
 )
 
 
@@ -44,6 +45,7 @@ def parse_scope_monitorings_csv(
                 knowledge_base_id=row[1],
                 official_main=row[2],
                 official_backup=row[3],
+                billing_code=row[4],
             )
         )
     return commands

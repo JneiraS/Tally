@@ -10,9 +10,14 @@ from protab.application.use_cases.create_scope_monitoring import (
     CreateScopeMonitoringUseCase,
 )
 from protab.domain.exceptions import (
+    EmptyBillingCodeError,
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
     ScopeMonitoringNameAlreadyExistsError,
+)
+
+from tests.unit.application.recording_repository import (
+    RecordingScopeMonitoringRepository,
 )
 
 
@@ -21,12 +26,14 @@ def make_command(
     knowledge_base_id="KB-00000001",
     official_main="Main",
     official_backup="Backup",
+    billing_code="FACT-2026-PAI",
 ):
     return CreateScopeMonitoringCommand(
         name=name,
         knowledge_base_id=knowledge_base_id,
         official_main=official_main,
         official_backup=official_backup,
+        billing_code=billing_code,
     )
 
 
@@ -77,3 +84,23 @@ def test_create_empty_official_raises():
 
     with pytest.raises(EmptyOfficialsError):
         use_case.execute([make_command(official_main="")])
+
+
+def test_create_stores_the_billing_code():
+    repo = InMemoryScopeMonitoringRepository()
+    use_case = CreateScopeMonitoringUseCase(repo)
+
+    ids = use_case.execute([make_command(billing_code="FACT-2026-PAI")])
+
+    assert repo.find_by_id(ids[0]).billing_code == "FACT-2026-PAI"
+
+
+def test_create_blank_billing_code_raises_and_writes_nothing():
+    repo = RecordingScopeMonitoringRepository(InMemoryScopeMonitoringRepository())
+    use_case = CreateScopeMonitoringUseCase(repo)
+    repo.reset()
+
+    with pytest.raises(EmptyBillingCodeError):
+        use_case.execute([make_command(billing_code="   ")])
+
+    assert repo.writes == []

@@ -49,6 +49,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-UNTREATED',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
       {
@@ -57,6 +58,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-HANDLED',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-18',
@@ -97,6 +99,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-UNTREATED',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
     ]);
@@ -133,6 +136,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-UNTREATED',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
     ]);
@@ -153,6 +157,99 @@ describe('ScopeListPage Component', () => {
     });
   });
 
+  it('affiche le code de facturation, ou un tiret quand il est absent', async () => {
+    // Le code est obligatoire à la création mais reste absent des périmètres
+    // enregistrés avant son introduction : l'API ne réécrit pas l'historique.
+    const mockScopes = [
+      {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Scope Facturé',
+        knowledge_base_id: 'KB-FACT-0001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [],
+      },
+      {
+        id: '223e4567-e89b-12d3-a456-426614174000',
+        name: 'Scope Ancien',
+        knowledge_base_id: 'KB-FACT-0002',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: null,
+        daily_activities: [],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    const table = within(await screen.findByRole('table'));
+
+    expect(table.getByLabelText('Code de facturation : FACT-2026-PAI')).toBeInTheDocument();
+    expect(table.getByLabelText('Code de facturation non renseigné')).toHaveTextContent('—');
+  });
+
+  it('filtre les périmètres par code de facturation', async () => {
+    const mockScopes = [
+      {
+        id: '123e4567-e89b-12d3-a456-426614174000',
+        name: 'Scope Facturé',
+        knowledge_base_id: 'KB-FACT-0001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-REC',
+        daily_activities: [],
+      },
+      {
+        id: '223e4567-e89b-12d3-a456-426614174000',
+        name: 'Scope Infrastructure',
+        knowledge_base_id: 'KB-FACT-0002',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-INF',
+        daily_activities: [],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValue(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    const table = within(await screen.findByRole('table'));
+    await waitFor(() => {
+      expect(table.getByText('Scope Facturé')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher/i), {
+      target: { value: 'FACT-2026-REC' },
+    });
+
+    await waitFor(() => {
+      expect(table.getByText('Scope Facturé')).toBeInTheDocument();
+      expect(table.queryByText('Scope Infrastructure')).not.toBeInTheDocument();
+    });
+  });
+
   it('affiche le chargement puis la liste des périmètres', async () => {
     const mockScopes = [
       {
@@ -161,6 +258,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-TEST-0001',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -217,6 +315,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-TEST-0001',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -287,6 +386,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-01',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -304,6 +404,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-02',
         official_main: 'Carol',
         official_backup: 'Dave',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
       {
@@ -312,6 +413,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-03',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -361,6 +463,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-01',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -378,6 +481,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-02',
         official_main: 'Carol',
         official_backup: 'Dave',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
       {
@@ -386,6 +490,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-03',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -435,6 +540,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-01',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -452,6 +558,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FILTRE-03',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -499,6 +606,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-EN-COURS-01',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -557,6 +665,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-NON-SAISI-01',
         official_main: 'Charlie',
         official_backup: 'Dana',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
     ];
@@ -607,6 +716,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-ERREUR-01',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -665,6 +775,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-SAISIE-01',
         official_main: 'Charlie',
         official_backup: 'Dana',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
     ];
@@ -721,6 +832,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-EXISTANT-01',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -781,6 +893,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-EXPORT-01',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -833,6 +946,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FEAI-01',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -897,6 +1011,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FEAI-02',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [],
       },
     ];
@@ -947,6 +1062,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FEAI-03',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -1007,6 +1123,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-FEAI-04',
         official_main: 'Eve',
         official_backup: 'Frank',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-21',
@@ -1079,6 +1196,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-HISTOR-01',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-25',
@@ -1122,6 +1240,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-DEUXJOURS-1',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-25',
@@ -1181,6 +1300,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-RETARD-001',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-25',
@@ -1233,6 +1353,7 @@ describe('ScopeListPage Component', () => {
         knowledge_base_id: 'KB-AJOUR-0001',
         official_main: 'Alice',
         official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
         daily_activities: [
           {
             day: '2026-09-25',

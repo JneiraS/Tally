@@ -18,6 +18,7 @@ import {
 import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
+import { BillingCodeBadge } from '../components/BillingCodeBadge';
 import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } from '../utils/date';
 import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
@@ -260,6 +261,10 @@ export function ScopeDetailPage() {
               >
                 {scope.knowledge_base_id}
               </a>
+            </div>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span className="text-xs text-slate-400 dark:text-nord-3">Code de facturation :</span>
+              <BillingCodeBadge code={scope.billing_code} />
             </div>
             <p className="text-xs text-slate-400 dark:text-nord-3 font-mono mt-1">ID: {scope.id}</p>
           </div>

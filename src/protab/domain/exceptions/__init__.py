@@ -2,6 +2,7 @@ from .domain_error import DomainError
 from .scope_monitoring import (
     InvalidKnowledgeBaseIdError,
     EmptyOfficialsError,
+    EmptyBillingCodeError,
     DuplicateDailyActivityError,
     InvalidScopeMonitoringIdError,
     ScopeMonitoringNotFoundError,
@@ -21,6 +22,7 @@ __all__ = [
     "DomainError",
     "InvalidKnowledgeBaseIdError",
     "EmptyOfficialsError",
+    "EmptyBillingCodeError",
     "DuplicateDailyActivityError",
     "InvalidScopeMonitoringIdError",
     "ScopeMonitoringNotFoundError",

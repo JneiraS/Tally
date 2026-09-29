@@ -99,6 +99,7 @@ describe('Validation des invariants métier ProTab', () => {
         knowledge_base_id: 'KB-00000001', // 13 chars
         official_main: 'Main Responsable',
         official_backup: 'Backup Responsable',
+        billing_code: 'FACT-2026-PAI',
       });
 
       expect(result.isValid).toBe(true);
@@ -110,6 +111,7 @@ describe('Validation des invariants métier ProTab', () => {
         knowledge_base_id: 'KB-1234', // 7 chars
         official_main: 'Main',
         official_backup: 'Backup',
+        billing_code: 'FACT-2026-PAI',
       });
 
       expect(result.isValid).toBe(false);
@@ -122,12 +124,40 @@ describe('Validation des invariants métier ProTab', () => {
         knowledge_base_id: '',
         official_main: '',
         official_backup: '',
+        billing_code: '',
       });
 
       expect(result.isValid).toBe(false);
       expect(result.errors.name).toBeDefined();
       expect(result.errors.official_main).toBeDefined();
       expect(result.errors.official_backup).toBeDefined();
+      expect(result.errors.billing_code).toBeDefined();
+    });
+
+    it('rejette un code de facturation composé uniquement d\'espaces', () => {
+      const result = validateScopeForm({
+        name: 'Scope A',
+        knowledge_base_id: 'KB-00000001',
+        official_main: 'Main',
+        official_backup: 'Backup',
+        billing_code: '   ',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.billing_code).toBeDefined();
+    });
+
+    it('accepte un code de facturation libre', () => {
+      const result = validateScopeForm({
+        name: 'Scope A',
+        knowledge_base_id: 'KB-00000001',
+        official_main: 'Main',
+        official_backup: 'Backup',
+        billing_code: 'FACT-2026-PAI',
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.errors.billing_code).toBeUndefined();
     });
   });
 

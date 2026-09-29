@@ -18,6 +18,7 @@ export interface ScopeValidationErrors {
   knowledge_base_id?: string;
   official_main?: string;
   official_backup?: string;
+  billing_code?: string;
   general?: string;
 }
 
@@ -107,6 +108,7 @@ export function validateScopeForm(data: {
   knowledge_base_id: string;
   official_main: string;
   official_backup: string;
+  billing_code: string;
 }): { isValid: boolean; errors: ScopeValidationErrors } {
   const errors: ScopeValidationErrors = {};
 
@@ -128,11 +130,16 @@ export function validateScopeForm(data: {
     errors.official_backup = 'Le responsable suppléant est obligatoire.';
   }
 
+  if (!data.billing_code || data.billing_code.trim() === '') {
+    errors.billing_code = 'Le code de facturation est obligatoire.';
+  }
+
   const isValid =
     !errors.name &&
     !errors.knowledge_base_id &&
     !errors.official_main &&
-    !errors.official_backup;
+    !errors.official_backup &&
+    !errors.billing_code;
 
   return { isValid, errors };
 }

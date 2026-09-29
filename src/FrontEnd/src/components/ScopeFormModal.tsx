@@ -27,6 +27,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
       knowledge_base_id: '',
       official_main: '',
       official_backup: '',
+      billing_code: '',
       errors: {},
     },
   ]);
@@ -38,6 +39,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
         knowledge_base_id: '',
         official_main: '',
         official_backup: '',
+        billing_code: '',
         errors: {},
       },
     ]);
@@ -57,6 +59,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
         knowledge_base_id: '',
         official_main: '',
         official_backup: '',
+        billing_code: '',
         errors: {},
       },
     ]);
@@ -99,6 +102,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
         knowledge_base_id: item.knowledge_base_id,
         official_main: item.official_main,
         official_backup: item.official_backup,
+        billing_code: item.billing_code,
       });
 
       if (!isValid) {
@@ -124,6 +128,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
         knowledge_base_id: s.knowledge_base_id.trim(),
         official_main: s.official_main.trim(),
         official_backup: s.official_backup.trim(),
+        billing_code: s.billing_code.trim(),
       }));
 
       const res = await protabApi.createScopeMonitorings(payload);
@@ -293,6 +298,31 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                   />
                   {scope.errors?.official_backup && (
                     <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.official_backup}</p>
+                  )}
+                </div>
+
+                {/* Code de facturation */}
+                <div>
+                  <label
+                    htmlFor={`scope-billing-${idx}`}
+                    className="block text-xs font-medium text-slate-700 dark:text-nord-4 mb-1"
+                  >
+                    Code de facturation <span className="text-rose-500 dark:text-nord-11">*</span>
+                  </label>
+                  <input
+                    id={`scope-billing-${idx}`}
+                    type="text"
+                    value={scope.billing_code}
+                    onChange={(e) => handleChange(idx, 'billing_code', e.target.value)}
+                    placeholder="Ex: FACT-2026-PAI"
+                    className={`w-full px-3 py-2 text-sm bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
+                      scope.errors?.billing_code
+                        ? 'border-rose-300 dark:border-nord-11/50 focus:border-rose-500 bg-rose-50/20 dark:bg-nord-11/10'
+                        : 'border-slate-300 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
+                    }`}
+                  />
+                  {scope.errors?.billing_code && (
+                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.billing_code}</p>
                   )}
                 </div>
               </div>

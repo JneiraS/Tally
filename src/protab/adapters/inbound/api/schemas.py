@@ -8,6 +8,7 @@ class CreateScopeItem(BaseModel):
     knowledge_base_id: str
     official_main: str
     official_backup: str
+    billing_code: str = Field(min_length=1)
 
 
 class CompleteRequest(BaseModel):
@@ -80,6 +81,7 @@ class ScopeResponse(BaseModel):
     knowledge_base_id: str
     official_main: str
     official_backup: str
+    billing_code: str | None
     daily_activities: list[ActivityResponse]
 
 

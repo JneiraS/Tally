@@ -17,6 +17,7 @@ const scope = (
   knowledge_base_id: 'KB-ALPHA-0001',
   official_main: 'MAIN',
   official_backup: 'BACK',
+  billing_code: 'FACT-2026-PAI',
   daily_activities,
 });
 

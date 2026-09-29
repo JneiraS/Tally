@@ -100,6 +100,7 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
         knowledge_base_id=scope.knowledge.id,
         official_main=scope.officials.main,
         official_backup=scope.officials.backup,
+        billing_code=scope.billing_code,
         daily_activities=[
             _activity_to_response(activity)
             for activity in scope.daily_activities.values()
@@ -322,6 +323,7 @@ def create_app(
                 knowledge_base_id=item.knowledge_base_id,
                 official_main=item.official_main,
                 official_backup=item.official_backup,
+                billing_code=item.billing_code,
             )
             for item in items
         ]
