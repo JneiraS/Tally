@@ -52,10 +52,10 @@ docker-up:
 docker-down:
 	docker compose down
 
-## test-db: Crée la base de test si nécessaire puis lance les tests d'intégration PostgreSQL
+## test-db: Crée la base de test si nécessaire puis lance TOUS les tests d'intégration PostgreSQL
 test-db: db-up
 	@docker compose exec -T db psql -U protab -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='protab_test'" | grep -q 1 || docker compose exec -T db psql -U protab -d postgres -c "CREATE DATABASE protab_test"
-	PROTAB_TEST_DATABASE_URL=$(TEST_DATABASE_URL) uv run pytest tests/integration/adapters/postgres_scope_monitoring_repository_test.py
+	PROTAB_TEST_DATABASE_URL=$(TEST_DATABASE_URL) uv run pytest tests/integration
 
 ## clean: Supprime l'environnement virtuel et les caches de test/python
 clean:

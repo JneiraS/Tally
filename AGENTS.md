@@ -1146,6 +1146,56 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `tests/integration/adapters/project_admin_test.py`. La forme historique `protab-project <code> <nom>`
   reste valide.
 
+### 28.3 bis Administrateurs de projet : `project_admins`
+
+- **La fenêtre de bootstrap n'est pas collante.** `authenticate()` est sans état : dès qu'un projet possède
+  **un seul** périmètre, `if not scopes: return True` ne s'exécute plus, et le quadrigramme doit figurer dans
+  un `official_main`/`official_backup`. La personne qui crée le premier périmètre perd donc son accès à
+  l'instant où elle l'enregistre, sans aucun filet : ni colonne « admin », ni liste d'administrateurs, ni
+  mémorisation du premier quadrigramme. Le seul vestige est `audit_log.actor` — et le login **n'est pas
+  audité**, donc un quadrigramme qui se connecte puis ne fait rien ne laisse aucune trace.
+- **C'est ce que `project_admins` corrige.** Une ligne par administrateur
+  (`project_id`, `code`, `created_at`, PK `(project_id, code)`), FK `ON DELETE CASCADE` sur `projects` — sans
+  quoi un code de projet recyclé hériterait des administrateurs du tenant précédent. `authenticate()` accepte
+  le code s'il est dans `project_admins` **ou** dans un périmètre : c'est un union, pas un remplacement, donc
+  nommer un administrateur ne retire rien aux officials.
+- **Une ligne, pas une colonne `TEXT` délimitée par `/`.** L'identifiant d'un administrateur est supprimé par
+  nom, en addition et en cascade (`remove_admin` supprime aussi ses `auth_sessions` dans la même
+  transaction) : la concaténation de chaînes est précisément la famille de bug que §28.1 interdit. Une
+  colonne délimitée rendrait `created_at` par administrateur impossible.
+- **L'administrateur donne un accès permanent, pas un rôle.** Aucun drapeau en session, aucun `403`, aucune
+  route de gestion, aucun écran : une fois connecté, il a exactement les droits d'un officiel. Ne pas
+  réintroduire un cache de rôle dans `auth_sessions` — `authenticate()` n'est appelé **qu'au login**, donc un
+  rôle mémorisé serait périmé pendant toute la durée de vie de la session (12 h). C'est aussi pourquoi
+  `remove_admin` révoque les sessions : sans cela, un administrateur révoqué resterait utilisable 12 h.
+- **Le statut est strictement per-projet.** `authenticate()` filtre sur le `project_id` du payload de login,
+  et `GET /projects` est public : sans ce filtre, un seul code administrateur ouvrirait tous les tenants de
+  l'instance. Couvert par `test_admin_is_scoped_to_its_own_project`.
+- **Fail-closed au bootstrap.** `PROTAB_DEFAULT_PROJECT_ADMIN_CODE` est obligatoire au premier démarrage,
+  résolue par `resolve_bootstrap_admin_code()` **après** le mot de passe (sinon `test_connect_reports_the_
+  password_before_the_admin_code` renommerait l'échec du mot de passe). Un projet sans administrateur ne
+  serait pas « non protégé » : il serait impossible à ouvrir, ce qui est un verrouillage, pas un défaut de
+  sécurité. `docker-compose.yml` transmet la variable en `${…:-}` comme le mot de passe (§28.2).
+- **`OfficialCode` est le forme scalaire, volontairement distincte d'`Officials`.** Refuse `/` (une liste
+  n'est pas une identité : `"MLOZ/MRAM"` stocké comme admin ne serait atteignable qu'en tapant cette chaîne
+  littérale), exige un alphanumérique, et borne à 2–20 caractères — les bornes de `LoginRequest.quadrigramme`,
+  pour qu'un administrateur stocké soit toujours saisissable à l'écran de connexion. Le refus est à la porte,
+  dans la CLI comme dans l'adapter : un administrateur que personne ne peut taper est un verrouillage
+  déguisé en autorisation.
+- **`protab-project` administer les *projets*, pas les utilisateurs.** Le module porte sur la gestion des
+  projets (création, mot de passe) ; les administrateurs qu'il nomme sont des quadrigrammes. Les deux sens
+  cohabitent volontairement, `protab-project` restant le point d'entrée de l'administration d'hôte. La seule
+  voie de secours hors session est la CLI : elle demande la base, pas un cookie.
+- **`remove-admin` refuse le dernier administrateur**, avec la commande SQL de contournement dans le message.
+  `protab-project set-password` **ne** vous sauverait pas : il supprime les sessions, donc il verrouille.
+- **`project_admins` fait partie de `connect()`**, donc `TRUNCATE ... projects ... CASCADE` la vide avec le
+  projet : les fixtures `truncate_all()` n'ont rien à ajouter.
+- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** Il reste **aucune route de
+  mise à jour** d'un périmètre : `POST /scope-monitorings` ne fait que créer, et `name` est `UNIQUE`
+  **mondial** (donc pas par projet). Déclarer un quadrigramme supplémentaire dans un périmètre existant passe
+  encore par le SQL direct ou par un nouveau périmètre.
+
+
 ## 28.4 Tests d'intégration PostgreSQL
 
 - `tests/integration/adapters/postgres_scope_monitoring_repository_test.py` est ignoré (`skip`) tant que
@@ -1204,14 +1254,19 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `ActivityFormModal` est le contre-exemple volontaire : là la liste est un brouillon avec « Annuler »
   et « Enregistrer les modifications », la suppression est donc réversible gratuitement — ni modale, ni
   toast d'annulation.
-- **L'annulation réinsère à sa position d'origine, sur l'état courant, pas sur un instantané.** La
-  fermeture capturée au clic rejoue « retirer puis insérer à l'index » sur `latestValuesRef` : elle est
-  donc idempotente (un parent qui n'a pas re-rendu rend quand même la liste d'origine) et préserve une
-  référence ajoutée pendant la fenêtre d'annulation. Filtrer puis slicer à `index + 1` décalerait la
-  référence d'un rang — l'ordre des `feai` est significatif, `filter` le préserve. C'est aussi ce qui
-  permet de ne pas dépendre d'un re-rendu du parent pour qu'« Annuler » ait un effet visible.
+- **L'annulation porte sur toute la rafale, pas sur la seule dernière suppression.** Un toast unique qui
+  n'annule que le dernier retrait laisse les précédents définitivement perdus, et le debounce rend les
+  rafales *plus* fréquentes qu'on ne le croit : deux suppressions à 1,5 s s'effacent en **un seul
+  `PATCH`**, donc en un seul écrasement — c'est le cas « mauvaise batch collée » qui a le plus besoin d'un
+  retour. `undoBurstRef` accumule les retraits tant qu'ils tombent dans `UNDO_DURATION_MS` (constante
+  exportée par `useToast`, identique à la durée de vie du toast : deux fenêtres, une seule) et l'action
+  rejoue les entrées **à l'envers**, chacune par « retirer puis insérer à l'index » sur l'état courant.
+  Chaque `index` est la position *après* retrait où la référence doit revenir, ce qui rend l'opération
+  idempotente : un parent qui n'a pas re-rendu rend quand même la liste d'origine, et une référence
+  *ajoutée* pendant la rafale est préservée. Filtrer puis slicer à `index + 1` décalerait la référence
+  d'un rang — l'ordre des `feai` est significatif, `filter` le préserve.
 - **Le toast d'annulation est unique et ne touche pas les autres toasts.** `showUndo` réutilise un id
-  fixe, donc deux suppressions successives ne coexistent pas ; les toasts d'erreur ou de succès, eux,
+  fixé, donc deux suppressions successives ne coexistent pas ; les toasts d'erreur ou de succès, eux,
   ne sont pas remplacés. Les minuteries sont conservées par id dans une `Map` : sans cela, le timer du
   toast remplacé effacerait le nouveau avant sa durée.
 - **Un composant qui n'émet que des toasts consomme `useToastActions()`, pas `useToast()`.** Les deux
@@ -1221,6 +1276,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - `React.memo` n'aurait rien acheté ici : le parent crée une nouvelle fonction `onChange` à chaque rendu,
   donc la comparaison de props échoue de toute façon. Le découpage des contextes est ce qui règle le
   coût de rendu, pas la mémoïsation.
+- **Aucun toast d'annulation dans `ActivityFormModal`, et ce n'est pas un oubli.** `Modal` est en `z-50`
+  comme `ToastContainer` : le toast flotterait par-dessus le modal, en bas à droite, à côté de son bouton
+  « Annuler » (`ActivityFormModal.tsx:396`) qui **jette toute la saisie en cours**. Deux contrôles, le même
+  libellé, deux sens opposés, dont un destructeur. Si la suppression dans ce modal doit devenir
+  réversible, la forme correcte est un « référence retirée — restaurer » **en place** dans la liste.
 - **Les images sont importées depuis `src/assets/`**, jamais référencées par une URL `public/` : l'import
   laisse Vite hasher le fichier et valide le chemin à la compilation. `tsconfig.json` déclare déjà
   `"types": ["vite/client"]`, un `import x from './x.svg'` type-check donc sans configuration ajoutée.
@@ -1250,7 +1310,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
   `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
   monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
-- Tests : `npm test` (vitest, 113 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- Tests : `npm test` (vitest, 116 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 
