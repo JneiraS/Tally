@@ -450,9 +450,9 @@
     "semantic_hash": ""
   },
   "src/protab/adapters/outbound/persistence/postgres_auth_repository.py": {
-    "mtime": 1790511097.62589,
-    "seen": 1790512578.5207746,
-    "ast_hash": "e2e1116f4cd27613b3afc251ba09fc61",
+    "mtime": 1790669879.6856182,
+    "seen": 1790669947.8970077,
+    "ast_hash": "5077c4b3423a5c19863479f7d6bb412a",
     "semantic_hash": ""
   },
   "src/protab/adapters/outbound/persistence/postgres_pool.py": {
@@ -594,10 +594,10 @@
     "semantic_hash": "5d7d679ca24077f362dc92ce0e487f06"
   },
   "src/protab/domain/exceptions/__init__.py": {
-    "mtime": 1790257935.640783,
-    "seen": 1790410609.105074,
-    "ast_hash": "bd11c3b26ba9311024975bcbe59b358c",
-    "semantic_hash": "bd11c3b26ba9311024975bcbe59b358c"
+    "mtime": 1790669449.0213137,
+    "seen": 1790669947.8970814,
+    "ast_hash": "30f883847b41e46e4a9feee72394a006",
+    "semantic_hash": ""
   },
   "src/protab/domain/exceptions/daily_activity.py": {
     "mtime": 1789978166.7291868,
@@ -666,9 +666,9 @@
     "semantic_hash": ""
   },
   "src/protab/project_admin.py": {
-    "mtime": 1790511097.62689,
-    "seen": 1790512578.5209181,
-    "ast_hash": "2e4ee3f30437f7f048fc7ff0b30d1af1",
+    "mtime": 1790669649.5479493,
+    "seen": 1790669947.8971262,
+    "ast_hash": "316fb0a60a79932e4011d4792a1804f4",
     "semantic_hash": ""
   },
   "tests/__init__.py": {
@@ -726,9 +726,9 @@
     "semantic_hash": "bb77e71e6ee53d633f72ba4bcf758a41"
   },
   "tests/integration/adapters/postgres_auth_repository_test.py": {
-    "mtime": 1790511097.62689,
-    "seen": 1790512578.5210195,
-    "ast_hash": "f2ad78b0591ea3277daaa154c20de4f2",
+    "mtime": 1790669567.8194776,
+    "seen": 1790669947.8971546,
+    "ast_hash": "90700880a906263578879f6360c3f81f",
     "semantic_hash": ""
   },
   "tests/integration/adapters/postgres_scope_monitoring_repository_test.py": {
@@ -828,10 +828,10 @@
     "semantic_hash": "4c19a9263d145232d70528451ca87ab1"
   },
   "tests/unit/domain/exceptions_test.py": {
-    "mtime": 1789978166.7291868,
-    "seen": 1790410609.1051216,
-    "ast_hash": "6bab177580ec672fcfa625f1c6bb6a59",
-    "semantic_hash": "6bab177580ec672fcfa625f1c6bb6a59"
+    "mtime": 1790669460.213231,
+    "seen": 1790669947.8972483,
+    "ast_hash": "c6b5738a1e132b1531f72f0f8f7c662d",
+    "semantic_hash": ""
   },
   "tests/unit/domain/scope_monitoring_test.py": {
     "mtime": 1790091251.4912794,
@@ -852,21 +852,21 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790613179.081474,
-    "seen": 1790613205.2176301,
-    "ast_hash": "2df3f012b2478c63f761ad0102368b6d",
+    "mtime": 1790669772.8982108,
+    "seen": 1790669947.8972628,
+    "ast_hash": "cbcc138047ef7b31e9d72fec15bbf2d6",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1790511097.5908902,
-    "seen": 1790512578.5211182,
-    "ast_hash": "529fa41398b3dc8a353bed75e7d07afa",
+    "mtime": 1790669803.311038,
+    "seen": 1790669947.8972654,
+    "ast_hash": "03bf848bbe4704d166b0fdb6fb17ddc7",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1790511097.5908902,
-    "seen": 1790512578.521121,
-    "ast_hash": "6e2c8a89437946cf828ccc27561ca730",
+    "mtime": 1790669734.3704348,
+    "seen": 1790669947.8972678,
+    "ast_hash": "a5535f9e275e327244de25d3dc977ecc",
     "semantic_hash": ""
   },
   "src/FrontEnd/index.html": {
@@ -888,9 +888,9 @@
     "semantic_hash": ""
   },
   "tests/unit/adapters/postgres_auth_bootstrap_test.py": {
-    "mtime": 1790511097.62789,
-    "seen": 1790512578.521054,
-    "ast_hash": "9791947209a9adc5b5cb692a5fadcaf0",
+    "mtime": 1790669433.081433,
+    "seen": 1790669947.8972044,
+    "ast_hash": "ba35d80a5205c0c879057f6ff656aa82",
     "semantic_hash": ""
   },
   "tests/unit/adapters/project_context_guard_test.py": {
@@ -912,9 +912,9 @@
     "semantic_hash": ""
   },
   "tests/integration/adapters/project_admin_test.py": {
-    "mtime": 1790511097.62789,
-    "seen": 1790512578.5210273,
-    "ast_hash": "51af3108d4a422e33923a2c644402db9",
+    "mtime": 1790669700.243638,
+    "seen": 1790669947.8971605,
+    "ast_hash": "a64c66666cec3be0966668103cd3e4ac",
     "semantic_hash": ""
   },
   "tests/unit/adapters/official_codes_test.py": {
@@ -963,6 +963,24 @@
     "mtime": 1790527923.174866,
     "seen": 1790609844.8133514,
     "ast_hash": "558a4cfc56db35068cd65e382b7e56d4",
+    "semantic_hash": ""
+  },
+  "src/protab/domain/exceptions/official_code.py": {
+    "mtime": 1790669444.8033452,
+    "seen": 1790669947.8970914,
+    "ast_hash": "d6c61eb86c3cefa608452b25799e309f",
+    "semantic_hash": ""
+  },
+  "src/protab/domain/value_objects/official_code.py": {
+    "mtime": 1790669454.1592758,
+    "seen": 1790669947.8971086,
+    "ast_hash": "e2e2d98fdd3e9f749db24ac5d34fe8a0",
+    "semantic_hash": ""
+  },
+  "tests/unit/domain/official_code_test.py": {
+    "mtime": 1790669421.0695243,
+    "seen": 1790669947.8972511,
+    "ast_hash": "97e656736252bcf38b036fae635d3636",
     "semantic_hash": ""
   }
 }
