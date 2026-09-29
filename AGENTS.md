@@ -1325,6 +1325,20 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - Un fond décoratif est masqué aux lecteurs d'écran (`alt=""` + `aria-hidden="true"`) et ne capte pas le
   pointeur. Sur une page en `flex`, le conteneur doit être `relative` et la carte `relative z-10` : un
   enfant `absolute` sans `z-index` est peint **au-dessus** du contenu non positionné.
+- **Un nom `truncate` qui entre dans une rangée flex a besoin de `min-w-0`, pas seulement de `min-w-0`
+  sur son parent.** Un item flex a `min-width: auto` : il ne rétrécit pas sous sa largeur min-content, et
+  `truncate` implique `white-space: nowrap`, donc min-content = texte entier. Le `min-w-0` du `<div>`
+  parent ne sert à rien — c'est l'item lui-même (le `<Link>` du nom) qui doit le porter, faute de quoi
+  la pastille de code de facturation se fait chasser hors de la carte au lieu que le nom s'ellipse.
+  Testé par `compareDocumentPosition` dans `ScopeListPage.test.tsx`, en scoping **le même conteneur**
+  pour la pastille et le nom : `FOLLOWING` est aussi Positionné entre sous-arbres disjoints, donc deux
+  rendus distincts du même périmètre (le `<tr>` et le `<li>` mobile portent tous deux `role="link"`) se
+  répondraient mutuellement.
+- **La pastille de code de facturation précède le nom, pas le badge KB.** Elle est dans la même rangée
+  `flex items-center gap-1.5` que le nom, en table comme en carte mobile et en page de détail, où elle est
+  le premier enfant du titre. Aucun libellé visible « Code de facturation : » : l'`aria-label` du composant
+  porte déjà l'information, et sur le détail le sous-groupe `gap-1.5` pastille↔nom cohabite avec le
+  `gap-2.5` nom↔badge KB, donc la distinction visuelle se fait par le gap et non par un libellé.
 - **L'outline d'un graphique se retire sur le `<svg>`, pas sur le wrapper.** Tant que recharts n'a pas
   `accessibilityLayer`, il n'est pas focusable et aucun anneau n'est peint : `rootTabIndex` vaut alors
   `undefined` et aucun `tabIndex` n'est posé. L'outline par défaut ne disparaît donc que le jour où le mode

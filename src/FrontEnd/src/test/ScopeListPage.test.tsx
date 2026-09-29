@@ -198,6 +198,27 @@ describe('ScopeListPage Component', () => {
 
     expect(table.getByLabelText('Code de facturation : FACT-2026-PAI')).toBeInTheDocument();
     expect(table.getByLabelText('Code de facturation non renseigné')).toHaveTextContent('—');
+
+    // La pastille précède le nom, dans le tableau comme dans la carte mobile.
+    // Le <li> mobile porte le même role que le <tr> : il faut passer par la <ul>
+    // pour ne pas confondre les deux rendus, tous deux présents dans le DOM.
+    const comesFirst = (badge: HTMLElement, name: HTMLElement) =>
+      Boolean(badge.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    expect(
+      comesFirst(
+        table.getByLabelText('Code de facturation : FACT-2026-PAI'),
+        table.getByText('Scope Facturé')
+      )
+    ).toBe(true);
+
+    const cards = within(screen.getByRole('list', { name: 'Périmètres de supervision' }));
+    expect(
+      comesFirst(
+        cards.getByLabelText('Code de facturation : FACT-2026-PAI'),
+        cards.getByText('Scope Facturé')
+      )
+    ).toBe(true);
   });
 
   it('filtre les périmètres par code de facturation', async () => {

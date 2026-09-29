@@ -251,7 +251,10 @@ export function ScopeDetailPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-nord-2 pb-6">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-nord-6">{scope.name}</h1>
+              <div className="flex items-center gap-1.5">
+                <BillingCodeBadge code={scope.billing_code} />
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-nord-6">{scope.name}</h1>
+              </div>
               <a
                 href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
                 target="_blank"
@@ -261,10 +264,6 @@ export function ScopeDetailPage() {
               >
                 {scope.knowledge_base_id}
               </a>
-            </div>
-            <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xs text-slate-400 dark:text-nord-3">Code de facturation :</span>
-              <BillingCodeBadge code={scope.billing_code} />
             </div>
             <p className="text-xs text-slate-400 dark:text-nord-3 font-mono mt-1">ID: {scope.id}</p>
           </div>
