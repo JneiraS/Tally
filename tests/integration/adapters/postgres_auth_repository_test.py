@@ -40,12 +40,14 @@ def truncate_all() -> None:
 
 @pytest.fixture(autouse=True)
 def bootstrap_password(monkeypatch):
-    """The bootstrap project password is mandatory: no default is provided.
+    """The bootstrap secrets are mandatory: no default is provided.
 
     ``PostgresAuthRepository.connect()`` refuses to seed the first project
-    without it, so the test suite must supply one explicitly.
+    without a password, nor to seed it without an administrator: a project
+    that owns a scope and no administrator can be entered by nobody at all.
     """
     monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_PASSWORD", "test-bootstrap-password")
+    monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_ADMIN_CODE", "BOOT")
 
 
 @pytest.fixture
@@ -96,15 +98,53 @@ def test_connect_refuses_to_bootstrap_without_password(monkeypatch):
         repository.close()
 
 
-def test_connect_restarts_without_password_when_project_already_exists(monkeypatch):
-    """The password is only needed to seed; a restart must not require it.
+def test_connect_refuses_to_bootstrap_without_admin_code(monkeypatch):
+    """A project must never be created without someone able to enter it.
 
-    Requiring the secret on every boot would break every existing deployment
-    on upgrade, for a value that is never used once the project exists.
+    Once it owns a scope, ``authenticate()`` only accepts a quadrigramme
+    declared by that scope. Seeding the project without an administrator would
+    therefore produce an instance nobody can ever open.
+    """
+    empty_database()
+    monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_ADMIN_CODE", raising=False)
+
+    assert TEST_DATABASE_URL is not None
+    repository = PostgresAuthRepository(TEST_DATABASE_URL)
+    try:
+        with pytest.raises(RuntimeError, match="PROTAB_DEFAULT_PROJECT_ADMIN_CODE"):
+            repository.connect()
+    finally:
+        repository.close()
+
+
+def test_connect_reports_the_password_before_the_admin_code(monkeypatch):
+    """Both secrets are missing: the message must name the one resolved first.
+
+    Resolving the administrator first would rename the failure of the existing
+    password check and send an operator looking at the wrong variable.
+    """
+    empty_database()
+    monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_PASSWORD", raising=False)
+    monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_ADMIN_CODE", raising=False)
+
+    assert TEST_DATABASE_URL is not None
+    repository = PostgresAuthRepository(TEST_DATABASE_URL)
+    try:
+        with pytest.raises(RuntimeError, match="PROTAB_DEFAULT_PROJECT_PASSWORD"):
+            repository.connect()
+    finally:
+        repository.close()
+
+
+def test_connect_restarts_without_secrets_when_project_already_exists(monkeypatch):
+    """The secrets are only needed to seed; a restart must not require them.
+
+    Requiring them on every boot would break every existing deployment on
+    upgrade, for values that are never used once the project exists.
     """
     empty_database()
 
-    # Seed the project while the secret is still available.
+    # Seed the project while the secrets are still available.
     assert TEST_DATABASE_URL is not None
     monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_CODE", "protab")
     monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_NAME", "Projet principal")
@@ -113,11 +153,26 @@ def test_connect_restarts_without_password_when_project_already_exists(monkeypat
     seed.close()
 
     monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_PASSWORD", raising=False)
+    monkeypatch.delenv("PROTAB_DEFAULT_PROJECT_ADMIN_CODE", raising=False)
 
     repository = PostgresAuthRepository(TEST_DATABASE_URL)
     try:
         repository.connect()
         assert repository.get_project("protab") is not None
+    finally:
+        repository.close()
+
+
+def test_bootstrap_grants_the_configured_admin_code(monkeypatch):
+    """The seeded administrator must be usable as a login right away."""
+    empty_database()
+    assert TEST_DATABASE_URL is not None
+    monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_CODE", "protab")
+    monkeypatch.setenv("PROTAB_DEFAULT_PROJECT_NAME", "Projet principal")
+    repository = PostgresAuthRepository(TEST_DATABASE_URL)
+    try:
+        repository.connect()
+        assert repository.is_admin("protab", "BOOT") is True
     finally:
         repository.close()
 
@@ -141,6 +196,24 @@ def add_scope(
         officials=Officials(main=main, backup=backup),
     )
     scopes.save(scope)
+
+
+def add_scope_for(
+    project_id: str,
+    scopes: PostgresScopeMonitoringRepository,
+    main: str = "ABCD",
+    backup: str = "WXYZ",
+) -> None:
+    """Give one project a scope, switching the tenant the adapter reads.
+
+    Both tenants need one: a project without any scope still accepts every
+    quadrigramme (the bootstrap window), which would mask any scoping check.
+    """
+    token = set_current_project(project_id)
+    try:
+        add_scope(scopes, main=main, backup=backup)
+    finally:
+        reset_current_project(token)
 
 
 def test_bootstrap_allows_any_quadrigramme_when_no_scope(auth):
@@ -215,3 +288,181 @@ def test_project_non_working_days_default_and_update(auth):
         "excluded_weekdays": [6, 7],
         "excluded_dates": ["2026-12-25"],
     }
+
+
+# --- Project administrators ------------------------------------------------
+#
+# A scope declares who works there; an administrator belongs to the project
+# itself and stays reachable once the project owns scopes, which is what keeps
+# an installation openable.
+
+
+def test_admin_authenticates_although_it_belongs_to_no_scope(auth, scopes):
+    """The rule the whole feature exists for.
+
+    Without an administrator, creating the first scope closes the bootstrap
+    window and locks out whoever created it.
+    """
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+    auth.add_admin(PROJECT_ID, "MLOZ")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is True
+
+
+def test_admin_still_needs_the_project_password(auth, scopes):
+    """Permanent access is not a password bypass: the admin is one factor."""
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+    auth.add_admin(PROJECT_ID, "MLOZ")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "wrong") is False
+
+
+def test_creating_a_project_twice_reports_the_duplicate(auth):
+    """Reusing a project code is the likeliest CLI mistake, and it must not
+    reach the operator as a psycopg traceback.
+
+    ``protab-project <code> <name>`` is documented as the way to add a project;
+    running it a second time with the same code is an ordinary slip. AGENTS.md
+    §15 puts the translation of a technical exception at the adapter boundary,
+    not in front of the user. The ``auth`` fixture has already created
+    ``PROJECT_ID``, so this single call is the duplicate.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        auth.create_project(PROJECT_ID, "Second", "autre-secret")
+
+    assert PROJECT_ID in str(excinfo.value)
+    assert not isinstance(excinfo.value, psycopg.errors.UniqueViolation)
+
+
+def test_admin_is_scoped_to_its_own_project(auth, scopes):
+    """An administrator of A is nobody in B.
+
+    ``GET /projects`` is unauthenticated, so without the ``project_id`` filter
+    one admin code would open every tenant of the instance.
+    """
+    other = "project-other"
+    auth.create_project(other, "Autre Projet", "autre-secret")
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+    add_scope_for(other, scopes, main="IJKL", backup="UVWX")
+    auth.add_admin(PROJECT_ID, "MLOZ")
+    auth.add_admin(other, "MRAM")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is True
+    assert auth.authenticate(other, "MRAM", "autre-secret") is True
+    assert auth.authenticate(other, "MLOZ", "autre-secret") is False
+    assert auth.authenticate(PROJECT_ID, "MRAM", "secret") is False
+
+
+def test_admin_code_is_normalized_like_a_scope_code(auth, scopes):
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+    auth.add_admin(PROJECT_ID, " mloz ")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is True
+    assert auth.authenticate(PROJECT_ID, "mloz", "secret") is True
+
+
+def test_admin_code_is_stored_normalized(auth):
+    auth.add_admin(PROJECT_ID, " mloz ")
+
+    assert auth.list_admins(PROJECT_ID) == ["MLOZ"]
+
+
+def test_admin_authenticates_before_the_first_scope_is_created(auth):
+    """Naming an administrator is what makes creating the first scope safe.
+
+    The administrator can get in, and still get back in afterwards, which the
+    bootstrap window alone cannot guarantee: it closes on the first scope.
+    """
+    auth.add_admin(PROJECT_ID, "MLOZ")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is True
+
+
+def test_admin_alongside_scope_officials(auth, scopes):
+    """Being an administrator never removes the scope officials' access."""
+    add_scope(scopes, main="ABCD", backup="MLOZ/MRAM")
+    auth.add_admin(PROJECT_ID, "MLOZ")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is True
+    assert auth.authenticate(PROJECT_ID, "ABCD", "secret") is True
+    assert auth.authenticate(PROJECT_ID, "ZZZZ", "secret") is False
+
+
+def test_a_code_in_no_scope_and_no_admin_list_is_refused(auth, scopes):
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is False
+
+
+def test_add_admin_is_idempotent(auth):
+    assert auth.add_admin(PROJECT_ID, "MLOZ") is True
+    assert auth.add_admin(PROJECT_ID, "mloz") is False
+
+    assert auth.list_admins(PROJECT_ID) == ["MLOZ"]
+
+
+def test_add_admin_rejects_an_unusable_code(auth):
+    """A code the login screen refuses would lock the administrator out."""
+    from protab.domain.exceptions import InvalidOfficialCodeError
+
+    with pytest.raises(InvalidOfficialCodeError):
+        auth.add_admin(PROJECT_ID, "MLOZ/MRAM")
+
+    assert auth.list_admins(PROJECT_ID) == []
+
+
+def test_add_admin_rejects_an_unknown_project(auth):
+    from psycopg.errors import ForeignKeyViolation
+
+    with pytest.raises(ForeignKeyViolation):
+        auth.add_admin("does-not-exist", "MLOZ")
+
+
+def test_remove_admin_revokes_its_sessions(auth, scopes):
+    """``authenticate()`` only runs at login, so a removed administrator would
+    keep a working session for the remaining twelve hours."""
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+    auth.add_admin(PROJECT_ID, "MLOZ")
+    session = auth.create_session(PROJECT_ID, "MLOZ")
+
+    assert auth.remove_admin(PROJECT_ID, "MLOZ") is True
+
+    assert auth.find_session(session.token) is None
+    assert auth.authenticate(PROJECT_ID, "MLOZ", "secret") is False
+
+
+def test_remove_admin_leaves_the_other_sessions_alone(auth, scopes):
+    add_scope(scopes, main="ABCD", backup="WXYZ")
+    auth.add_admin(PROJECT_ID, "MLOZ")
+    admin_session = auth.create_session(PROJECT_ID, "MLOZ")
+    official_session = auth.create_session(PROJECT_ID, "ABCD")
+
+    auth.remove_admin(PROJECT_ID, "MLOZ")
+
+    assert auth.find_session(admin_session.token) is None
+    assert auth.find_session(official_session.token) is not None
+
+
+def test_remove_admin_reports_an_unknown_code(auth):
+    assert auth.remove_admin(PROJECT_ID, "ZZZZ") is False
+
+
+def test_admins_are_listed_per_project(auth):
+    auth.add_admin(PROJECT_ID, "MLOZ")
+    auth.add_admin(PROJECT_ID, "MRAM")
+    auth.create_project("project-other", "Autre Projet", "autre-secret")
+    auth.add_admin("project-other", "ABCD")
+
+    assert auth.list_admins(PROJECT_ID) == ["MLOZ", "MRAM"]
+    assert auth.list_admins("project-other") == ["ABCD"]
+
+
+def test_admins_disappear_with_their_project(auth):
+    """``project_admins`` cascades, or a recycled project code would inherit
+    the administrators of the tenant that used to own it."""
+    assert TEST_DATABASE_URL is not None
+    auth.add_admin(PROJECT_ID, "MLOZ")
+    with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
+        conn.execute("DELETE FROM projects WHERE id = %s", (PROJECT_ID,))
+
+    assert auth.list_admins(PROJECT_ID) == []

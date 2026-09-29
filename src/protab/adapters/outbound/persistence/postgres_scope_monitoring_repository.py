@@ -311,7 +311,7 @@ class PostgresScopeMonitoringRepository:
         constraint = exc.diag.constraint_name
         if constraint == "daily_activities_pkey":
             return DuplicateDailyActivityError(
-                f"ScopeMonitoring already has a DailyActivity for the saved day."
+                "ScopeMonitoring already has a DailyActivity for the saved day."
             )
         return ScopeMonitoringNameAlreadyExistsError(
             f"ScopeMonitoring with name {scope.name!r} already exists."
@@ -358,54 +358,50 @@ class PostgresScopeMonitoringRepository:
 
     def update_daily_activity(self, scope_id: str, activity: DailyActivity) -> None:
         project_id = require_current_project()
-        with self._pool.connection() as conn:
-            with conn.transaction():
-                cursor = conn.execute(
-                    """
-                    UPDATE daily_activities AS a
-                    SET errors_reported = %s, incidents_created = %s, feai = %s
-                    FROM scope_monitorings AS s
-                    WHERE a.scope_id = s.id
-                      AND s.project_id = %s
-                      AND a.scope_id = %s
-                      AND a.day = %s
-                    """,
-                    (
-                        activity.errors_reported,
-                        activity.incidents_created,
-                        activity.feai,
-                        project_id,
-                        scope_id,
-                        activity.day,
-                    ),
+        with self._pool.connection() as conn, conn.transaction():
+            cursor = conn.execute(
+                """
+                UPDATE daily_activities AS a
+                SET errors_reported = %s, incidents_created = %s, feai = %s
+                FROM scope_monitorings AS s
+                WHERE a.scope_id = s.id
+                  AND s.project_id = %s
+                  AND a.scope_id = %s
+                  AND a.day = %s
+                """,
+                (
+                    activity.errors_reported,
+                    activity.incidents_created,
+                    activity.feai,
+                    project_id,
+                    scope_id,
+                    activity.day,
+                ),
+            )
+            if cursor.rowcount == 0:
+                raise DailyActivityNotFoundError(
+                    f"No DailyActivity for day {activity.day!r} on scope {scope_id!r}."
                 )
-                if cursor.rowcount == 0:
-                    raise DailyActivityNotFoundError(
-                        f"No DailyActivity for day {activity.day!r} on scope "
-                        f"{scope_id!r}."
-                    )
 
     def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
         project_id = require_current_project()
-        with self._pool.connection() as conn:
-            with conn.transaction():
-                cursor = conn.execute(
-                    """
-                    UPDATE daily_activities AS a
-                    SET handled = TRUE, completed = TRUE
-                    FROM scope_monitorings AS s
-                    WHERE a.scope_id = s.id
-                      AND s.project_id = %s
-                      AND a.scope_id = %s
-                      AND a.day = ANY(%s)
-                    """,
-                    (project_id, scope_id, list(days)),
+        with self._pool.connection() as conn, conn.transaction():
+            cursor = conn.execute(
+                """
+                UPDATE daily_activities AS a
+                SET handled = TRUE, completed = TRUE
+                FROM scope_monitorings AS s
+                WHERE a.scope_id = s.id
+                  AND s.project_id = %s
+                  AND a.scope_id = %s
+                  AND a.day = ANY(%s)
+                """,
+                (project_id, scope_id, list(days)),
+            )
+            if cursor.rowcount != len(set(days)):
+                raise DailyActivityNotFoundError(
+                    f"No DailyActivity for every requested day on scope {scope_id!r}."
                 )
-                if cursor.rowcount != len(set(days)):
-                    raise DailyActivityNotFoundError(
-                        f"No DailyActivity for every requested day on scope "
-                        f"{scope_id!r}."
-                    )
 
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         project_id = require_current_project()

@@ -49,7 +49,7 @@ export function LoginPage({ onAuthenticated }: LoginPageProps) {
             <Activity className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-nord-6">ProTab</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-nord-6">Tally</h1>
             <p className="text-sm text-slate-500 dark:text-nord-4">Accès à votre projet</p>
           </div>
         </div>

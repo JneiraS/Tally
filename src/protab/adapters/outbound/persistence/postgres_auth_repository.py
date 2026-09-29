@@ -15,6 +15,7 @@ from protab.adapters.outbound.persistence.postgres_pool import (
     POOL_MIN_SIZE,
     build_connection_pool,
 )
+from protab.domain.value_objects.official_code import OfficialCode
 
 DEFAULT_NON_WORKING_DAYS = {
     "excluded_weekdays": [6, 7],
@@ -101,6 +102,31 @@ def resolve_bootstrap_password() -> str:
     return password
 
 
+BOOTSTRAP_ADMIN_CODE_ENV = "PROTAB_DEFAULT_PROJECT_ADMIN_CODE"
+
+
+def resolve_bootstrap_admin_code() -> str:
+    """Return the quadrigramme seeding the first project's administrator.
+
+    Same fail-closed rule as the password, and consulted at the same moment:
+    a project that owns a scope accepts nobody but the quadrigrammes its scopes
+    declare, so a project created without an administrator could never be
+    opened again by the person who created it.
+    """
+    code = (os.getenv(BOOTSTRAP_ADMIN_CODE_ENV) or "").strip()
+    if not code:
+        raise RuntimeError(
+            f"{BOOTSTRAP_ADMIN_CODE_ENV} est obligatoire au premier démarrage de "
+            "l'API : aucun administrateur par défaut n'est fourni. "
+            "Renseignez-le dans .env (voir .env.example)."
+        )
+    return code
+
+
+def _normalize_code(value: str | None) -> str:
+    return (value or "").strip().upper()
+
+
 def _official_codes(value: str | None) -> set[str]:
     """Quadrigrammes declared by one ``officials`` column (format « A/B »).
 
@@ -170,6 +196,16 @@ class PostgresAuthRepository:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS project_admins (
+                    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                    code       TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    PRIMARY KEY (project_id, code)
+                )
+                """
+            )
             already_seeded = conn.execute(
                 "SELECT 1 FROM projects WHERE id = %s",
                 (self.default_project_id,),
@@ -184,6 +220,13 @@ class PostgresAuthRepository:
                         self.default_project_id,
                         self.default_project_name,
                         _hash_password(resolve_bootstrap_password()),
+                    ),
+                )
+                conn.execute(
+                    "INSERT INTO project_admins (project_id, code) VALUES (%s, %s)",
+                    (
+                        self.default_project_id,
+                        OfficialCode(resolve_bootstrap_admin_code()).value,
                     ),
                 )
 
@@ -209,10 +252,17 @@ class PostgresAuthRepository:
                 "Le code, le nom et le mot de passe du projet sont obligatoires."
             )
         with self._pool.connection() as conn:
-            conn.execute(
-                "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s)",
-                (project_id, name, _hash_password(password)),
-            )
+            try:
+                conn.execute(
+                    "INSERT INTO projects (id, name, password_hash) VALUES (%s, %s, %s)",
+                    (project_id, name, _hash_password(password)),
+                )
+            except psycopg.errors.UniqueViolation as exc:
+                raise ValueError(
+                    f"Le projet {project_id} existe déjà. "
+                    "Choisissez un autre code, ou utilisez set-password pour "
+                    "changer son mot de passe."
+                ) from exc
         return Project(project_id, name, _normalize_non_working_days(None))
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:
@@ -224,6 +274,17 @@ class PostgresAuthRepository:
             if row is None or not _check_password(password, row[0]):
                 return False
 
+            code = _normalize_code(quadrigramme)
+            is_admin = (
+                conn.execute(
+                    "SELECT 1 FROM project_admins WHERE project_id = %s AND code = %s",
+                    (project_id, code),
+                ).fetchone()
+                is not None
+            )
+            if is_admin:
+                return True
+
             scopes = conn.execute(
                 "SELECT official_main, official_backup FROM scope_monitorings WHERE project_id = %s",
                 (project_id,),
@@ -233,12 +294,70 @@ class PostgresAuthRepository:
         if not scopes:
             return True
 
-        code = (quadrigramme or "").strip().upper()
         return any(
             code in _official_codes(official_main)
             or code in _official_codes(official_backup)
             for official_main, official_backup in scopes
         )
+
+    def is_admin(self, project_id: str, quadrigramme: str) -> bool:
+        """Whether a quadrigramme is an administrator of that one project.
+
+        Normalization only, no validation: this is a lookup, and a code the
+        login screen would reject is simply not an administrator.
+        """
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM project_admins WHERE project_id = %s AND code = %s",
+                (project_id, _normalize_code(quadrigramme)),
+            ).fetchone()
+        return row is not None
+
+    def add_admin(self, project_id: str, quadrigramme: str) -> bool:
+        """Grant permanent access to one project. Returns False if already set.
+
+        The code is validated because an administrator the login screen refuses
+        would be a lockout dressed as a grant.
+        """
+        project_id = project_id.strip()
+        if not project_id:
+            raise ValueError("Le code du projet est obligatoire.")
+        code = OfficialCode(quadrigramme).value
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "INSERT INTO project_admins (project_id, code) VALUES (%s, %s) "
+                "ON CONFLICT (project_id, code) DO NOTHING",
+                (project_id, code),
+            )
+            return row.rowcount > 0
+
+    def remove_admin(self, project_id: str, quadrigramme: str) -> bool:
+        """Revoke permanent access and drop the sessions it had opened.
+
+        ``authenticate()`` only runs at login, so revoking an administrator
+        without closing their sessions would leave the account working for the
+        remaining twelve hours.
+        """
+        project_id = project_id.strip()
+        code = _normalize_code(quadrigramme)
+        with self._pool.connection() as conn:
+            row = conn.execute(
+                "DELETE FROM project_admins WHERE project_id = %s AND code = %s",
+                (project_id, code),
+            )
+            conn.execute(
+                "DELETE FROM auth_sessions WHERE project_id = %s AND quadrigramme = %s",
+                (project_id, code),
+            )
+            return row.rowcount > 0
+
+    def list_admins(self, project_id: str) -> list[str]:
+        with self._pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT code FROM project_admins WHERE project_id = %s ORDER BY code",
+                (project_id.strip(),),
+            ).fetchall()
+        return [row[0] for row in rows]
 
     def get_project(self, project_id: str) -> Project | None:
         with self._pool.connection() as conn:

@@ -55,14 +55,15 @@ def test_complete_single_day():
     repo.save(scope)
 
     CompleteDailyActivityUseCase(repo).execute(
-        CompleteDailyActivityCommand(
-            scope_id="scope-001", days=[date(2026, 9, 19)]
-        )
+        CompleteDailyActivityCommand(scope_id="scope-001", days=[date(2026, 9, 19)])
     )
 
     saved = repo.find_by_id("scope-001")
-    assert saved.daily_activity_for(date(2026, 9, 19)).completed is True
-    assert saved.daily_activity_for(date(2026, 9, 19)).handled is True
+    assert saved is not None
+    activity = saved.daily_activity_for(date(2026, 9, 19))
+    assert activity is not None
+    assert activity.completed is True
+    assert activity.handled is True
 
 
 def test_complete_multiple_days():
@@ -87,8 +88,13 @@ def test_complete_multiple_days():
     )
 
     saved = repo.find_by_id("scope-001")
-    assert saved.daily_activity_for(date(2026, 9, 19)).completed is True
-    assert saved.daily_activity_for(date(2026, 9, 20)).completed is True
+    assert saved is not None
+    activity_19 = saved.daily_activity_for(date(2026, 9, 19))
+    activity_20 = saved.daily_activity_for(date(2026, 9, 20))
+    assert activity_19 is not None
+    assert activity_20 is not None
+    assert activity_19.completed is True
+    assert activity_20.completed is True
 
 
 def test_complete_writes_only_the_requested_days():
@@ -100,9 +106,7 @@ def test_complete_writes_only_the_requested_days():
     repo.reset()
 
     CompleteDailyActivityUseCase(repo).execute(
-        CompleteDailyActivityCommand(
-            scope_id="scope-001", days=[date(2026, 9, 20)]
-        )
+        CompleteDailyActivityCommand(scope_id="scope-001", days=[date(2026, 9, 20)])
     )
 
     assert repo.writes == [
@@ -132,18 +136,18 @@ def test_complete_does_not_touch_earlier_days_when_a_later_day_is_missing():
         )
 
     assert repo.writes == []
-    assert repo.find_by_id("scope-001").daily_activity_for(
-        date(2026, 9, 19)
-    ).completed is False
+    saved = repo.find_by_id("scope-001")
+    assert saved is not None
+    activity = saved.daily_activity_for(date(2026, 9, 19))
+    assert activity is not None
+    assert activity.completed is False
 
 
 def test_complete_scope_not_found():
     repo = InMemoryScopeMonitoringRepository()
     with pytest.raises(ScopeMonitoringNotFoundError):
         CompleteDailyActivityUseCase(repo).execute(
-            CompleteDailyActivityCommand(
-                scope_id="unknown", days=[date(2026, 9, 19)]
-            )
+            CompleteDailyActivityCommand(scope_id="unknown", days=[date(2026, 9, 19)])
         )
 
 
@@ -162,11 +166,12 @@ def test_complete_day_without_activity_raises():
 
     with pytest.raises(DailyActivityNotFoundError):
         CompleteDailyActivityUseCase(repo).execute(
-            CompleteDailyActivityCommand(
-                scope_id="scope-001", days=[date(2026, 9, 21)]
-            )
+            CompleteDailyActivityCommand(scope_id="scope-001", days=[date(2026, 9, 21)])
         )
 
     # Atomicity: the existing activity must not be completed
     saved = repo.find_by_id("scope-001")
-    assert saved.daily_activity_for(date(2026, 9, 19)).completed is False
+    assert saved is not None
+    activity = saved.daily_activity_for(date(2026, 9, 19))
+    assert activity is not None
+    assert activity.completed is False

@@ -186,9 +186,9 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                   <button
                     type="button"
                     onClick={() => handleRemoveRow(idx)}
-                    className="text-slate-400 dark:text-nord-3 hover:text-rose-600 dark:hover:text-nord-11 p-1 rounded-md transition-colors"
+                    className="text-slate-400 dark:text-nord-3 hover:text-rose-600 dark:hover:text-nord-11 p-1 touch-manipulation select-none rounded-md transition-colors"
                     title="Supprimer cette ligne"
-                    aria-label={`Supprimer le périmètre #${idx + 1}`}
+                    aria-label={`Supprimer la ligne #${idx + 1}`}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

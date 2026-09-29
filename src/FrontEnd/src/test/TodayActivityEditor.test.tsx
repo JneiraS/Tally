@@ -2,9 +2,12 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { ComponentProps } from "react";
 import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { TodayActivityEditor } from "../components/TodayActivityEditor";
+import { ToastContainer } from "../components/Toast";
+import { ToastProvider } from "../hooks/useToast";
 import { DailyActivity } from "../types";
 
 const EXISTING_ACTIVITY: DailyActivity = {
@@ -46,14 +49,20 @@ describe("TodayActivityEditor", () => {
     await waitFor(() => expect(fn).toHaveBeenCalled(), { timeout: 3000 });
   };
 
-  it('affiche les champs et l\'état "en attente" sans activité', () => {
+  const renderEditor = (props: ComponentProps<typeof TodayActivityEditor>) =>
     render(
-      <TodayActivityEditor
-        scopeId="scope-1"
-        day="2026-09-19"
-        initialActivity={null}
-      />,
+      <ToastProvider>
+        <TodayActivityEditor {...props} />
+        <ToastContainer />
+      </ToastProvider>,
     );
+
+  it('affiche les champs et l\'état "en attente" sans activité', () => {
+    renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: null,
+    });
 
     expect(
       screen.getByLabelText("Erreurs signalées du jour"),
@@ -67,13 +76,11 @@ describe("TodayActivityEditor", () => {
   });
 
   it("pré-remplit les valeurs en mode édition", () => {
-    render(
-      <TodayActivityEditor
-        scopeId="scope-1"
-        day="2026-09-19"
-        initialActivity={EXISTING_ACTIVITY}
-      />,
-    );
+    renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: EXISTING_ACTIVITY,
+    });
 
     expect(screen.getByLabelText("Erreurs signalées du jour")).toHaveValue(4);
     expect(screen.getByLabelText("Incidents créés aujourd'hui")).toHaveValue(2);
@@ -82,14 +89,12 @@ describe("TodayActivityEditor", () => {
 
   it("crée une activité (POST) à la première saisie sans relevé", async () => {
     const onChanged = vi.fn();
-    render(
-      <TodayActivityEditor
-        scopeId="scope-1"
-        day="2026-09-19"
-        initialActivity={null}
-        onChanged={onChanged}
-      />,
-    );
+    renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: null,
+      onChanged: onChanged,
+    });
 
     fireEvent.change(screen.getByLabelText("Erreurs signalées du jour"), {
       target: { value: "3" },
@@ -111,13 +116,11 @@ describe("TodayActivityEditor", () => {
   });
 
   it("met à jour une activité existante (PATCH)", async () => {
-    render(
-      <TodayActivityEditor
-        scopeId="scope-1"
-        day="2026-09-19"
-        initialActivity={EXISTING_ACTIVITY}
-      />,
-    );
+    renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: EXISTING_ACTIVITY,
+    });
 
     fireEvent.change(screen.getByLabelText("Erreurs signalées du jour"), {
       target: { value: "5" },
@@ -134,13 +137,11 @@ describe("TodayActivityEditor", () => {
   });
 
   it("bloque la sauvegarde quand incidents > erreurs", async () => {
-    render(
-      <TodayActivityEditor
-        scopeId="scope-1"
-        day="2026-09-19"
-        initialActivity={EXISTING_ACTIVITY}
-      />,
-    );
+    renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: EXISTING_ACTIVITY,
+    });
 
     fireEvent.change(screen.getByLabelText("Incidents créés aujourd'hui"), {
       target: { value: "9" },
@@ -155,13 +156,11 @@ describe("TodayActivityEditor", () => {
   it("basculer create en PATCH si le POST répond 409 (conflit)", async () => {
     mockedCreate.mockRejectedValueOnce(new ApiError(409, "Conflit"));
 
-    render(
-      <TodayActivityEditor
-        scopeId="scope-1"
-        day="2026-09-19"
-        initialActivity={null}
-      />,
-    );
+    renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: null,
+    });
 
     fireEvent.change(screen.getByLabelText("Erreurs signalées du jour"), {
       target: { value: "2" },

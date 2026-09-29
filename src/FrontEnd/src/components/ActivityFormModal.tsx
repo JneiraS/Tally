@@ -368,9 +368,9 @@ export function ActivityFormModal({
                       <button
                         type="button"
                         onClick={() => handleRemoveFeai(idx)}
-                        className="p-1.5 text-slate-400 dark:text-nord-3 hover:text-rose-600 dark:hover:text-nord-11 hover:bg-rose-50 dark:hover:bg-nord-11/15 rounded-lg transition-colors"
+                        className="p-1.5 touch-manipulation select-none text-slate-400 dark:text-nord-3 hover:text-rose-600 dark:hover:text-nord-11 hover:bg-rose-50 dark:hover:bg-nord-11/15 rounded-lg transition-colors"
                         title="Supprimer cette référence"
-                        aria-label={`Supprimer référence ${idx + 1}`}
+                        aria-label={`Supprimer la référence ${code.trim() || `n° ${idx + 1}`}`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

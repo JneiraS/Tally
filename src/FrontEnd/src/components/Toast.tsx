@@ -44,6 +44,19 @@ export function ToastContainer() {
               )}
             </div>
 
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action?.onClick();
+                  removeToast(toast.id);
+                }}
+                className="shrink-0 self-center text-sm font-semibold underline underline-offset-2 hover:no-underline transition-colors"
+              >
+                {toast.action.label}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => removeToast(toast.id)}

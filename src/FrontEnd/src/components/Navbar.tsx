@@ -95,7 +95,7 @@ export function Navbar({
               </div>
               <div>
                 <span className="font-bold text-slate-900 dark:text-nord-6 text-lg tracking-tight flex items-center gap-1.5">
-                  ProTab
+                  Tally
                   <span className="text-[11px] font-semibold uppercase tracking-wider bg-blue-50 dark:bg-nord-10/25 text-blue-700 dark:text-nord-8 px-1.5 py-0.5 rounded border border-blue-200 dark:border-nord-9/40">
                     Supervision
                   </span>

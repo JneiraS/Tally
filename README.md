@@ -68,10 +68,11 @@ Configuration (fichier `.env` copié depuis `.env.example`) :
 `PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`),
 `DATABASE_URL` (DSN PostgreSQL ; **obligatoire** pour démarrer l'API) et
 `PROTAB_COOKIE_SECURE` (`0`/`1`, défaut `0` : à passer à `1` derrière HTTPS).
-`PROTAB_DEFAULT_PROJECT_PASSWORD` est **obligatoire au tout premier démarrage**,
-c'est-à-dire au moment où le projet bootstrap doit être créé. L'API refuse alors de démarrer
-(aucun mot de passe par défaut n'est fourni). Une fois le projet créé, la variable n'est plus
-consultée : redémarrer une installation déjà initialisée n'exige aucun secret.
+`PROTAB_DEFAULT_PROJECT_PASSWORD` et `PROTAB_DEFAULT_PROJECT_ADMIN_CODE` sont **obligatoires au tout premier
+démarrage**, c'est-à-dire au moment où le projet bootstrap doit être créé. L'API refuse alors de démarrer
+(aucun mot de passe ni administrateur par défaut n'est fourni) : un projet créé sans administrateur serait,
+une fois son premier périmètre enregistré, impossible à ouvrir par quiconque. Une fois le projet créé, les
+variables ne sont plus consultées : redémarrer une installation déjà initialisée n'exige aucun secret.
 
 L'API écoute sur `0.0.0.0` *à l'intérieur* du conteneur, mais Docker Compose ne
 publie son port que sur la boucleback (`127.0.0.1:8874:8000`) : elle n'est donc
@@ -116,13 +117,17 @@ contient aucun caractère alphanumérique est un substitut de saisie et n'est ja
 que le `?` utilisé pour « pas de suppléant » est écarté. La chaîne entière n'est pas un code : avec
 `official_main = "LAMA/JMAB"`, les codes acceptés sont `LAMA` et `JMAB`, pas `"LAMA/JMAB"`. Tant qu'un projet
 n'a encore aucun périmètre (bootstrap), tout quadrigramme est accepté afin de permettre la création du premier
-périmètre.
+périmètre. Cette fenêtre n'est pas collante : dès le premier périmètre, seul un administrateur nommé ou un
+official de ce périmètre peut se connecter.
 
 Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
-`PROTAB_DEFAULT_PROJECT_NAME` et `PROTAB_DEFAULT_PROJECT_PASSWORD`. Les projets suivants se créent avec :
+`PROTAB_DEFAULT_PROJECT_NAME`, `PROTAB_DEFAULT_PROJECT_PASSWORD` et
+`PROTAB_DEFAULT_PROJECT_ADMIN_CODE`. Les deux dernières sont **obligatoires au tout premier démarrage** :
+l'API refuse alors de démarrer plutôt que de créer un projet que personne ne pourrait rouvrir. Les projets
+suivants se créent avec :
 
 ```bash
-uv run protab-project projet-alpha "Projet Alpha"
+uv run protab-project projet-alpha "Projet Alpha" --admin MLOZ
 ```
 
 Le mot de passe d'un projet se change avec la sous-commande `set-password` (le nouveau mot de passe est saisi
@@ -134,7 +139,38 @@ uv run protab-project set-password projet-alpha
 
 Cette commande remplace le hash stocké et **révoque toutes les sessions** ouvertes sur le projet : c'est le
 geste à faire quand un mot de passe a été divulgué, sinon les sessions déjà ouvertes survivraient à la
-rotation.
+rotation. Elle **ne vous sauverait pas** d'un projet verrouillé, puisqu'elle ferme au lieu d'ouvrir.
+
+### Administrateurs de projet
+
+Un administrateur est un quadrigramme autorisé à se connecter à **un seul projet**, qu'il soit déclaré ou
+non dans l'un de ses périmètres. Sans lui, un projet qui possède des périmètres n'est plus ouvert que par les
+officials de ces périmètres : la personne qui crée le premier périmètre perd son accès à l'instant où elle
+l'enregistre. L'administrateur n'a aucun pouvoir supplémentaire une fois connecté ; c'est un accès permanent,
+pas un rôle. Il donne un accès **par projet** : un code administrateur d'un projet n'ouvre aucun autre projet,
+même avec le bon mot de passe.
+
+```bash
+uv run protab-project add-admin projet-alpha MLOZ   # autorise MLOZ sur ce projet
+uv run protab-project list-admins projet-alpha      # liste les administrateurs
+uv run protab-project remove-admin projet-alpha MLOZ # retire l'accès
+```
+
+Ces commandes demandent la base de données, pas une session : c'est la seule voie de secours quand un projet
+est verrouillé. `add-admin` refuse un code que l'écran de connexion ne pourrait pas saisir (liste `A/B`,
+caractère seul, hors 2–20 caractères) — un administrateur que personne ne peut taper serait un verrouillage
+présenté comme une autorisation. `remove-admin` refuse de retirer le dernier administrateur.
+
+### Administration d'hôte : `protab-project`
+
+La gestion des projets, des mots de passe et des administrateurs passe par la CLI `protab-project`. Son
+inventaire, ses arguments, ses messages d'erreur, la procédure de dépannage d'un projet verrouillé et son
+usage dans Docker sont documentés dans **[`docs/cli.md`](docs/cli.md)** :
+
+```bash
+uv run protab-project --help                              # liste les cinq formes
+make project-admin ARGS="list-admins protab"             # dans le conteneur api
+```
 
 | Méthode & path                                                                                              | Body                                                                                        | Succès                                                                     | Erreurs                                                                    |
 | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -193,13 +229,17 @@ avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de c
 ## Docker
 
 La stack complète (`db` PostgreSQL + `api` FastAPI + `frontend` React/nginx) est définie dans
-`docker-compose.yml`. Le frontend est servi par nginx (SPA) qui proxiie `/scope-monitorings` vers `api`
-— même origine, aucun CORS requis.
+`docker-compose.yml`. Le frontend est servi par nginx (SPA) qui relaie les routes métier vers `api` —
+même origine, aucun CORS requis.
+
+L'architecture elle-même — réseau, ports publiés, ordre de démarrage encodé par les healthchecks, chaîne
+de construction des deux images et flux de requêtes à travers nginx — est décrite dans
+**[`docs/docker-architecture.md`](docs/docker-architecture.md)**.
 
 ```bash
 make docker-up    # docker compose up -d --build
-# → API :      http://localhost:8000   (Swagger : /docs)
 # → Frontend : http://localhost:5173
+# → API :      http://127.0.0.1:8874   (Swagger : /docs) — boucle locale seulement
 ```
 
 | Cible Makefile              | Effet                                                                          |
@@ -208,6 +248,7 @@ make docker-up    # docker compose up -d --build
 | `docker-up` / `docker-down` | Construit et démarre / arrête toute la stack                                   |
 | `db-shell`                  | Shell `psql` dans le conteneur Postgres                                        |
 | `test-db`                   | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
+| `project-admin`             | Lance `protab-project` dans le conteneur `api` (`make project-admin ARGS="…"`)  |
 
 Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
 via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).

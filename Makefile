@@ -1,4 +1,4 @@
-.PHONY: help install test test-v test-failed run frontend db-up db-down db-shell docker-up docker-down test-db clean
+.PHONY: help install test test-v test-failed run frontend db-up db-down db-shell docker-up docker-down project-admin test-db clean
 
 # URL de la base dédiée aux tests d'intégration PostgreSQL
 TEST_DATABASE_URL ?= postgresql://protab:protab@localhost:5432/protab_test
@@ -52,10 +52,17 @@ docker-up:
 docker-down:
 	docker compose down
 
-## test-db: Crée la base de test si nécessaire puis lance les tests d'intégration PostgreSQL
+## test-db: Crée la base de test si nécessaire puis lance TOUS les tests d'intégration PostgreSQL
 test-db: db-up
 	@docker compose exec -T db psql -U protab -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='protab_test'" | grep -q 1 || docker compose exec -T db psql -U protab -d postgres -c "CREATE DATABASE protab_test"
-	PROTAB_TEST_DATABASE_URL=$(TEST_DATABASE_URL) uv run pytest tests/integration/adapters/postgres_scope_monitoring_repository_test.py
+	PROTAB_TEST_DATABASE_URL=$(TEST_DATABASE_URL) uv run pytest tests/integration
+
+## project-admin: Lance protab-project dans le conteneur API (make project-admin ARGS="add-admin protab MLOZ")
+# ⚠️ Pas de -T : getpass exige un TTY, sinon la saisie du mot de passe échoue.
+# La stack doit être démarrée (make docker-up) et DATABASE_URL est déjà fourni
+# au conteneur par docker-compose.yml.
+project-admin:
+	docker compose exec api protab-project $(ARGS)
 
 ## clean: Supprime l'environnement virtuel et les caches de test/python
 clean:

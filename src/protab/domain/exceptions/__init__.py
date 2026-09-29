@@ -15,6 +15,7 @@ from .daily_activity import (
     InvalidFeaiReferenceError,
     DuplicateFeaiReferenceError,
 )
+from .official_code import InvalidOfficialCodeError
 
 __all__ = [
     "DomainError",
@@ -30,4 +31,5 @@ __all__ = [
     "IncidentsExceedErrorsError",
     "InvalidFeaiReferenceError",
     "DuplicateFeaiReferenceError",
+    "InvalidOfficialCodeError",
 ]

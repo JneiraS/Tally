@@ -1,12 +1,23 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X, Plus, CheckCircle2 } from "lucide-react";
 import { isValidFeai } from "../utils/validation";
+import { UNDO_DURATION_MS, useToastActions } from "../hooks/useToast";
 
 interface FeaiTagInputProps {
   values: string[];
   onChange: (next: string[]) => void;
   errorMessage?: string;
 }
+
+interface UndoEntry {
+  code: string;
+  index: number;
+}
+
+const undoTitle = (entries: UndoEntry[]) =>
+  entries.length === 1
+    ? `Référence ${entries[0].code} retirée`
+    : `${entries.length} références retirées`;
 
 export function FeaiTagInput({
   values,
@@ -15,6 +26,15 @@ export function FeaiTagInput({
 }: FeaiTagInputProps) {
   const [draft, setDraft] = useState("");
   const [itemError, setItemError] = useState<string | null>(null);
+  const { showUndo } = useToastActions();
+
+  const latestValuesRef = useRef<string[]>(values);
+  latestValuesRef.current = values;
+
+  const undoBurstRef = useRef<{ entries: UndoEntry[]; at: number }>({
+    entries: [],
+    at: 0,
+  });
 
   const addCode = (raw: string) => {
     const code = raw.trim().toUpperCase();
@@ -34,12 +54,41 @@ export function FeaiTagInput({
     onChange([...values, code]);
   };
 
+  const handleRemove = (code: string) => {
+    const index = values.indexOf(code);
+    if (index === -1) return;
+
+    onChange(values.filter((c) => c !== code));
+
+    const burst = undoBurstRef.current;
+    const now = Date.now();
+    const entries: UndoEntry[] =
+      now - burst.at > UNDO_DURATION_MS
+        ? [{ code, index }]
+        : [...burst.entries, { code, index }];
+    undoBurstRef.current = { entries, at: now };
+
+    showUndo(undoTitle(entries), () => {
+      let restored = latestValuesRef.current;
+      for (const entry of [...entries].reverse()) {
+        const without = restored.filter((c) => c !== entry.code);
+        restored = [
+          ...without.slice(0, entry.index),
+          entry.code,
+          ...without.slice(entry.index),
+        ];
+      }
+      onChange(restored);
+      undoBurstRef.current = { entries: [], at: 0 };
+    });
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addCode(draft);
     } else if (e.key === "Backspace" && draft === "" && values.length > 0) {
-      onChange(values.slice(0, -1));
+      handleRemove(values[values.length - 1]);
     }
   };
 
@@ -63,9 +112,9 @@ export function FeaiTagInput({
             {code}
             <button
               type="button"
-              onClick={() => onChange(values.filter((c) => c !== code))}
+              onClick={() => handleRemove(code)}
               aria-label={`Supprimer la référence ${code}`}
-              className="text-slate-400 hover:text-rose-600 dark:text-nord-3 dark:hover:text-nord-11"
+              className="-m-1 inline-flex min-h-6 min-w-6 touch-manipulation select-none items-center justify-center rounded text-slate-400 hover:text-rose-600 dark:text-nord-3 dark:hover:text-nord-11"
             >
               <X className="w-2.5 h-2.5" />
             </button>

@@ -199,8 +199,9 @@ def create_app(
 
     def close_persistence() -> None:
         for persistence in managed_repositories:
-            if persistence is not None and hasattr(persistence, "close"):
-                persistence.close()
+            close = getattr(persistence, "close", None)
+            if callable(close):
+                close()
 
     app.router.on_shutdown.append(close_persistence)
 
@@ -435,7 +436,14 @@ def create_app(
         )
         scope_names = repo.find_all_scope_names()
         return [
-            _audit_event_to_response(event, scope_name=scope_names.get(event.scope_id))
+            _audit_event_to_response(
+                event,
+                scope_name=(
+                    scope_names.get(event.scope_id)
+                    if event.scope_id is not None
+                    else None
+                ),
+            )
             for event in events
         ]
 

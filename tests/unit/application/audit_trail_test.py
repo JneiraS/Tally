@@ -171,6 +171,7 @@ def test_update_activity_records_audit_event_with_diff():
 def test_complete_activity_records_audit_event_per_day():
     repo = make_scope_with_activity()
     scope = repo.find_by_id("scope-001")
+    assert scope is not None
     scope.add_daily_activity(
         DailyActivity(
             day=date(2026, 9, 20),
@@ -210,7 +211,9 @@ def test_no_repository_keeps_working_without_audit():
             feai=[],
         )
     )
-    assert repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 21)) is not None
+    scope = repo.find_by_id("scope-001")
+    assert scope is not None
+    assert scope.daily_activity_for(date(2026, 9, 21)) is not None
 
 
 def test_list_audit_events_applies_filters():
