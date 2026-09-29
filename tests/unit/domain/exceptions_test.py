@@ -7,6 +7,7 @@ from protab.domain.exceptions import (
     IncidentsExceedErrorsError,
     InvalidFeaiReferenceError,
     InvalidKnowledgeBaseIdError,
+    InvalidOfficialCodeError,
     InvalidScopeMonitoringIdError,
     NegativeErrorsCountError,
     NegativeIncidentsCountError,
@@ -29,3 +30,4 @@ def test_domain_exceptions_inheritance():
     assert issubclass(ScopeMonitoringNotFoundError, DomainError)
     assert issubclass(DailyActivityNotFoundError, DomainError)
     assert issubclass(ScopeMonitoringNameAlreadyExistsError, DomainError)
+    assert issubclass(InvalidOfficialCodeError, DomainError)
