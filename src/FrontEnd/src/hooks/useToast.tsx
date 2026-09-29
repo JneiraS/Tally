@@ -50,6 +50,8 @@ const UNDO_DURATION_MS = 6000;
 const DEFAULT_DURATION_MS = 4500;
 const ERROR_DURATION_MS = 6000;
 
+export { UNDO_DURATION_MS };
+
 const ToastActionsContext = createContext<ToastActionsType | undefined>(undefined);
 const ToastStateContext = createContext<ToastStateType | undefined>(undefined);
 
