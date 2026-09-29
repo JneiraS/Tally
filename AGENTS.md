@@ -959,6 +959,10 @@ If documentation becomes outdated because of a code change, it MUST be corrected
 
 A feature is not considered complete until all necessary documentation has been updated.
 
+Long-form reference material lives in `docs/`, and the README keeps a link plus a short example rather than a
+duplicate. `docs/cli.md` is the reference for the `protab-project` CLI: a new subcommand, argument or refusal
+message is documented there, and `protab-project --help` must list it.
+
 ---
 
 # 24. Forbidden Practices
@@ -1185,7 +1189,10 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - **`protab-project` administer les *projets*, pas les utilisateurs.** Le module porte sur la gestion des
   projets (création, mot de passe) ; les administrateurs qu'il nomme sont des quadrigrammes. Les deux sens
   cohabitent volontairement, `protab-project` restant le point d'entrée de l'administration d'hôte. La seule
-  voie de secours hors session est la CLI : elle demande la base, pas un cookie.
+  voie de secours hors session est la CLI : elle demande la base, pas un cookie. **La référence de la CLI
+  est `docs/cli.md`** — inventaire, arguments, messages d'erreur, dépannage d'un projet verrouillé, usage
+  Docker. Toute nouvelle sous-commande se documente là, et non dans le README qui n'en garde que le lien et
+  deux exemples.
 - **`remove-admin` refuse le dernier administrateur**, avec la commande SQL de contournement dans le message.
   `protab-project set-password` **ne** vous sauverait pas : il supprime les sessions, donc il verrouille.
 - **`project_admins` fait partie de `connect()`**, donc `TRUNCATE ... projects ... CASCADE` la vide avec le
@@ -1208,9 +1215,16 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 
 ## 28.5 Conteneurisation & commandes utiles
 
+- **`docs/docker-architecture.md` est la référence de la topologie** : réseau bridge par défaut, statut
+  des trois ports publiés (dont `api` en boucle locale seule et `db` sur `0.0.0.0`), ordre de démarrage
+  encodé par les healthchecks, chaîne de construction des deux images et blocs `location` de nginx. Toute
+  évolution de `docker-compose.yml`, d'un `Dockerfile` ou de `nginx.conf` s'y répercute.
 - `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
-- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `test-db`.
+- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `project-admin`, `test-db`.
+  `project-admin` est un relais vers `docker compose exec api protab-project $(ARGS)` : **sans `-T`**, car
+  `getpass` exige un terminal, et **sans dépendance** à `docker-up`, qui déclencherait une reconstruction
+  complète de la stack à chaque appel d'administration.
 - Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.

@@ -317,6 +317,23 @@ def test_admin_still_needs_the_project_password(auth, scopes):
     assert auth.authenticate(PROJECT_ID, "MLOZ", "wrong") is False
 
 
+def test_creating_a_project_twice_reports_the_duplicate(auth):
+    """Reusing a project code is the likeliest CLI mistake, and it must not
+    reach the operator as a psycopg traceback.
+
+    ``protab-project <code> <name>`` is documented as the way to add a project;
+    running it a second time with the same code is an ordinary slip. AGENTS.md
+    §15 puts the translation of a technical exception at the adapter boundary,
+    not in front of the user. The ``auth`` fixture has already created
+    ``PROJECT_ID``, so this single call is the duplicate.
+    """
+    with pytest.raises(ValueError) as excinfo:
+        auth.create_project(PROJECT_ID, "Second", "autre-secret")
+
+    assert PROJECT_ID in str(excinfo.value)
+    assert not isinstance(excinfo.value, psycopg.errors.UniqueViolation)
+
+
 def test_admin_is_scoped_to_its_own_project(auth, scopes):
     """An administrator of A is nobody in B.
 
