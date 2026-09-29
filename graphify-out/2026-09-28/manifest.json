@@ -30,10 +30,10 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ActivityFormModal.tsx": {
-    "mtime": 1789998709.9735518,
-    "seen": 1790410609.1049523,
-    "ast_hash": "c4a43a2eca459a714734f5ea7c274a79",
-    "semantic_hash": "c4a43a2eca459a714734f5ea7c274a79"
+    "mtime": 1790609710.7821531,
+    "seen": 1790609844.8128524,
+    "ast_hash": "a334881b5b0059b466f1697800d2ea5a",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/AuditActivityHeatmap.tsx": {
     "mtime": 1790091251.4872794,
@@ -90,10 +90,10 @@
     "semantic_hash": "5ac7b7afc0c0033319dd256119b87c30"
   },
   "src/FrontEnd/src/components/FeaiTagInput.tsx": {
-    "mtime": 1790410838.4357576,
-    "seen": 1790412924.6052883,
-    "ast_hash": "33f3d336bb560d2a04416f2c80a9d1fb",
-    "semantic_hash": "33f3d336bb560d2a04416f2c80a9d1fb"
+    "mtime": 1790609576.6819131,
+    "seen": 1790609844.8128872,
+    "ast_hash": "ff4e92e12caf1d999bb532e947dcfe07",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/InlineActivityCounters.tsx": {
     "mtime": 1790410838.4357576,
@@ -120,16 +120,16 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ScopeFormModal.tsx": {
-    "mtime": 1789830139.9190423,
-    "seen": 1790410609.1049724,
-    "ast_hash": "9fe8d3fbbe6a3f2e7557fcb1151e0df1",
-    "semantic_hash": "9fe8d3fbbe6a3f2e7557fcb1151e0df1"
+    "mtime": 1790609718.1771111,
+    "seen": 1790609844.8129113,
+    "ast_hash": "37d54b0fd89a3b9647c6bea9ad8a9635",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/Toast.tsx": {
-    "mtime": 1789830139.9190423,
-    "seen": 1790410609.104974,
-    "ast_hash": "82d3395910da65bcc2b5f65c66e2ac82",
-    "semantic_hash": "82d3395910da65bcc2b5f65c66e2ac82"
+    "mtime": 1790609467.8815327,
+    "seen": 1790609844.8129146,
+    "ast_hash": "dbe72832b5cd5a7502af56655076c8c8",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/components/TodayActivityEditor.tsx": {
     "mtime": 1789998709.9745517,
@@ -150,10 +150,10 @@
     "semantic_hash": "bda93b26df275882cd5920e69c273f31"
   },
   "src/FrontEnd/src/hooks/useToast.tsx": {
-    "mtime": 1789830139.9201567,
-    "seen": 1790410609.1049798,
-    "ast_hash": "93a136f7b2b63eeaf81af07303ab7bc7",
-    "semantic_hash": "93a136f7b2b63eeaf81af07303ab7bc7"
+    "mtime": 1790609463.294559,
+    "seen": 1790609844.8129323,
+    "ast_hash": "64cfcb1e33cb12d09ee96f56722e787e",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/main.tsx": {
     "mtime": 1789830139.9201567,
@@ -240,16 +240,16 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/ScopeListPage.test.tsx": {
-    "mtime": 1790511097.62489,
-    "seen": 1790512578.5206409,
-    "ast_hash": "38dfaf677ae4903fbe31c731d829fbb9",
+    "mtime": 1790609735.3190143,
+    "seen": 1790609844.8129926,
+    "ast_hash": "e50f5d770e6e79d39c85f09eb3b25635",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/TodayActivityEditor.test.tsx": {
-    "mtime": 1790091251.4892795,
-    "seen": 1790410609.104999,
-    "ast_hash": "062ccb7e81c9e2de59de7144523094f9",
-    "semantic_hash": "062ccb7e81c9e2de59de7144523094f9"
+    "mtime": 1790609676.321348,
+    "seen": 1790609844.8129954,
+    "ast_hash": "f2065bc4c47f088b7525e550a21d5b5e",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/test/auditStats.test.ts": {
     "mtime": 1790091251.4892795,
@@ -372,9 +372,9 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "src/protab/adapters/inbound/api/app.py": {
-    "mtime": 1790511097.62589,
-    "seen": 1790512578.5207274,
-    "ast_hash": "64a25e2d981b351eda4b8a01d47638b4",
+    "mtime": 1790533149.0679364,
+    "seen": 1790609844.8130648,
+    "ast_hash": "fc042d56293c2a020720ee0037d4b2b2",
     "semantic_hash": ""
   },
   "src/protab/adapters/inbound/api/auth.py": {
@@ -444,9 +444,9 @@
     "semantic_hash": ""
   },
   "src/protab/adapters/outbound/persistence/postgres_audit_trail_repository.py": {
-    "mtime": 1790511097.62589,
-    "seen": 1790512578.5207715,
-    "ast_hash": "7db8522689b7d520487bef46f19aa45c",
+    "mtime": 1790534165.3758175,
+    "seen": 1790609844.8131049,
+    "ast_hash": "3234cdadffe2223ecff1f969c39de31a",
     "semantic_hash": ""
   },
   "src/protab/adapters/outbound/persistence/postgres_auth_repository.py": {
@@ -462,9 +462,9 @@
     "semantic_hash": "0df32066741902729d061eb28e155bff"
   },
   "src/protab/adapters/outbound/persistence/postgres_scope_monitoring_repository.py": {
-    "mtime": 1790511097.62589,
-    "seen": 1790512578.5207822,
-    "ast_hash": "79644261a23dfbb193b34aafb2ab3323",
+    "mtime": 1790533694.7084868,
+    "seen": 1790609844.8131146,
+    "ast_hash": "ee6cfbab7379cc32e1d20b97d4a5a1fb",
     "semantic_hash": ""
   },
   "src/protab/application/__init__.py": {
@@ -774,15 +774,15 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "tests/unit/application/audit_trail_test.py": {
-    "mtime": 1790004641.1483192,
-    "seen": 1790410609.1051102,
-    "ast_hash": "c7fb98437650d26f7ca4d68ac7e08df7",
-    "semantic_hash": "c7fb98437650d26f7ca4d68ac7e08df7"
+    "mtime": 1790533028.3620136,
+    "seen": 1790609844.8132982,
+    "ast_hash": "afb25dee9a0708f349bd51b96ad758f4",
+    "semantic_hash": ""
   },
   "tests/unit/application/complete_daily_activity_test.py": {
-    "mtime": 1790511097.62789,
-    "seen": 1790512578.5210714,
-    "ast_hash": "3f9d9118c5ef45d87a9289626c688289",
+    "mtime": 1790533545.669199,
+    "seen": 1790609844.813301,
+    "ast_hash": "516a3dc1c15f805c962d9651005391ce",
     "semantic_hash": ""
   },
   "tests/unit/application/create_daily_activity_test.py": {
@@ -852,9 +852,9 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790518628.5987496,
-    "seen": 1790527147.3733323,
-    "ast_hash": "12505b7d61d06221172ae9d029b5dab4",
+    "mtime": 1790609813.8435712,
+    "seen": 1790609844.8133426,
+    "ast_hash": "d5675e33c857aa8e8160848833eb3db9",
     "semantic_hash": ""
   },
   "README.md": {
@@ -951,6 +951,18 @@
     "mtime": 1790523298.1406672,
     "seen": 1790527147.3733451,
     "ast_hash": "3673e4867155da475e7b2f1d25cc2995",
+    "semantic_hash": ""
+  },
+  "src/FrontEnd/src/test/FeaiTagInput.test.tsx": {
+    "mtime": 1790609594.6038113,
+    "seen": 1790609844.8129816,
+    "ast_hash": "40f87fc0baa2ee1fd02b10075ab1ba5f",
+    "semantic_hash": ""
+  },
+  "docs/tally-vs-excel.md": {
+    "mtime": 1790527923.174866,
+    "seen": 1790609844.8133514,
+    "ast_hash": "558a4cfc56db35068cd65e382b7e56d4",
     "semantic_hash": ""
   }
 }
