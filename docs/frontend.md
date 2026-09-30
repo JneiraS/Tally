@@ -240,13 +240,18 @@ Trois règles qu'un coup d'œil au rendu ne donne pas :
   faute. Un taux indéfini (aucune erreur) passe en dernier dans les deux sens
   plutôt que d'être traité comme un 0 %.
 
-La barre de filtres expose aussi l'**indicateur du classement** (`En attente`,
-`Erreurs`, `Incidents` ou `Transformation`). Le choix pilote le classement sans
-changer les cartes KPI ni la série empilée : ces trois zones répondent à des
-questions différentes et ne doivent pas changer de sens implicitement. Sous les
-filtres, la page rappelle la période, le nombre de périmètres sélectionnés et la
-granularité réellement affichée ; ce contexte reste visible quand les contrôles
-ne sont plus dans le viewport.
+Sous les filtres, la page rappelle la période, le nombre de périmètres sélectionnés
+et la granularité réellement affichée ; ce contexte reste visible quand les
+contrôles ne sont plus dans le viewport.
+
+La section principale de l'analyse affiche désormais une **heatmap hebdomadaire
+des erreurs** : une ligne par périmètre, une colonne par semaine ISO et une cellule
+dont l'intensité suit le nombre d'erreurs brutes (`errors_reported`). La valeur est
+visible dans la cellule, et le libellé accessible expose aussi l'évolution par
+rapport à la semaine précédente. Le classement sous la heatmap est indépendant :
+il trie les périmètres sur le total d'erreurs de la période sélectionnée. Les
+incidents ne sont pas soustraits : cette vue répond à « combien d'erreurs ont été
+observées ? », tandis que la grille répond à « quel est l'état du traitement ? ».
 
 La première carte est organisée selon la décision à prendre : **Période**, puis
 **Affichage**, puis **Périmètres comparés** sur toute la largeur. Le bloc des

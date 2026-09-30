@@ -1404,11 +1404,13 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
   périmètre le plus dégradé, en tête de liste, recevrait la barre la plus courte. Un
   taux indéfini n'a aucune barre — une barre nulle se lirait comme un 0 %.
-- **L'indicateur du classement est un filtre explicite.** `AnalyticsFilterBar` permet
-  de choisir entre arriéré, erreurs, incidents et transformation ; ce choix ne
-  modifie que le classement, pas les KPI ni l'aire empilée. La page rappelle sous
-  les filtres la période, le nombre de périmètres retenus et la granularité effective
-  afin que le contexte reste lisible hors du panneau de contrôles.
+- **La heatmap de `/analyse` porte les erreurs brutes par semaine.** Une ligne
+  représente un périmètre, une colonne une semaine ISO et l'intensité de la cellule
+  est proportionnelle à `errors_reported`. Le classement sous la heatmap trie sur
+  le total d'erreurs de la période. Les incidents ne sont pas soustraits dans cette
+  vue : elle mesure le volume observé, tandis que la grille mesure l'état du
+  traitement. L'évolution d'une cellule compare la semaine à sa précédente et
+  reste indéfinie quand la base est absente ou nulle.
 - **La première carte de `/analyse` suit la hiérarchie de décision.** `Période` et
   `Affichage` sont regroupés en réglages secondaires ; `Périmètres comparés` est
   un bloc pleine largeur, avec l'explication de son effet sur les graphiques, le

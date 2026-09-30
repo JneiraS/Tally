@@ -20,8 +20,7 @@ import {
   type AnalyticsFilters,
 } from "../components/AnalyticsFilterBar";
 import {
-  AnalyticsRanking,
-  AnalyticsStack,
+  AnalyticsWeeklyErrors,
 } from "../components/AnalyticsCharts";
 import { SupervisionGrid } from "../components/SupervisionGrid";
 import {
@@ -267,18 +266,9 @@ export function AnalyticsPage({
             />
           ) : (
             <>
-              <AnalyticsStack
+              <AnalyticsWeeklyErrors
                 scopes={selected}
                 days={days}
-                labelOf={labelOf}
-                granularityLabel={
-                  granularity === "jour" ? "par jour" : "par semaine"
-                }
-              />
-              <AnalyticsRanking
-                scopes={selected}
-                days={days}
-                metric={filters.metric}
               />
               <section aria-labelledby="analytics-grid-title">
                 <h3
@@ -413,7 +403,6 @@ function initialFilters(
       : "jour",
     workingDaysOnly: true,
     compare: false,
-    metric: "arriere",
     preset: from && to ? "perso" : "mois",
     scopeIds: [],
   };

@@ -27,7 +27,6 @@ const FILTERS: AnalyticsFilters = {
   granularity: "jour",
   workingDaysOnly: true,
   compare: false,
-  metric: "arriere",
   scopeIds: MANY.map((s) => s.id),
 };
 
@@ -84,18 +83,6 @@ describe("AnalyticsFilterBar — sélection des périmètres", () => {
     expect(selectedChip?.className).toContain("dark:bg-nord-9/20");
     expect(selectedChip?.className).toContain("dark:text-nord-6");
     expect(selected.className).toContain("dark:accent-nord-8");
-  });
-
-  it("permet de choisir l'indicateur du classement", () => {
-    const onChange = renderBar();
-
-    fireEvent.click(screen.getByRole("button", { name: "Transformation" }));
-
-    expect(onChange).toHaveBeenCalledWith({ metric: "transformation" });
-    expect(screen.getByRole("button", { name: "Transformation" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
   });
 
   it("garde une pastille non sélectionnée lisible en thème sombre", () => {

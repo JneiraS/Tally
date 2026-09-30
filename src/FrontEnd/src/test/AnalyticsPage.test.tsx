@@ -96,15 +96,13 @@ describe("AnalyticsPage", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
-  it("résume la période sélectionnée et nomme ses trois sections", async () => {
+  it("résume la période sélectionnée et nomme ses sections", async () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Arriéré par périmètre/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Erreurs par semaine et par périmètre/i })).toBeInTheDocument();
     });
-    expect(
-      screen.getByRole("heading", { name: /Classement des périmètres/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Périmètres les plus exposés/i })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /Grille de supervision/i }),
     ).toBeInTheDocument();

@@ -23,14 +23,11 @@ import {
  */
 
 export type Granularity = "jour" | "semaine";
-export type Metric = "arriere" | "erreurs" | "incidents" | "transformation";
 export type RangePreset = "7j" | "30j" | "mois" | "tout" | "perso";
 
 /** Nombre de jours au-delà duquel la série n'est plus lisible jour par jour. */
 export const MAX_TRACKED_DAYS = 120;
 
-/** Au-delà, une aire empilée devient un feuilleton : on ne garde que le top. */
-export const MAX_STACKED_SERIES = 8;
 
 export interface PeriodPoint {
   /** Jour ISO pour une granularité « jour », clé ISO (« 2026-W39 ») pour « semaine ». */
@@ -61,23 +58,24 @@ export interface PeriodDelta {
   couverturePct: number | null;
 }
 
-export interface RankingRow {
+export interface WeeklyErrorCell {
+  week: string;
+  errors: number;
+  changePct: number | null;
+}
+
+export interface WeeklyErrorRow {
   id: string;
   name: string;
   billing_code: string | null;
-  erreurs: number;
-  incidents: number;
-  arriere: number;
-  transformation: number | null;
+  cells: WeeklyErrorCell[];
+  totalErrors: number;
 }
 
-export interface StackSeries {
-  /** Clé technique préfixée, jamais le nom : un périmètre nommé « jour » casserait la série. */
-  key: string;
-  name: string;
-  /** Valeurs alignées sur les points, dans le même ordre. */
-  values: number[];
-  isAutres: boolean;
+export interface WeeklyErrorHeatmap {
+  weeks: string[];
+  rows: WeeklyErrorRow[];
+  maxErrors: number;
 }
 
 export type CellState = "traite" | "encours" | "nonSaisi";
@@ -207,6 +205,59 @@ export function aggregateByWeek(
   return sumByLabel(scopes, days, labelOf);
 }
 
+/**
+ * Prépare la heatmap d'erreurs : une ligne par périmètre et une colonne par
+ * semaine de la période. Les semaines sans activité restent présentes avec une
+ * valeur nulle afin que toutes les lignes partagent le même axe.
+ */
+export function buildWeeklyErrorHeatmap(
+  scopes: ScopeMonitoring[],
+  days: string[],
+): WeeklyErrorHeatmap {
+  const weeks = [...new Set(days.map(isoWeekKey))].sort();
+  const daySet = new Set(days);
+  let maxErrors = 0;
+
+  const rows = scopes.map((scope): WeeklyErrorRow => {
+    const errorsByWeek = new Map<string, number>();
+    (scope.daily_activities || []).forEach((activity) => {
+      if (!daySet.has(activity.day)) return;
+      const week = isoWeekKey(activity.day);
+      errorsByWeek.set(
+        week,
+        (errorsByWeek.get(week) ?? 0) + activity.errors_reported,
+      );
+    });
+
+    const cells = weeks.map((week, index) => {
+      const errors = errorsByWeek.get(week) ?? 0;
+      maxErrors = Math.max(maxErrors, errors);
+      const previous = index === 0 ? null : errorsByWeek.get(weeks[index - 1]) ?? 0;
+      return {
+        week,
+        errors,
+        changePct: previous === null || previous === 0
+          ? null
+          : Math.round(((errors - previous) / previous) * 100),
+      };
+    });
+
+    return {
+      id: scope.id,
+      name: scope.name,
+      billing_code: scope.billing_code,
+      cells,
+      totalErrors: cells.reduce((total, cell) => total + cell.errors, 0),
+    };
+  });
+
+  return {
+    weeks,
+    rows: rows.sort((a, b) => b.totalErrors - a.totalErrors || a.name.localeCompare(b.name)),
+    maxErrors,
+  };
+}
+
 function sumByLabel(
   scopes: ScopeMonitoring[],
   days: string[],
@@ -294,127 +345,6 @@ export function periodDelta(
     arrierePct: pctChange(current.arriere, previous.arriere),
     couverturePct: pctChange(current.couverture, previous.couverture),
   };
-}
-
-/**
- * Classe les périmètres du plus dégradé au moins dégradé.
- *
- * « Du moins bon au plus bon » pour toutes les métriques : c'est le seul ordre
- * qui sert un superviseur, qui cherche qui traiter en premier. Le taux de
- * transformation se lit donc à l'envers, et un périmètre sans erreur — taux
- * indéfini, pas 0 % — passe en dernier plutôt que de fausser le classement.
- */
-export function buildScopeRanking(
-  scopes: ScopeMonitoring[],
-  days: string[],
-  sort: Metric,
-): RankingRow[] {
-  const daySet = new Set(days);
-
-  const rows = scopes.map((scope): RankingRow => {
-    const activities = (scope.daily_activities || []).filter((a) =>
-      daySet.has(a.day),
-    );
-    const erreurs = activities.reduce((acc, a) => acc + a.errors_reported, 0);
-    const incidents = activities.reduce((acc, a) => acc + a.incidents_created, 0);
-
-    return {
-      id: scope.id,
-      name: scope.name,
-      billing_code: scope.billing_code,
-      erreurs,
-      incidents,
-      arriere: trailingErrors(erreurs, incidents),
-      transformation: transformationRate(incidents, erreurs),
-    };
-  });
-
-  const ascending = sort === "transformation";
-  return rows.sort((a, b) => {
-    if (ascending) {
-      // Un taux indéfini passe en dernier dans les deux sens du tri.
-      if (a.transformation === null) return b.transformation === null ? 0 : 1;
-      if (b.transformation === null) return -1;
-      return a.transformation - b.transformation || b.arriere - a.arriere;
-    }
-    const value = sort === "erreurs" ? "erreurs" : sort === "incidents" ? "incidents" : "arriere";
-    return b[value] - a[value];
-  });
-}
-
-export function buildStackSeries(
-  scopes: ScopeMonitoring[],
-  points: PeriodPoint[],
-  topN = MAX_STACKED_SERIES,
-  labelOf: (day: string) => string = (day) => day,
-): StackSeries[] {
-  const perScope = scopes.map((scope) => {
-    const byLabel = new Map<string, number>();
-    (scope.daily_activities || []).forEach((activity) => {
-      const label = labelOf(activity.day);
-      byLabel.set(
-        label,
-        (byLabel.get(label) ?? 0) +
-          trailingErrors(activity.errors_reported, activity.incidents_created),
-      );
-    });
-    return {
-      key: `scope:${scope.id}`,
-      name: scope.name,
-      totals: points.map((point) => byLabel.get(point.label) ?? 0),
-      total: points.reduce(
-        (acc, point) => acc + (byLabel.get(point.label) ?? 0),
-        0,
-      ),
-    };
-  });
-
-  const kept = [...perScope]
-    .sort((a, b) => b.total - a.total)
-    .slice(0, topN);
-  const dropped = perScope.filter(
-    (entry) => !kept.some((k) => k.key === entry.key),
-  );
-
-  const series: StackSeries[] = kept.map((entry) => ({
-    key: entry.key,
-    name: entry.name,
-    values: entry.totals,
-    isAutres: false,
-  }));
-
-  if (dropped.length > 0) {
-    series.push({
-      key: "scope:autres",
-      name: `Autres (${dropped.length})`,
-      values: points.map((_, index) =>
-        dropped.reduce((acc, entry) => acc + entry.totals[index], 0),
-      ),
-      isAutres: true,
-    });
-  }
-
-  return series;
-}
-
-export type ChartRow = PeriodPoint & Record<string, number | string>;
-
-export function stackToChartData(
-  points: PeriodPoint[],
-  series: StackSeries[],
-): ChartRow[] {
-  return points.map((point, index) => {
-    const row: ChartRow = {
-      label: point.label,
-      erreurs: point.erreurs,
-      incidents: point.incidents,
-      arriere: point.arriere,
-    };
-    series.forEach((entry) => {
-      row[entry.key] = entry.values[index] ?? 0;
-    });
-    return row;
-  });
 }
 
 export function scaleBucket(value: number, max: number): number {

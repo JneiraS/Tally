@@ -3,11 +3,7 @@ import { Check, Download, SlidersHorizontal } from "lucide-react";
 import { firstActivityDay, resolvePresetRange } from "../utils/analytics";
 import { getTodayIsoDate } from "../utils/date";
 import type { NonWorkingDays, ScopeMonitoring } from "../types";
-import type {
-  Granularity,
-  Metric,
-  RangePreset,
-} from "../utils/analytics";
+import type { Granularity, RangePreset } from "../utils/analytics";
 
 export const SCOPE_LIST_PATH = "/";
 export const SCOPE_DETAIL_PATH = "/scopes/:id";
@@ -20,7 +16,6 @@ export interface AnalyticsFilters {
   granularity: Granularity;
   workingDaysOnly: boolean;
   compare: boolean;
-  metric: Metric;
   scopeIds: string[];
 }
 
@@ -190,33 +185,6 @@ export function AnalyticsFilterBar({
             />
             Comparer à la période précédente
           </label>
-          <div className="mt-1.5">
-            <span className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-nord-4">
-              Classement
-            </span>
-            <div className="flex flex-wrap gap-1" role="group" aria-label="Indicateur du classement">
-              <ToggleButton
-                label="En attente"
-                active={filters.metric === "arriere"}
-                onClick={() => onChange({ metric: "arriere" })}
-              />
-              <ToggleButton
-                label="Erreurs"
-                active={filters.metric === "erreurs"}
-                onClick={() => onChange({ metric: "erreurs" })}
-              />
-              <ToggleButton
-                label="Incidents"
-                active={filters.metric === "incidents"}
-                onClick={() => onChange({ metric: "incidents" })}
-              />
-              <ToggleButton
-                label="Transformation"
-                active={filters.metric === "transformation"}
-                onClick={() => onChange({ metric: "transformation" })}
-              />
-            </div>
-          </div>
         </fieldset>
       </div>
 

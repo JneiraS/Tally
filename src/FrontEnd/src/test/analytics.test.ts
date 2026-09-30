@@ -3,9 +3,8 @@ import {
   aggregateByDay,
   aggregateByWeek,
   buildPeriodDays,
-  buildStackSeries,
   buildSupervisionGrid,
-  buildScopeRanking,
+  buildWeeklyErrorHeatmap,
   clampRange,
   computePeriodSummary,
   firstActivityDay,
@@ -15,7 +14,6 @@ import {
   previousPeriod,
   resolvePresetRange,
   scaleBucket,
-  stackToChartData,
   weekLabel,
 } from "../utils/analytics";
 import { DailyActivity, NonWorkingDays, ScopeMonitoring } from "../types";
@@ -183,6 +181,59 @@ describe("agrégation", () => {
   });
 });
 
+describe("heatmap hebdomadaire des erreurs", () => {
+  const SCOPES = [
+    scope("s1", "Alpha", [
+      activity("2026-09-21", 4, 1),
+      activity("2026-09-22", 6, 2),
+      activity("2026-09-28", 3, 0),
+    ]),
+    scope("s2", "Beta", [activity("2026-09-21", 2, 0)]),
+  ];
+
+  it("cumule les erreurs brutes par semaine et par périmètre", () => {
+    const heatmap = buildWeeklyErrorHeatmap(SCOPES, [
+      "2026-09-21",
+      "2026-09-22",
+      "2026-09-28",
+    ]);
+
+    expect(heatmap.weeks).toEqual(["2026-W39", "2026-W40"]);
+    expect(heatmap.rows[0]).toMatchObject({
+      name: "Alpha",
+      totalErrors: 13,
+      cells: [
+        { week: "2026-W39", errors: 10, changePct: null },
+        { week: "2026-W40", errors: 3, changePct: -70 },
+      ],
+    });
+    expect(heatmap.maxErrors).toBe(10);
+  });
+
+  it("classe les périmètres sur le total d'erreurs de la période", () => {
+    const heatmap = buildWeeklyErrorHeatmap(SCOPES, [
+      "2026-09-21",
+      "2026-09-22",
+      "2026-09-28",
+    ]);
+
+    expect(heatmap.rows.map((row) => row.name)).toEqual(["Alpha", "Beta"]);
+    expect(heatmap.rows[1].cells[1]).toMatchObject({ errors: 0, changePct: -100 });
+  });
+
+  it("distingue une semaine sans erreur d'une semaine absente de la période", () => {
+    const heatmap = buildWeeklyErrorHeatmap(
+      [scope("s1", "Alpha", [activity("2026-09-21", 0, 0)])],
+      ["2026-09-21", "2026-09-28"],
+    );
+
+    expect(heatmap.rows[0].cells).toEqual([
+      { week: "2026-W39", errors: 0, changePct: null },
+      { week: "2026-W40", errors: 0, changePct: null },
+    ]);
+  });
+});
+
 describe("résumé de période", () => {
   const SCOPES = [
     scope("s1", "Alpha", [
@@ -267,92 +318,6 @@ describe("résumé de période", () => {
       arrierePct: null,
       couverturePct: null,
     });
-  });
-});
-
-describe("classement des périmètres", () => {
-  const SCOPES = [
-    scope("s1", "Alpha", [activity("2026-09-21", 10, 1)]),
-    scope("s2", "Beta", [activity("2026-09-21", 8, 8)]),
-    scope("s3", "Gamma", [activity("2026-09-21", 0, 0)]),
-  ];
-  const DAYS = ["2026-09-21"];
-
-  it("classe du plus mauvais arriéré au meilleur", () => {
-    expect(buildScopeRanking(SCOPES, DAYS, "arriere").map((r) => r.name)).toEqual([
-      "Alpha",
-      "Beta",
-      "Gamma",
-    ]);
-  });
-
-  it("classe du taux de transformation le plus faible au plus élevé", () => {
-    // Alpha 1/10 = 10 %, Beta 8/8 = 100 %, Gamma n'a aucune erreur : taux indéfini
-    expect(
-      buildScopeRanking(SCOPES, DAYS, "transformation").map((r) => r.name),
-    ).toEqual(["Alpha", "Beta", "Gamma"]);
-  });
-
-  it("porte les totaux de période de chaque périmètre", () => {
-    const row = buildScopeRanking(SCOPES, DAYS, "arriere")[0];
-    expect(row).toMatchObject({
-      id: "s1",
-      name: "Alpha",
-      erreurs: 10,
-      incidents: 1,
-      arriere: 9,
-      transformation: 10,
-    });
-  });
-
-  it("renvoie un taux nul plutôt que défini pour un périmètre sans erreur", () => {
-    const gamma = buildScopeRanking(SCOPES, DAYS, "arriere")[2];
-    expect(gamma.transformation).toBeNull();
-  });
-});
-
-describe("séries empilées", () => {
-  const SCOPES = [
-    scope("s1", "Alpha", [activity("2026-09-21", 4, 1)]),
-    scope("s2", "Beta", [activity("2026-09-21", 6, 3)]),
-  ];
-  const DAYS = ["2026-09-21", "2026-09-22"];
-
-  it("donne une série par périmètre avec l'arriéré de chaque journée", () => {
-    const series = buildStackSeries(SCOPES, aggregateByDay(SCOPES, DAYS));
-    expect(series.map((s) => s.name)).toEqual(["Alpha", "Beta"]);
-    expect(series[0].values).toEqual([3, 0]);
-    expect(series[1].values).toEqual([3, 0]);
-  });
-
-  it("regroupe les périmètres au-delà du plafond dans une série « Autres »", () => {
-    const many = Array.from({ length: 10 }, (_, i) =>
-      scope(`s${i}`, `Scope ${i}`, [activity("2026-09-21", 10, 1)]),
-    );
-    const series = buildStackSeries(many, aggregateByDay(many, ["2026-09-21"]), 3);
-    expect(series).toHaveLength(4);
-    expect(series.filter((s) => s.isAutres)).toHaveLength(1);
-    // 9 arriérés de 9, regroupés : les 3 premiers plus 6 autres font bien 9
-    const total = series.reduce(
-      (acc, s) => acc + s.values.reduce((a, b) => a + b, 0),
-      0,
-    );
-    expect(total).toBe(90);
-  });
-
-  it("prépare des lignes de graphique avec le total en garde-fou", () => {
-    const points = aggregateByDay(SCOPES, DAYS);
-    const series = buildStackSeries(SCOPES, points);
-    const rows = stackToChartData(points, series);
-    expect(rows).toHaveLength(2);
-    expect(Object.keys(rows[0])).toContain(series[0].key);
-    expect(rows[0].arriere).toBe(6);
-  });
-
-  it("nomme chaque série d'après son périmètre, pas d'après sa clé technique", () => {
-    const series = buildStackSeries(SCOPES, aggregateByDay(SCOPES, DAYS));
-    expect(series[0].key).not.toBe("Alpha");
-    expect(series[0].key.startsWith("scope:")).toBe(true);
   });
 });
 
