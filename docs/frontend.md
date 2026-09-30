@@ -240,6 +240,14 @@ Trois règles qu'un coup d'œil au rendu ne donne pas :
   faute. Un taux indéfini (aucune erreur) passe en dernier dans les deux sens
   plutôt que d'être traité comme un 0 %.
 
+La barre de filtres expose aussi l'**indicateur du classement** (`En attente`,
+`Erreurs`, `Incidents` ou `Transformation`). Le choix pilote le classement sans
+changer les cartes KPI ni la série empilée : ces trois zones répondent à des
+questions différentes et ne doivent pas changer de sens implicitement. Sous les
+filtres, la page rappelle la période, le nombre de périmètres sélectionnés et la
+granularité réellement affichée ; ce contexte reste visible quand les contrôles
+ne sont plus dans le viewport.
+
 Deux plafonds de lisibilité, explicites parce qu'ils changent ce qui est affiché :
 au-delà de **120 jours** l'agrégat passe en semaine (annoncé à l'utilisateur, car
 son choix « par jour » est ignoré), et au-delà de **8 périmètres** l'aire empilée

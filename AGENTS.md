@@ -1404,6 +1404,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
   périmètre le plus dégradé, en tête de liste, recevrait la barre la plus courte. Un
   taux indéfini n'a aucune barre — une barre nulle se lirait comme un 0 %.
+- **L'indicateur du classement est un filtre explicite.** `AnalyticsFilterBar` permet
+  de choisir entre arriéré, erreurs, incidents et transformation ; ce choix ne
+  modifie que le classement, pas les KPI ni l'aire empilée. La page rappelle sous
+  les filtres la période, le nombre de périmètres retenus et la granularité effective
+  afin que le contexte reste lisible hors du panneau de contrôles.
 - **La sélection des périmètres est une rangée de pastilles** (12 visibles, « +N
   autres » en ligne), pas une liste dans une boîte `max-h-* overflow-y-*` : cinq
   périmètres suffisaient à faire apparaître une barre. Ni le conteneur défilant ni

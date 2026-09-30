@@ -86,6 +86,18 @@ describe("AnalyticsFilterBar — sélection des périmètres", () => {
     expect(selected.className).toContain("dark:accent-nord-8");
   });
 
+  it("permet de choisir l'indicateur du classement", () => {
+    const onChange = renderBar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Transformation" }));
+
+    expect(onChange).toHaveBeenCalledWith({ metric: "transformation" });
+    expect(screen.getByRole("button", { name: "Transformation" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
   it("garde une pastille non sélectionnée lisible en thème sombre", () => {
     const filters = { ...FILTERS, scopeIds: FILTERS.scopeIds.filter((id) => id !== "s1") };
     renderBar(MANY, filters);

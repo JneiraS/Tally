@@ -141,6 +141,33 @@ export function AnalyticsFilterBar({
               />
             </label>
           </div>
+          <fieldset className="mt-3">
+            <legend className="mb-1.5 text-sm font-medium text-slate-700 dark:text-nord-3">
+              Indicateur du classement
+            </legend>
+            <div className="flex flex-wrap gap-1" role="group" aria-label="Indicateur du classement">
+              <ToggleButton
+                label="En attente"
+                active={filters.metric === "arriere"}
+                onClick={() => onChange({ metric: "arriere" })}
+              />
+              <ToggleButton
+                label="Erreurs"
+                active={filters.metric === "erreurs"}
+                onClick={() => onChange({ metric: "erreurs" })}
+              />
+              <ToggleButton
+                label="Incidents"
+                active={filters.metric === "incidents"}
+                onClick={() => onChange({ metric: "incidents" })}
+              />
+              <ToggleButton
+                label="Transformation"
+                active={filters.metric === "transformation"}
+                onClick={() => onChange({ metric: "transformation" })}
+              />
+            </div>
+          </fieldset>
         </div>
 
         <fieldset>

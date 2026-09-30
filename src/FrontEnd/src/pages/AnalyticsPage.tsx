@@ -227,6 +227,18 @@ export function AnalyticsPage({
         onExport={exportSelection}
       />
 
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-nord-4">
+        <p>
+          {formatPeriod(filters.from, filters.to)} · {selected.length} périmètre
+          {selected.length === 1 ? "" : "s"} sélectionné
+          {selected.length === 1 ? "" : "s"}
+        </p>
+        <p>
+          {granularity === "jour" ? "Vue quotidienne" : "Vue hebdomadaire"}
+          {filters.workingDaysOnly ? " · jours ouvrés" : " · tous les jours"}
+        </p>
+      </div>
+
       {selected.length === 0 ? (
         <AnalyticsEmptyState
           icon={<Filter className="w-6 h-6" />}
@@ -405,6 +417,15 @@ function initialFilters(
     preset: from && to ? "perso" : "mois",
     scopeIds: [],
   };
+}
+
+function formatPeriod(from: string, to: string): string {
+  const [fromYear, fromMonth, fromDay] = from.split("-");
+  const [toYear, toMonth, toDay] = to.split("-");
+  if (fromYear === toYear && fromMonth === toMonth) {
+    return `${fromDay}–${toDay}/${toMonth}/${toYear}`;
+  }
+  return `${fromDay}/${fromMonth}/${fromYear}–${toDay}/${toMonth}/${toYear}`;
 }
 
 function formatShort(iso: string): string {

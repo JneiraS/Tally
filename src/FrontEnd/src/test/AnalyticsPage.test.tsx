@@ -128,6 +128,15 @@ describe("AnalyticsPage", () => {
     });
   });
 
+  it("affiche le contexte courant de la vue", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/01–21\/09\/2026/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Vue quotidienne · jours ouvrés/)).toBeInTheDocument();
+  });
+
   it("décoche un périmètre et renégocie le compte affiché", async () => {
     renderPage();
 
