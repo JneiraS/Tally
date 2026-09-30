@@ -241,6 +241,16 @@ en SQL direct (`docs/cli.md`).
 Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
 avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
 
+## Frontend
+
+Trois vues : la liste des périmètres (saisie du jour, `/`), l'analyse (`/analyse`, agrégats et grille de
+supervision sur une période) et le journal d'audit (`/audit-log`). L'analyse est **en lecture seule** et dérive
+entièrement de `GET /scope-monitorings` — aucun appel supplémentaire. Toute sa logique de calcul est pure et
+vit dans `src/FrontEnd/src/utils/analytics.ts`, ce qui la rend testable sans rendu.
+
+Le détail du frontend — arborescence, routage, pièges recharts, tests — est dans
+**[`docs/frontend.md`](docs/frontend.md)**.
+
 ## Docker
 
 La stack complète (`db` PostgreSQL + `api` FastAPI + `frontend` React/nginx) est définie dans

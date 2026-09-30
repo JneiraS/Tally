@@ -8,6 +8,8 @@ import { ThemeProvider } from "./hooks/useTheme";
 import { ScopeListPage } from "./pages/ScopeListPage";
 import { ScopeDetailPage } from "./pages/ScopeDetailPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
+import { PageNav } from "./components/PageNav";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ScopeFormModal } from "./components/ScopeFormModal";
@@ -17,7 +19,11 @@ import { NonWorkingDays } from "./types";
 import { DEFAULT_NON_WORKING_DAYS } from "./utils/kpi";
 import { ExternalLink, Terminal } from "lucide-react";
 import { AuthSession, protabApi } from "./services/api";
-import { AUDIT_LOG_PATH } from "./constants/routes";
+import {
+  ANALYTICS_PATH,
+  AUDIT_LOG_PATH,
+  SCOPE_LIST_PATH,
+} from "./constants/routes";
 
 export default function App() {
   // The provider wraps every branch, including the pre-session and login
@@ -97,7 +103,7 @@ function AppContent() {
             <main className="flex-1 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
               <Routes>
                 <Route
-                  path="/"
+                  path={SCOPE_LIST_PATH}
                   element={
                     <ScopeListPage
                       onOpenCreateScope={() => setIsCreateScopeOpen(true)}
@@ -111,13 +117,30 @@ function AppContent() {
                   }
                 />
                 <Route path="/scopes/:id" element={<ScopeDetailPage />} />
+                <Route
+                  path={ANALYTICS_PATH}
+                  element={
+                    <AnalyticsPage
+                      nonWorkingDays={
+                        session.project.non_working_days ??
+                        DEFAULT_NON_WORKING_DAYS
+                      }
+                    />
+                  }
+                />
                 <Route path={AUDIT_LOG_PATH} element={<AuditLogPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>
 
             {/* Pied de page informatif */}
-            <footer className="border-t border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 py-6 mt-12 text-xs text-slate-500 dark:text-nord-4 transition-colors"></footer>
+            {/* Sur mobile, la navigation reprend dans le pied de page : la barre
+                d'en-tête se condense et ne laisserait plus qu'un lien « retour ». */}
+            <footer className="border-t border-slate-200 dark:border-nord-2 bg-white dark:bg-nord-1 py-4 mt-12 text-xs text-slate-500 dark:text-nord-4 transition-colors lg:hidden">
+              <div className="mx-auto max-w-screen-2xl px-4 sm:px-6">
+                <PageNav orientation="vertical" />
+              </div>
+            </footer>
 
             {/* Modales globales de création et d'import */}
             <ScopeFormModal

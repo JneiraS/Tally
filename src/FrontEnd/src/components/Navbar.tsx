@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { PageNav } from "./PageNav";
+import { SCOPE_LIST_PATH } from "../constants/routes";
 import {
   Activity,
   Plus,
@@ -87,7 +89,7 @@ export function Navbar({
           {/* Logo & Titre */}
           <div className="flex items-center gap-3">
             <Link
-              to="/"
+              to={SCOPE_LIST_PATH}
               className="flex items-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 rounded-lg p-1 -m-1"
             >
               <div className="w-9 h-9 rounded-xl bg-blue-600 dark:bg-nord-9 text-white flex items-center justify-center shadow-xs">
@@ -105,6 +107,10 @@ export function Navbar({
                 </p>
               </div>
             </Link>
+          </div>
+
+          <div className="hidden md:block">
+            <PageNav />
           </div>
 
           {/* Actions & Menu utilisateur */}

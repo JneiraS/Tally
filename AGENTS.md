@@ -1354,7 +1354,49 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
   `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
   monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
-- Tests : `npm test` (vitest, 116 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- **La page `/analyse` dérive entièrement de `GET /scope-monitorings`.** Aucun
+  endpoint d'agrégation, aucun use case, aucune migration : la liste renvoie déjà les
+  périmètres avec leur historique. Un serveur d'agrégation n'aurait de sens qu'au-delà
+  de ce que le navigateur tient — et il faudrait l'avoir mesuré avant de le créer.
+- **Toute la logique de `/analyse` est pure et vit dans `utils/analytics.ts`.** Les
+  composants ne calculent rien : ils reçoivent des agrégats et les rendent. C'est ce qui
+  rend la page testable sans rendu — Recharts ne monte aucun `<svg>` sous jsdom
+  (`RootSurface` renvoie `null` sous 0×0), donc un test qui attend le graphique attend
+  l'échec.
+- **Un seul sens de tri pour le classement : du plus dégradé au moins dégradé.** Y
+  compris pour le taux de transformation, donc croissant. Faire varier le sens selon la
+  métrique est une faute d'usage, pas une commodité : un superviseur cherche qui traiter
+  en premier. Un taux indéfini (aucune erreur) passe en dernier dans **les deux** sens,
+  et jamais comme un 0 % — un `null` mal trié placerait le meilleur périmètre en tête.
+- **`buildStackSeries` réimplanterait `trailingErrors` si on lui passait des
+  « erreurs brutes ».** L'arriéré et les erreurs ne sont pas la même quantité : une aire
+  empilée d'erreurs brutes se lirait comme un backlog qui n'en est pas un.
+- **Les deux plafonds de lisibilité de `/analyse` sont explicites parce qu'ils
+  contredisent le choix de l'utilisateur** : au-delà de 120 jours on force la semaine (et on
+  le dit), au-delà de 8 périmètres l'aire empilée garde le top 8 + « Autres (n) » en gris
+  neutre. Un plafond silencieux fait passer une sélection pour respectée alors qu'elle ne
+  l'est pas.
+- **L'URL de `/analyse` est un reflet de l'état local, pas sa source.** Écrire l'URL
+  depuis le `setState` met un effet de bord dans un updater (React peut l'appeler deux fois
+  en mode strict). `scopeIds` s'écrit **toujours**, avec la sentinelle `-` pour une
+  sélection vide : une clé absente se lit « tous les périmètres », donc l'URL d'une
+  sélection vide ramènerait l'utilisateur à la vue complète. L'écriture est suspendue
+  pendant le chargement des périmètres.
+- **La grille de supervision est la signature de `/analyse`, pas ses graphiques.** Aucun
+  graphique ne montre l'état de chaque journée de chaque périmètre. Elle reste un
+  `<table>` (navigation au clavier suivant les jours) avec première colonne `sticky`, et
+  chaque pastille porte son `aria-label` complet : l'état d'une journée ne peut pas être
+  porté par la seule couleur. En agrégat semaine, l'état retenu est le **plus dégradé** de
+  la semaine — sinon une semaine traitée mais inachevée s'afficherait verte.
+- **`PageNav` est monté deux fois** (en-tête `md`+, pied de page en dessous) parce que la
+  barre d'en-tête se condense sur mobile. `NavLink` a besoin de `end` sur
+  `SCOPE_LIST_PATH` : sans lui, `/` est active sur toutes les pages et « Périmètres » serait
+  marqué courant partout. `aria-current` porte l'information d'état actif, pas la couleur.
+- **`/analyse` n'a pas de location nginx.** Le `try_files $uri $uri/ /index.html` de la SPA
+  sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
+  illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
+  entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
+- Tests : `npm test` (vitest, 177 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 

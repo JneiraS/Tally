@@ -55,12 +55,13 @@ src/FrontEnd/src/
 ├── index.css             Tailwind + thème sombre
 ├── services/api.ts       Client HTTP unique (protabApi)
 ├── types/index.ts        Interfaces partagées avec l'API
-├── constants/routes.ts   Chemins d'API déclarés une seule fois
+├── constants/routes.ts   Chemins déclarés une seule fois (API + SPA)
 ├── hooks/                useTheme, useToast
-├── pages/                ScopeListPage, ScopeDetailPage, AuditLogPage,
-│                         LoginPage, NotFoundPage
-├── components/           21 composants (modales, éditeurs, graphiques, toasts)
-└── utils/                kpi, date, export, validation, knowledgeBase, auditStats
+├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
+│                         AuditLogPage, LoginPage, NotFoundPage
+├── components/           25 composants (modales, éditeurs, graphiques, toasts)
+└── utils/                kpi, date, export, validation, knowledgeBase,
+                          auditStats, analytics
 ```
 
 La séparation utile à un mainteneur : **`utils/` est de la logique pure**, sans
@@ -102,8 +103,20 @@ Le proxy de développement est déclaré dans `vite.config.ts` pour
 `http://localhost:8000`. **Ajouter une route API en développement impose
 d'ajouter son chemin ici**, sinon CORS.
 
-Routage applicatif (`App.tsx:98-116`) : `/` (liste des périmètres),
-`/scopes/:id` (détail), `AUDIT_LOG_PATH`, et `*` → `NotFoundPage`.
+Routage applicatif : `SCOPE_LIST_PATH`, `/scopes/:id`, `ANALYTICS_PATH`
+(`/analyse`), `AUDIT_LOG_PATH`, et `*` → `NotFoundPage`. Les quatre chemins de la
+SPA sont eux aussi des constantes de `routes.ts`, pour la même raison que les
+chemins d'API : une page ajoutée avec un littéral dans `App.tsx` dérive de la
+navigation d'un coup.
+
+**`/analyse` n'a pas de location nginx.** Le `try_files … /index.html` de la
+SPA sert déjà les routes inconnues ; un bloc dédié serait un no-op qui donnerait
+l'illusion d'une étape nécessaire.
+
+`PageNav` porte les trois liens (Périmètres · Analyse · Journal) et est monté
+deux fois : dans l'en-tête (`md` et au-dessus) et dans le pied de page, qui n'est
+visible qu'en dessous. Sur mobile l'en-tête se condense et la navigation doit
+rester atteignable sans revenir par le logo.
 
 ---
 
@@ -194,7 +207,61 @@ en un seul écrasement.
 
 ---
 
-## 8. Graphiques et styles
+## 8. La page d'analyse — `/analyse`
+
+**Toute la page dérive de `GET /scope-monitorings`.** Aucun appel supplémentaire :
+la liste renvoie déjà les périmètres avec leur historique. Un endpoint
+d'agrégation côté serveur n'aurait de sens qu'à partir du jour où la charge
+dépasse ce que le navigateur tient — et il faudrait alors mesurer avant de le
+créer, pas le supposer.
+
+Toute la logique de calcul est **pure** et vit dans `utils/analytics.ts` :
+presets de période, bornes, semaines ISO, agrégats, résumé, delta, classement,
+séries empilées, grille. Elle compose `utils/kpi.ts` — `transformationRate`,
+`trailingErrors`, `coverageRate`, `isWorkingDay`, `lastWorkingDays` — sans les
+reimplémenter : deux définitions concurrentes d'un même chiffre sont un défaut,
+pas une.extension. Les tests portent donc sur ce module, ce qui est le seul
+endroit où ils sont déterministes.
+
+Trois règles qu'un coup d'œil au rendu ne donne pas :
+
+- **Une seule source de vérité pour les filtres**, l'état local ; l'URL en est le
+  reflet via un `useEffect`. Écrire l'URL depuis le `setState` placerait un effet
+  de bord dans un updater (React peut l'appeler deux fois en mode strict).
+- **`scopeIds` s'écrit toujours dans l'URL**, y compris la valeur sentinelle `-`
+  pour une sélection vide. Une clé *absente* se lit « tous les périmètres » à la
+  résolution : l'URL d'une sélection vide ramènerait l'utilisateur à la vue
+  complète sans qu'il l'ait demandée. L'écriture est suspendue pendant le
+  chargement, sinon elle figerait une liste vide que le partageur ne retrouverait
+  pas.
+- **Le tri du classement est toujours « du plus dégradé au moins dégradé »**, y
+  compris pour le taux de transformation (croissant). C'est le seul ordre qui sert
+  un superviseur ; faire varier le sens de lecture selon la métrique lui serait une
+  faute. Un taux indéfini (aucune erreur) passe en dernier dans les deux sens
+  plutôt que d'être traité comme un 0 %.
+
+Deux plafonds de lisibilité, explicites parce qu'ils changent ce qui est affiché :
+au-delà de **120 jours** l'agrégat passe en semaine (annoncé à l'utilisateur, car
+son choix « par jour » est ignoré), et au-delà de **8 périmètres** l'aire empilée
+garde le top 8 plus un « Autres (n) » en gris neutre. Le classement, lui, s'arrête
+à 15 barres et renvoie vers la grille pour le reste.
+
+La **grille de supervision** (ligne = périmètre, colonne = jour) est la signature
+de la page : c'est ce qu'aucun graphique ne montre d'aussi bien. L'état d'une
+cellule ne peut pas être porté par la seule couleur — chaque pastille porte un
+`aria-label` complet (« Alpha, lundi 21 septembre 2026 : traité, 3 en attente »),
+la ligne entière est un lien vers le détail, et un résumé `role="img"` porte les
+totaux. En agrégat semaine, une colonne porte plusieurs jours et l'état retenu est
+le plus dégradé de la semaine, sinon une semaine traitée mais inachevée
+s'afficherait verte.
+
+Elle reste un `<table>` : la navigation au clavier suit les jours, ce qu'une suite
+de `div` ne ferait pas. La première colonne est `sticky`, sinon elle disparaît
+dans le défilement horizontal dès qu'un projet a plus d'une quinzaine de jours.
+
+---
+
+## 9. Graphiques et styles
 
 Deux pièges liés aux recharts, documentés en `AGENTS.md` §28.6 et utiles à
 rappeler :
@@ -220,13 +287,13 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 
 ---
 
-## 9. Tests
+## 10. Tests
 
 ```bash
 npm test
 ```
 
-18 fichiers dans `src/test/`. `src/test/setup.ts` se limite à importer
+23 fichiers dans `src/test/`. `src/test/setup.ts` se limite à importer
 `@testing-library/jest-dom/vitest` : ni `ResizeObserver` ni dimensions ne sont
 mockés, ce qui a des conséquences (voir `docs/testing.md` §6).
 
@@ -242,7 +309,7 @@ Trois pièges à connaître avant d'écrire un test :
 
 ---
 
-## 10. Ce qui n'existe pas
+## 11. Ce qui n'existe pas
 
 Par honnêteté, et parce qu'un mainteneur ne doit pas les chercher :
 
@@ -257,7 +324,7 @@ Par honnêteté, et parce qu'un mainteneur ne doit pas les chercher :
 
 ---
 
-## 11. Build et déploiement
+## 12. Build et déploiement
 
 `npm run build` produit `dist/`, servi par nginx dans l'image `frontend`
 (détails dans [`docs/docker-architecture.md`](docker-architecture.md)). Les
@@ -271,7 +338,7 @@ Si vous ajoutez un type de fichier généré, pensez aux deux `.gitignore` **et*
 
 ---
 
-## 12. Documents voisins
+## 13. Documents voisins
 
 - [`docs/architecture.md`](architecture.md) — l'API consommée par ce frontend.
 - [`docs/development.md`](development.md) — commandes et variables.
