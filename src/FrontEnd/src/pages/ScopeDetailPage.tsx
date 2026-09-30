@@ -18,6 +18,7 @@ import {
 import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
+import { BillingCodeBadge } from '../components/BillingCodeBadge';
 import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } from '../utils/date';
 import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
@@ -250,7 +251,10 @@ export function ScopeDetailPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-nord-2 pb-6">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-nord-6">{scope.name}</h1>
+              <div className="flex items-center gap-1.5">
+                <BillingCodeBadge code={scope.billing_code} />
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-nord-6">{scope.name}</h1>
+              </div>
               <a
                 href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
                 target="_blank"

@@ -105,7 +105,12 @@ Conséquences concrètes :
 
 - **Ajouter une colonne** = ajouter une instruction `ADD COLUMN IF NOT EXISTS`
   dans `_apply_schema`. La table préexistante est alors conservée, et les
-  installations existantes se mettent à niveau au prochain démarrage.
+  installations existantes se mettent à niveau au prochain démarrage. Une
+  colonne ajoutée sans valeur par défaut reste `NULL` sur les lignes
+  préexistantes : c'est le cas de `scope_monitorings.billing_code`, obligatoire
+  à la création mais dont les lignes anciennes se complètent en SQL
+  (`docs/cli.md`). N'ajoutez pas `NOT NULL` dans la même instruction — l'`ALTER`
+  échouerait sur une table déjà peuplée.
 - **Modifier une contrainte** demande une attention particulière : `IF NOT
   EXISTS` n'existe pas pour les contraintes dans cette forme, d'où le bloc
   `DO $$` qui teste `pg_constraint` avant d'ajouter la clé étrangère.

@@ -349,6 +349,7 @@ erDiagram
         text knowledge_base_id
         text official_main
         text official_backup
+        text billing_code "nullable"
     }
     daily_activities {
         text scope_id PK
@@ -382,13 +383,22 @@ erDiagram
     }
 ```
 
-Deux détails qui prêtent à erreur :
+Trois détails qui prêtent à erreur :
 
 - `scope_monitorings.name` est **`UNIQUE` globalement**, pas par projet. Deux
   projets ne peuvent donc pas utiliser le même nom de périmètre.
 - `official_main` et `official_backup` stockent une **liste** de
   quadrigrammes séparés par `/` (parseur commun :
   `postgres_auth_repository.py:130-146`), pas un scalaire.
+- `billing_code` est **obligatoire à la création mais nullable en base**. Les
+  deux règles ne se contredisent pas : l'obligation vit dans le domaine
+  (`ScopeMonitoring.create()`) et dans le schéma Pydantic, jamais dans la
+  colonne. Un `NOT NULL` ferait échouer l'`ALTER TABLE ... ADD COLUMN IF NOT
+  EXISTS` du démarrage sur une table déjà peuplée, et le constructeur — chemin
+  de réhydratation des repositories — refuse de lever sur une ligne lue : une
+  seule ligne ancienne illisible viderait toute la liste. Aucune route ne
+  permet de compléter un code manquant après coup, la reprise se fait en SQL
+  (`docs/cli.md`).
 
 ---
 

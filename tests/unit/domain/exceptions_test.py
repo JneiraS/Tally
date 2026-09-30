@@ -3,6 +3,7 @@ from protab.domain.exceptions import (
     DomainError,
     DuplicateDailyActivityError,
     DuplicateFeaiReferenceError,
+    EmptyBillingCodeError,
     EmptyOfficialsError,
     IncidentsExceedErrorsError,
     InvalidFeaiReferenceError,
@@ -20,6 +21,7 @@ def test_domain_exceptions_inheritance():
     assert issubclass(DomainError, Exception)
     assert issubclass(InvalidKnowledgeBaseIdError, DomainError)
     assert issubclass(EmptyOfficialsError, DomainError)
+    assert issubclass(EmptyBillingCodeError, DomainError)
     assert issubclass(NegativeErrorsCountError, DomainError)
     assert issubclass(NegativeIncidentsCountError, DomainError)
     assert issubclass(IncidentsExceedErrorsError, DomainError)

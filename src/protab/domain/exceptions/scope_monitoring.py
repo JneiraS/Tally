@@ -9,6 +9,10 @@ class EmptyOfficialsError(DomainError):
     """Raised when main or backup officials are not provided or are blank."""
 
 
+class EmptyBillingCodeError(DomainError):
+    """Raised when a ScopeMonitoring is created without a billing code."""
+
+
 class DuplicateDailyActivityError(DomainError):
     """Raised when a ScopeMonitoring already has a DailyActivity for the given day."""
 

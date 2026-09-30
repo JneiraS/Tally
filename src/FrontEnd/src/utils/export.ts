@@ -14,6 +14,10 @@ export interface ExportRow {
   references_feai: string;
   traite: "Oui" | "Non";
   termine: "Oui" | "Non";
+  // Ajoutée en fin de ligne : les colonnes existantes ne se décalent pas, donc
+  // les tableurs et formules déjà configurés sur un export continuent de viser
+  // les bonnes lettres.
+  code_facturation: string;
 }
 
 const HEADERS: { key: keyof ExportRow; label: string }[] = [
@@ -27,6 +31,7 @@ const HEADERS: { key: keyof ExportRow; label: string }[] = [
   { key: "references_feai", label: "Références FEAI" },
   { key: "traite", label: "Traité" },
   { key: "termine", label: "Terminé" },
+  { key: "code_facturation", label: "Code de facturation" },
 ];
 
 /**
@@ -54,6 +59,7 @@ export function buildExportRows(
         references_feai: activity.feai.join(" | "),
         traite: activity.handled ? "Oui" : "Non",
         termine: activity.completed ? "Oui" : "Non",
+        code_facturation: scope.billing_code ?? "",
       });
     }
   }

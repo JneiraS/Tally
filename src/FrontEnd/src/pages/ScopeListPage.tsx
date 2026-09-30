@@ -18,6 +18,7 @@ import {
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
+import { BillingCodeBadge } from "../components/BillingCodeBadge";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
@@ -249,7 +250,10 @@ export function ScopeListPage({
           .toLowerCase()
           .includes(searchQuery.toLowerCase()) ||
         scope.official_main.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scope.official_backup.toLowerCase().includes(searchQuery.toLowerCase());
+        scope.official_backup.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (scope.billing_code ?? '')
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
 
       if (!matchesSearch) return false;
 
@@ -703,13 +707,16 @@ export function ScopeListPage({
                     >
                       {/* Nom & KB-ID */}
                       <td className="px-5 py-4">
-                        <Link
-                          to={`/scopes/${scope.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-semibold text-slate-900 dark:text-nord-6 group-hover:text-blue-600 dark:group-hover:text-nord-8 transition-colors block focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
-                        >
-                          {scope.name}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <BillingCodeBadge code={scope.billing_code} />
+                          <Link
+                            to={`/scopes/${scope.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-semibold text-slate-900 dark:text-nord-6 group-hover:text-blue-600 dark:group-hover:text-nord-8 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
+                          >
+                            {scope.name}
+                          </Link>
+                        </div>
                         <a
                           href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
                           target="_blank"
@@ -718,9 +725,9 @@ export function ScopeListPage({
                           onClick={(e) => e.stopPropagation()}
                           className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2 hover:text-blue-600 dark:hover:text-nord-8 hover:border-blue-400 dark:hover:border-nord-9/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8"
                         >
-                          {scope.knowledge_base_id}
-                        </a>
-                      </td>
+                        {scope.knowledge_base_id}
+                      </a>
+                    </td>
 
                       {/* Responsables */}
                       <td className="px-5 py-4">
@@ -828,13 +835,16 @@ export function ScopeListPage({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <Link
-                      to={`/scopes/${scope.id}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-semibold text-slate-900 dark:text-nord-6 block truncate focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
-                    >
-                      {scope.name}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <BillingCodeBadge code={scope.billing_code} />
+                      <Link
+                        to={`/scopes/${scope.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-semibold text-slate-900 dark:text-nord-6 truncate min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8 rounded"
+                      >
+                        {scope.name}
+                      </Link>
+                    </div>
                     <a
                       href={buildKnowledgeBaseUrl(scope.knowledge_base_id)}
                       target="_blank"

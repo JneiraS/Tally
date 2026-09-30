@@ -10,6 +10,7 @@ from protab.domain.entities.scope_monitoring import (
 )
 from protab.domain.exceptions import (
     DuplicateDailyActivityError,
+    EmptyBillingCodeError,
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
     InvalidScopeMonitoringIdError,
@@ -86,6 +87,57 @@ def test_officials_blank_strings_rejected():
         Officials(main=" ", backup="Backup")
     with pytest.raises(EmptyOfficialsError):
         Officials(main="Main", backup=" ")
+
+
+def build_scope(**overrides):
+    payload = {
+        "id": "scope-001",
+        "name": "Test Monitoring",
+        "knowledge": KnowledgeBase(id="Test Knowledge"),
+        "officials": Officials(main="Main", backup="Backup"),
+        "billing_code": "FACT-2026-PAI",
+    }
+    payload.update(overrides)
+    return ScopeMonitoring.create(**payload)
+
+
+def test_create_stores_the_billing_code():
+    assert build_scope().billing_code == "FACT-2026-PAI"
+
+
+def test_create_strips_the_billing_code():
+    assert build_scope(billing_code="  FACT-2026-PAI \n").billing_code == (
+        "FACT-2026-PAI"
+    )
+
+
+@pytest.mark.parametrize("blank", [None, "", "   ", "\t\n"])
+def test_create_rejects_a_blank_billing_code(blank):
+    with pytest.raises(EmptyBillingCodeError):
+        build_scope(billing_code=blank)
+
+
+def test_hydration_accepts_a_scope_without_billing_code():
+    # Les périmètres créés avant l'introduction du code sont relus avec un
+    # code absent : ils doivent rester chargeables, sinon find_all échoue.
+    scope = ScopeMonitoring(
+        id="scope-legacy",
+        name="Legacy",
+        knowledge=KnowledgeBase(id="Test Knowledge"),
+        officials=Officials(main="Main", backup="Backup"),
+    )
+    assert scope.billing_code is None
+
+
+def test_blank_billing_code_is_normalised_to_none():
+    scope = ScopeMonitoring(
+        id="scope-legacy",
+        name="Legacy",
+        knowledge=KnowledgeBase(id="Test Knowledge"),
+        officials=Officials(main="Main", backup="Backup"),
+        billing_code="   ",
+    )
+    assert scope.billing_code is None
 
 
 # tests pour DailyActivity et ScopeMonitoring

@@ -10,9 +10,9 @@ interface CsvImportModalProps {
   onSuccess: (createdIds: string[]) => void;
 }
 
-const CSV_SAMPLE = `name,knowledge_base_id,official_main,official_backup
-Périmètre Recouvrement,KB-RECOUVREMENT-01,Julien Moreau,Nathalie Roux
-Périmètre Infrastructure,KB-INFRA-SYS-002,Alexandre Blanc,Émilie Martin`;
+const CSV_SAMPLE = `name,knowledge_base_id,official_main,official_backup,billing_code
+Périmètre Recouvrement,KB-RECOUVREMENT-01,Julien Moreau,Nathalie Roux,FACT-2026-REC
+Périmètre Infrastructure,KB-INFRA-SYS-002,Alexandre Blanc,Émilie Martin,FACT-2026-INF`;
 
 export function CsvImportModal({ isOpen, onClose, onSuccess }: CsvImportModalProps) {
   const { success, error: toastError } = useToast();
@@ -201,10 +201,11 @@ export function CsvImportModal({ isOpen, onClose, onSuccess }: CsvImportModalPro
             </button>
           </div>
           <code className="block bg-white dark:bg-nord-1 p-2 rounded border border-slate-200 dark:border-nord-2 text-[11px] font-mono text-slate-800 dark:text-nord-5 overflow-x-auto">
-            name,knowledge_base_id,official_main,official_backup
+            name,knowledge_base_id,official_main,official_backup,billing_code
           </code>
           <ul className="list-disc pl-4 space-y-1 text-slate-500 dark:text-nord-4">
             <li>L'identifiant de base de connaissances doit comporter au moins 9 caractères.</li>
+            <li>Le code de facturation est obligatoire et libre de format.</li>
             <li>Tous les champs sont requis sur chaque ligne.</li>
             <li>Séparateur pris en charge : virgule (,) ou point-virgule (;).</li>
           </ul>

@@ -27,8 +27,8 @@ def test_parse_valid_csv(tmp_path):
         path,
         [
             list(REQUIRED_HEADERS),
-            ["Scope A", "KB-00000001", "Main", "Backup"],
-            ["Scope B", "KB-00000002", "Paul", "Jean"],
+            ["Scope A", "KB-00000001", "Main", "Backup", "FACT-2026-PAI"],
+            ["Scope B", "KB-00000002", "Paul", "Jean", "FACT-2026-BAT"],
         ],
     )
 
@@ -39,19 +39,40 @@ def test_parse_valid_csv(tmp_path):
     assert commands[0].knowledge_base_id == "KB-00000001"
     assert commands[0].official_main == "Main"
     assert commands[0].official_backup == "Backup"
+    assert commands[0].billing_code == "FACT-2026-PAI"
+
+
+def test_parse_csv_without_billing_code_header_raises(tmp_path):
+    # Le code de facturation est obligatoire : un fichier antérieur à son
+    # introduction doit être rejeté plutôt que de créer des périmètres incomplets.
+    path = tmp_path / "scope.csv"
+    write_csv(
+        path,
+        [
+            ["name", "knowledge_base_id", "official_main", "official_backup"],
+            ["Scope A", "KB-00000001", "Main", "Backup"],
+        ],
+    )
+
+    with pytest.raises(ScopeMonitoringCsvError):
+        parse_scope_monitorings_csv(read_rows(path))
 
 
 def test_parse_trims_whitespace(tmp_path):
     path = tmp_path / "scope.csv"
     write_csv(
         path,
-        [[list(REQUIRED_HEADERS)[0], list(REQUIRED_HEADERS)[1], list(REQUIRED_HEADERS)[2], list(REQUIRED_HEADERS)[3]], ["  Scope A  ", " KB-00000001 ", " Main ", " Backup "]],
+        [
+            list(REQUIRED_HEADERS),
+            ["  Scope A  ", " KB-00000001 ", " Main ", " Backup ", " FACT-2026-PAI "],
+        ],
     )
 
     commands = parse_scope_monitorings_csv(read_rows(path))
 
     assert commands[0].name == "Scope A"
     assert commands[0].official_main == "Main"
+    assert commands[0].billing_code == "FACT-2026-PAI"
 
 
 def test_parse_empty_raises():

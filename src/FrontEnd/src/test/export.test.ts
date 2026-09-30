@@ -37,6 +37,7 @@ const scope = (
   knowledge_base_id: kb,
   official_main: 'Alice',
   official_backup: 'Bob',
+  billing_code: 'FACT-2026-PAI',
   daily_activities,
 });
 
@@ -72,6 +73,19 @@ describe('buildExportRows', () => {
     expect(rows[0].references_feai).toBe('INC000000001 | INC000000002');
     expect(rows[0].traite).toBe('Oui');
     expect(rows[0].termine).toBe('Non');
+    expect(rows[0].code_facturation).toBe('FACT-2026-PAI');
+  });
+
+  it('laisse vide le code de facturation d\'un périmètre qui n\'en porte pas', () => {
+    const scopes = [
+      {
+        ...scope('Périmètre A', 'KB-A-0001', [activity('2026-01-20', 1, 0)]),
+        billing_code: null,
+      },
+    ];
+
+    const rows = buildExportRows(scopes, '2026-01-01', '2026-12-31');
+    expect(rows[0].code_facturation).toBe('');
   });
 
   it('trie les lignes par date croissante puis par périmètre', () => {
@@ -126,13 +140,14 @@ describe('toCsv', () => {
       'Références FEAI',
       'Traité',
       'Terminé',
+      'Code de facturation',
     ]);
   });
 
   it('honore le séparateur choisi', () => {
     const csv = toCsv(rows, ',');
     const [header] = csv.slice(1).split('\n');
-    expect(header.split(',')).toHaveLength(10);
+    expect(header.split(',')).toHaveLength(11);
     expect(header.split(';')).toHaveLength(1);
   });
 

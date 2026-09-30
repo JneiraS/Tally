@@ -72,6 +72,7 @@ def test_create_scope_records_audit_via_api(env):
                 "knowledge_base_id": "KB-00000001",
                 "official_main": "Main",
                 "official_backup": "Backup",
+                "billing_code": "FACT-2026-PAI",
             }
         ],
     )
@@ -161,6 +162,7 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
                 "knowledge_base_id": "KB-00000001",
                 "official_main": "Main",
                 "official_backup": "Backup",
+                "billing_code": "FACT-2026-PAI",
             }
         ],
     )
@@ -204,6 +206,7 @@ def test_get_audit_log_limit(env):
                     "knowledge_base_id": f"KB-0000000{i}",
                     "official_main": "Main",
                     "official_backup": "Backup",
+                    "billing_code": f"FACT-2026-0{i}",
                 }
             ],
         )

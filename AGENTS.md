@@ -1087,6 +1087,22 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   quand on ajoute une méthode.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
+- **`scope_monitorings.billing_code` est obligatoire à la création mais nullable en base.** Les deux
+  règles sont dans le domaine (`ScopeMonitoring.create()` → `EmptyBillingCodeError`) et dans le schéma
+  Pydantic, jamais dans la colonne : `NOT NULL` ferait échouer l'`ALTER TABLE ... ADD COLUMN IF NOT
+  EXISTS` du démarrage sur une table déjà peuplée, et surtout le constructeur — chemin de réhydratation des
+  deux adapters — refuse de lever sur une ligne lue, donc une seule ligne ancienne illisible viderait
+  toute la liste. Le champ est `str | None` côté domaine, API (`ScopeResponse`) et TypeScript
+  (`ScopeMonitoring.billing_code` : `string | null`) ; les lignes sans code s'affichent « — ». Format
+  **libre**, `strip`é, **non unique** : deux périmètres peuvent partager un code. Aucun `UNIQUE` en base.
+  Il n'existe **toujours aucune route de mise à jour d'un périmètre** (§28.3 bis) : la reprise d'un code
+  manquant se fait en SQL, procédure dans `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log`
+  ne voit que les use cases.
+- **Le CSV d'import a gagné une 5e colonne** (`name, knowledge_base_id, official_main, official_backup,
+  billing_code`), donc `REQUIRED_HEADERS` la rend obligatoire : un fichier préparé avant l'évolution est
+  rejeté en `400 « Invalid headers » ». C'est la conséquence directe de l'obligation, pas un durcissement
+  opportun. L'export, lui, ajoute `code_facturation` **en dernier** pour ne pas décaler les colonnes
+  existantes des fichiers déjà produits.
 - La table `scope_monitorings` impose une clé étrangère `project_id -> projects.id` avec suppression en
   cascade, comme `auth_sessions` et `daily_activities`. L'adapter applique cette contrainte de façon
   idempotente au démarrage pour les bases existantes ; toute réparation de données doit donc restaurer un
@@ -1309,6 +1325,20 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - Un fond décoratif est masqué aux lecteurs d'écran (`alt=""` + `aria-hidden="true"`) et ne capte pas le
   pointeur. Sur une page en `flex`, le conteneur doit être `relative` et la carte `relative z-10` : un
   enfant `absolute` sans `z-index` est peint **au-dessus** du contenu non positionné.
+- **Un nom `truncate` qui entre dans une rangée flex a besoin de `min-w-0`, pas seulement de `min-w-0`
+  sur son parent.** Un item flex a `min-width: auto` : il ne rétrécit pas sous sa largeur min-content, et
+  `truncate` implique `white-space: nowrap`, donc min-content = texte entier. Le `min-w-0` du `<div>`
+  parent ne sert à rien — c'est l'item lui-même (le `<Link>` du nom) qui doit le porter, faute de quoi
+  la pastille de code de facturation se fait chasser hors de la carte au lieu que le nom s'ellipse.
+  Testé par `compareDocumentPosition` dans `ScopeListPage.test.tsx`, en scoping **le même conteneur**
+  pour la pastille et le nom : `FOLLOWING` est aussi Positionné entre sous-arbres disjoints, donc deux
+  rendus distincts du même périmètre (le `<tr>` et le `<li>` mobile portent tous deux `role="link"`) se
+  répondraient mutuellement.
+- **La pastille de code de facturation précède le nom, pas le badge KB.** Elle est dans la même rangée
+  `flex items-center gap-1.5` que le nom, en table comme en carte mobile et en page de détail, où elle est
+  le premier enfant du titre. Aucun libellé visible « Code de facturation : » : l'`aria-label` du composant
+  porte déjà l'information, et sur le détail le sous-groupe `gap-1.5` pastille↔nom cohabite avec le
+  `gap-2.5` nom↔badge KB, donc la distinction visuelle se fait par le gap et non par un libellé.
 - **L'outline d'un graphique se retire sur le `<svg>`, pas sur le wrapper.** Tant que recharts n'a pas
   `accessibilityLayer`, il n'est pas focusable et aucun anneau n'est peint : `rootTabIndex` vaut alors
   `undefined` et aucun `tabIndex` n'est posé. L'outline par défaut ne disparaît donc que le jour où le mode

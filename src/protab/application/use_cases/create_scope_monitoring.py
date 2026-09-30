@@ -56,6 +56,7 @@ class CreateScopeMonitoringUseCase:
                                 "knowledge_base_id": scope.knowledge.id,
                                 "official_main": scope.officials.main,
                                 "official_backup": scope.officials.backup,
+                                "billing_code": scope.billing_code,
                             },
                         ),
                     )
@@ -64,7 +65,7 @@ class CreateScopeMonitoringUseCase:
         return [scope.id for scope in created]
 
     def _build(self, command: CreateScopeMonitoringCommand) -> ScopeMonitoring:
-        return ScopeMonitoring(
+        return ScopeMonitoring.create(
             id=str(uuid4()),
             name=command.name,
             knowledge=KnowledgeBase(id=command.knowledge_base_id),
@@ -72,4 +73,5 @@ class CreateScopeMonitoringUseCase:
                 main=command.official_main,
                 backup=command.official_backup,
             ),
+            billing_code=command.billing_code,
         )

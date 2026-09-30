@@ -77,6 +77,7 @@ def test_create_scope_records_audit_event_with_actor():
                 knowledge_base_id="KB-00000001",
                 official_main="Main",
                 official_backup="Backup",
+                billing_code="FACT-2026-PAI",
             )
         ]
     )
@@ -88,6 +89,7 @@ def test_create_scope_records_audit_event_with_actor():
     assert event.actor == "ABCD"
     assert event.scope_id == ids[0]
     assert event.changes["name"]["new"] == "Scope A"
+    assert event.changes["billing_code"]["new"] == "FACT-2026-PAI"
 
 
 def test_create_scope_from_csv_records_import_action():
@@ -101,6 +103,7 @@ def test_create_scope_from_csv_records_import_action():
                 knowledge_base_id="KB-00000002",
                 official_main="Main",
                 official_backup="Backup",
+                billing_code="FACT-2026-PAI",
             )
         ],
         source="csv",
@@ -228,12 +231,14 @@ def test_list_audit_events_applies_filters():
                 knowledge_base_id="KB-00000001",
                 official_main="Main",
                 official_backup="Backup",
+                billing_code="FACT-2026-PAI",
             ),
             CreateScopeMonitoringCommand(
                 name="Scope Beta",
                 knowledge_base_id="KB-00000002",
                 official_main="Main",
                 official_backup="Backup",
+                billing_code="FACT-2026-PAI",
             ),
         ]
     )
