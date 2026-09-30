@@ -62,6 +62,8 @@ export interface ErrorHeatmapCell {
   /** Jour ISO en granularité « jour », clé ISO (« 2026-W39 ») en « semaine ». */
   column: string;
   errors: number;
+  /** Distingue une absence de saisie d'une saisie sans erreur. */
+  saisi: boolean;
   changePct: number | null;
 }
 
@@ -79,33 +81,6 @@ export interface ErrorHeatmap {
   rows: ErrorHeatmapRow[];
   maxErrors: number;
   granularity: Granularity;
-}
-
-export type CellState = "traite" | "encours" | "nonSaisi";
-
-export interface GridCell {
-  day: string;
-  etat: CellState;
-  erreurs: number;
-  incidents: number;
-  arriere: number;
-  /** Palier d'intensité 0-2, à charge de la couleur seule. */
-  niveau: number;
-}
-
-export interface GridRow {
-  id: string;
-  name: string;
-  billing_code: string | null;
-  cells: GridCell[];
-  arriere: number;
-  erreurs: number;
-}
-
-export interface SupervisionGrid {
-  rows: GridRow[];
-  jours: string[];
-  maxArriere: number;
 }
 
 function dayCount(from: string, to: string): number {
@@ -231,9 +206,11 @@ export function buildErrorHeatmap(
 
   const rows = scopes.map((scope): ErrorHeatmapRow => {
     const errorsByColumn = new Map<string, number>();
+    const saisiByColumn = new Set<string>();
     (scope.daily_activities || []).forEach((activity) => {
       if (!daySet.has(activity.day)) return;
       const column = labelOf(activity.day);
+      saisiByColumn.add(column);
       errorsByColumn.set(
         column,
         (errorsByColumn.get(column) ?? 0) + activity.errors_reported,
@@ -248,6 +225,7 @@ export function buildErrorHeatmap(
       return {
         column,
         errors,
+        saisi: saisiByColumn.has(column),
         changePct: previous === null || previous === 0
           ? null
           : Math.round(((errors - previous) / previous) * 100),
@@ -360,97 +338,6 @@ export function periodDelta(
     arrierePct: pctChange(current.arriere, previous.arriere),
     couverturePct: pctChange(current.couverture, previous.couverture),
   };
-}
-
-export function scaleBucket(value: number, max: number): number {
-  if (value <= 0 || max <= 0) return 0;
-  return value <= max / 2 ? 1 : 2;
-}
-
-export function buildSupervisionGrid(
-  scopes: ScopeMonitoring[],
-  days: string[],
-  granularity: Granularity = "jour",
-): SupervisionGrid {
-  // En agrégat semaine, une colonne porte plusieurs jours : l'état retenu est
-  // le plus dégradé de la semaine, sinon une semaine traitée mais inachevée
-  // s'afficherait verte.
-  const columnDays = columnDaysFor(days, granularity);
-  let maxArriere = 0;
-  const rows = scopes.map((scope): GridRow => {
-    const byDay = new Map(
-      (scope.daily_activities || []).map((activity) => [activity.day, activity]),
-    );
-
-    const cells = columnDays.map((column): GridCell => {
-      const entries = column.days
-        .map((day) => byDay.get(day))
-        .filter((a): a is ScopeMonitoring["daily_activities"][number] => a !== undefined);
-      if (entries.length === 0) {
-        return {
-          day: column.label,
-          etat: "nonSaisi",
-          erreurs: 0,
-          incidents: 0,
-          arriere: 0,
-          niveau: 0,
-        };
-      }
-      const erreurs = entries.reduce((acc, a) => acc + a.errors_reported, 0);
-      const incidents = entries.reduce((acc, a) => acc + a.incidents_created, 0);
-      const arriere = trailingErrors(erreurs, incidents);
-      maxArriere = Math.max(maxArriere, arriere);
-      return {
-        day: column.label,
-        etat: entries.some((a) => !a.completed) ? "encours" : "traite",
-        erreurs,
-        incidents,
-        arriere,
-        niveau: 0,
-      };
-    });
-
-    return {
-      id: scope.id,
-      name: scope.name,
-      billing_code: scope.billing_code,
-      cells,
-      arriere: cells.reduce((acc, cell) => acc + cell.arriere, 0),
-      erreurs: cells.reduce((acc, cell) => acc + cell.erreurs, 0),
-    };
-  });
-
-  // Le niveau se calcule une fois le maximum connu : une couleur comparée à une
-  // échelle locale change de sens d'une ligne à l'autre.
-  rows.forEach((row) => {
-    row.cells.forEach((cell) => {
-      cell.niveau = scaleBucket(cell.arriere, maxArriere);
-    });
-  });
-
-  return {
-    rows,
-    jours: columnDays.map((column) => column.label),
-    maxArriere,
-  };
-}
-
-function columnDaysFor(
-  days: string[],
-  granularity: Granularity,
-): { label: string; days: string[] }[] {
-  if (granularity === "jour") {
-    return days.map((day) => ({ label: day, days: [day] }));
-  }
-
-  const grouped = new Map<string, string[]>();
-  days.forEach((day) => {
-    const key = isoWeekKey(day);
-    const bucket = grouped.get(key);
-    if (bucket) bucket.push(day);
-    else grouped.set(key, [day]);
-  });
-  return [...grouped.entries()].map(([label, weekDays]) => ({ label, days: weekDays }));
 }
 
 export function firstActivityDay(scopes: ScopeMonitoring[]): string | null {

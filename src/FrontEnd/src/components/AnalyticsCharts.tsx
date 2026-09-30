@@ -46,7 +46,7 @@ export function AnalyticsErrorHeatmap({
           Erreurs par {perColumn} et par périmètre
         </h3>
         <p className="text-xs text-slate-500 dark:text-nord-4">
-          Volume total d'erreurs · {perColumn}s ISO
+          Volume total d'erreurs · {perColumn}s ISO · — : aucune saisie
         </p>
       </div>
 
@@ -198,7 +198,10 @@ function ErrorCell({
     cell.changePct === null
       ? "évolution indisponible"
       : `${cell.changePct >= 0 ? "+" : ""}${cell.changePct} %`;
-  const label = `${scopeName}, ${column} : ${cell.errors} erreur${cell.errors === 1 ? "" : "s"}, ${change}`;
+  const value = cell.saisi
+    ? `${cell.errors} erreur${cell.errors === 1 ? "" : "s"}`
+    : "aucune saisie";
+  const label = `${scopeName}, ${column} : ${value}, ${change}`;
 
   return (
     <div
@@ -207,7 +210,7 @@ function ErrorCell({
       title={label}
       className={`flex min-h-10 items-center justify-center border-l border-t border-white/60 px-1 text-xs font-semibold tabular-nums dark:border-nord-1 ${heatmapClass(intensity)}`}
     >
-      {cell.errors}
+      {cell.saisi ? cell.errors : "—"}
     </div>
   );
 }

@@ -3,7 +3,6 @@ import {
   aggregateByDay,
   aggregateByWeek,
   buildPeriodDays,
-  buildSupervisionGrid,
   buildErrorHeatmap,
   clampRange,
   computePeriodSummary,
@@ -13,7 +12,6 @@ import {
   periodDelta,
   previousPeriod,
   resolvePresetRange,
-  scaleBucket,
   weekLabel,
 } from "../utils/analytics";
 import { DailyActivity, NonWorkingDays, ScopeMonitoring } from "../types";
@@ -249,8 +247,8 @@ describe("heatmap hebdomadaire des erreurs", () => {
     );
 
     expect(heatmap.rows[0].cells).toEqual([
-      { column: "2026-W39", errors: 0, changePct: null },
-      { column: "2026-W40", errors: 0, changePct: null },
+      { column: "2026-W39", errors: 0, saisi: true, changePct: null },
+      { column: "2026-W40", errors: 0, saisi: false, changePct: null },
     ]);
   });
 });
@@ -342,34 +340,22 @@ describe("résumé de période", () => {
   });
 });
 
-describe("grille de supervision", () => {
-  const SCOPES = [
-    scope("s1", "Alpha", [
-      activity("2026-09-21", 4, 1, { completed: true }),
-      activity("2026-09-22", 2, 0, { completed: false }),
-    ]),
-    scope("s2", "Beta", []),
-  ];
-  const DAYS = ["2026-09-21", "2026-09-22"];
+describe("heatmap des erreurs", () => {
+  it("distingue une saisie sans erreur d'une absence de saisie", () => {
+    const heatmap = buildErrorHeatmap(
+      [
+        scope("s1", "Alpha", [activity("2026-09-21", 0, 0)]),
+        scope("s2", "Beta", []),
+      ],
+      ["2026-09-21", "2026-09-22"],
+      "jour",
+    );
 
-  it("distingue traité, en cours et non saisi", () => {
-    const grid = buildSupervisionGrid(SCOPES, DAYS);
-    expect(grid.maxArriere).toBe(3);
-    expect(grid.rows[0].cells.map((c) => c.etat)).toEqual(["traite", "encours"]);
-    expect(grid.rows[0].cells.map((c) => c.arriere)).toEqual([3, 2]);
-    expect(grid.rows[1].cells.map((c) => c.etat)).toEqual(["nonSaisi", "nonSaisi"]);
-  });
-
-  it("encode l'intensité en trois paliers, zéro pour une journée sans arrière", () => {
-    expect(scaleBucket(0, 100)).toBe(0);
-    expect(scaleBucket(1, 100)).toBe(1);
-    expect(scaleBucket(50, 100)).toBe(1);
-    expect(scaleBucket(51, 100)).toBe(2);
-    expect(scaleBucket(100, 100)).toBe(2);
-  });
-
-  it("ne peut pas diviser par un maximum nul", () => {
-    expect(scaleBucket(0, 0)).toBe(0);
+    const alpha = heatmap.rows.find((row) => row.id === "s1");
+    const beta = heatmap.rows.find((row) => row.id === "s2");
+    expect(alpha?.cells.map((cell) => cell.saisi)).toEqual([true, false]);
+    expect(beta?.cells.map((cell) => cell.saisi)).toEqual([false, false]);
+    expect(alpha?.cells[0].errors).toBe(0);
   });
 });
 

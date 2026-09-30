@@ -1407,23 +1407,6 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sélection vide : une clé absente se lit « tous les périmètres », donc l'URL d'une
   sélection vide ramènerait l'utilisateur à la vue complète. L'écriture est suspendue
   pendant le chargement des périmètres.
-- **La grille de supervision est la signature de `/analyse`, pas ses graphiques.** Aucun
-  graphique ne montre l'état de chaque journée de chaque périmètre. Elle reste un
-  `<table>` (navigation au clavier suivant les jours) et chaque pastille porte son
-  `aria-label` complet : l'état d'une journée ne peut pas être porté par la seule
-  couleur. En agrégat semaine, l'état retenu est le **plus dégradé** de la semaine —
-  sinon une semaine traitée mais inachevée s'afficherait verte.
-- **La grille tient dans la largeur par construction, pas par un conteneur défilant.**
-  `<colgroup>` + `table-fixed` : les colonnes se partagent l'espace restant, donc
-  aucune barre horizontale, quelle que soit la période. **`min-w-max` et
-  `overflow-x-auto` ne doivent pas revenir** — le premier confie la largeur au
-  contenu (débordement dès une quinzaine de jours), le second ne fait que rendre le
-  débordement consultable. Les libellés de date s'affichent un sur N (12 au plus) et
-  les colonnes muettes gardent un nom accessible ; les cellules rétrécissent, et
-  aucune règle ne force la semaine au-delà d'un seuil de colonnes, car ignorer un
-  choix explicite de l'utilisateur est pire que des cellules étroites. Un test
-  compte les cellules : **aucun jour ne doit être masqué**, la rétrécissement ne se
-  paie pas en données perdues.
 - **Le classement de `/analyse` est une liste HTML, pas un graphique à barres.** La
   valeur est en texte (la barre est `aria-hidden`), la barre est calée sur le pire
   périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
@@ -1432,11 +1415,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - **La heatmap de `/analyse` porte les erreurs brutes par jour ou par semaine.** Une
   ligne représente un périmètre, une colonne une jour ou une semaine ISO selon le
   réglage `granularity`, et l'intensité de la cellule est proportionnelle à
-  `errors_reported`. Elle suit donc le même réglage que la grille : un regroupement
-  forcé en semaine rendrait le sélecteur « Par jour » mensonger. Le classement sous
-  la heatmap trie sur le total d'erreurs de la période. Les incidents ne sont pas
-  soustraits dans cette vue : elle mesure le volume observé, tandis que la grille
-  mesure l'état du traitement. L'évolution d'une cellule compare la colonne à la
+  `errors_reported`. Un `0` signifie une saisie sans erreur ; une cellule sans
+  activité affiche `—` et porte le libellé accessible « aucune saisie ». Elle suit
+  le réglage `granularity` : un regroupement forcé en semaine rendrait le sélecteur
+  « Par jour » mensonger. Le classement sous la heatmap trie sur le total d'erreurs
+  de la période. L'évolution d'une cellule compare la colonne à la
   précédente **affichée** — en vue journalière, deux colonnes consécutives peuvent
   être séparées par un week-end filtré — et reste indéfinie quand la base est absente
   ou nulle.
@@ -1455,16 +1438,6 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   journalière, les en-têtes de colonne portent « 11 », « 12 »… Un `getByText("11")`
   sur la page entière peut donc tomber sur la heatmap au lieu du compteur KPI :
   passer par `within(screen.getByRole("region", { name: /résumé/i }))`.
-- **La grille de supervision ne doit pas être retirée comme doublon de la
-  heatmap.** Les deux sont des matrices `périmètre × période` colorées, d'où la
-  tentation, mais elles ne mesurent rien de même : la heatmap le **volume
-  d'erreurs observées**, la grille l'**état du traitement** puis l'en attente.
-  Deux propriétés n'existent que dans la grille et justifient de la garder :
-  `nonSaisi` y est distinct de « zéro erreur saisie » (la heatmap ramène une
-  colonne sans activité à `0`) ; et c'est le seul tableau, donc le seul chemin
-  clavier vers le détail. Le titre de la grille porte une légende qui nomme sa
-  métrique et ses couleurs — sans elle, les deux échelles de couleur se lisent
-  comme la même vue.
 - **Le classement est un doublon assumé de la heatmap.** `ErrorRanking` trie les
   mêmes `totalErrors` que les lignes de la heatmap, sur un seul critère décroissant
   (l'ancien tri à deux sens selon la métrique, avec taux de transformation, a été
@@ -1487,9 +1460,6 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   autres » en ligne), pas une liste dans une boîte `max-h-* overflow-y-*` : cinq
   périmètres suffisaient à faire apparaître une barre. Ni le conteneur défilant ni
   une modale ne doivent revenir — son « Annuler » doublonnerait celui de la page.
-- **`min-w-0` sur le lien du nom de la grille**, comme dans la carte de la liste des
-  périmètres : sans lui, `min-width: auto` empêche le rétrécissement sous la largeur
-  du texte et la colonne `w-44` est ignorée.
 - **`PageNav` n'est monté que dans le pied de page.** Il était aussi dans l'en-tête, où
   « Périmètres » faisait doublon avec le logo : on a retiré l'instance de `Navbar`, pas ses
   entrées, ce qui laisse `PageNav` complet pour le mobile. **Le pied de page est le seul chemin
@@ -1507,7 +1477,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
-- Tests : `npm test` (vitest, 195 tests) et `npm run lint` (`tsc --noEmit`). Le
+- Tests : `npm test` (vitest, 182 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

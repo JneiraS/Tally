@@ -103,26 +103,13 @@ describe("AnalyticsPage", () => {
       expect(screen.getByRole("heading", { name: /Erreurs par jour et par périmètre/i })).toBeInTheDocument();
     });
     expect(screen.getByRole("heading", { name: /Périmètres les plus exposés/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: /Grille de supervision/i }),
-    ).toBeInTheDocument();
-  });
-
-  // La heatmap et la grille sont deux matrices colorées consécutives : sans
-  // légende nommant la seconde métrique, elles se lisent comme la même vue.
-  it("distingue l'état du traitement du volume d'erreurs", async () => {
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Grille de supervision/i })).toBeInTheDocument();
-    });
-    expect(screen.getByText(/volume total d'erreurs · jours iso/i)).toBeInTheDocument();
-    expect(screen.getByText(/état du traitement et erreurs en attente/i)).toBeInTheDocument();
+    expect(screen.getByText(/— : aucune saisie/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /aucune saisie/i }).length).toBeGreaterThan(0);
   });
 
   // La heatmap regroupait systématiquement par semaine : choisir « par jour »
-  // ne déplaçait que la grille, et l'utilisateur croyait voir un détail
-  // journalier qui n'existait pas.
+  // ne changeait pas la résolution affichée, et l'utilisateur croyait voir un
+  // détail journalier qui n'existait pas.
   it("suit le réglage d'affichage, jour comme semaine", async () => {
     renderPage();
 
@@ -189,7 +176,7 @@ describe("AnalyticsPage", () => {
     });
 
     // Beta seul : 8 erreurs et 8 en attente. Les cartes sont ciblées par leur
-    // intitulé : « 8 » seul apparaît aussi dans la grille et le classement.
+    // intitulé : « 8 » seul apparaît aussi dans la heatmap et le classement.
     const cards = within(screen.getByRole("region", { name: "Résumé de la période" }));
     expect(cards.getByText("Erreurs").closest("div")).toHaveTextContent("8");
     expect(cards.getByText("En attente").closest("div")).toHaveTextContent("8");
@@ -212,7 +199,7 @@ describe("AnalyticsPage", () => {
       expect(within(filters).getByText("0 périmètres sur 2")).toBeInTheDocument();
     });
     expect(screen.getByRole("heading", { name: /Sélectionnez au moins un périmètre/i })).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /heatmap des erreurs/i })).not.toBeInTheDocument();
   });
 
   it("change la période quand on choisit un preset", async () => {
@@ -236,13 +223,15 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /heatmap des erreurs/i })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Par semaine/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("columnheader", { name: /S39/ })).toBeInTheDocument();
+      expect(
+        within(screen.getByRole("region", { name: /heatmap des erreurs/i })).getByText("S39"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -250,7 +239,7 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /heatmap des erreurs/i })).toBeInTheDocument();
     });
 
     const from = screen.getByLabelText(/Période : début/i);
@@ -268,11 +257,11 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /heatmap des erreurs/i })).toBeInTheDocument();
     });
 
-    const columnCount = () =>
-      within(screen.getByRole("table")).getAllByRole("columnheader").length - 2;
+    const heatmap = () => screen.getByRole("region", { name: /heatmap des erreurs/i });
+    const columnCount = () => within(heatmap()).getAllByRole("img").length / SCOPES.length;
 
     // Du 14 au 21 : 6 jours ouvrés (19 et 20 sont le week-end).
     fireEvent.change(screen.getByLabelText(/Période : début/i), { target: { value: "2026-09-14" } });

@@ -243,7 +243,7 @@ avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de c
 
 ## Frontend
 
-Trois vues : la liste des périmètres (saisie du jour, `/`), l'analyse (`/analyse`, agrégats et grille de
+Trois vues : la liste des périmètres (saisie du jour, `/`), l'analyse (`/analyse`, agrégats et heatmap de
 supervision sur une période) et le journal d'audit (`/audit-log`). L'analyse est **en lecture seule** et dérive
 entièrement de `GET /scope-monitorings` — aucun appel supplémentaire. Toute sa logique de calcul est pure et
 vit dans `src/FrontEnd/src/utils/analytics.ts`, ce qui la rend testable sans rendu.

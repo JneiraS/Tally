@@ -250,7 +250,7 @@ export function AnalyticsFilterBar({
           Périmètres comparés
         </legend>
         <p className="mt-1 text-xs text-slate-500 dark:text-nord-4">
-          Les graphiques et la grille portent uniquement sur ces périmètres.
+          Les graphiques portent uniquement sur ces périmètres.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-nord-4">
           <span className="font-medium text-slate-700 dark:text-nord-3">

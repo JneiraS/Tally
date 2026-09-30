@@ -228,8 +228,8 @@ dépasse ce que le navigateur tient — et il faudrait alors mesurer avant de le
 créer, pas le supposer.
 
 Toute la logique de calcul est **pure** et vit dans `utils/analytics.ts` :
-presets de période, bornes, semaines ISO, agrégats, résumé, delta, classement,
-séries empilées, grille. Elle compose `utils/kpi.ts` — `transformationRate`,
+presets de période, bornes, semaines ISO, agrégats, résumé, delta, classement et
+séries empilées. Elle compose `utils/kpi.ts` — `transformationRate`,
 `trailingErrors`, `coverageRate`, `isWorkingDay`, `lastWorkingDays` — sans les
 reimplémenter : deux définitions concurrentes d'un même chiffre sont un défaut,
 pas une.extension. Les tests portent donc sur ce module, ce qui est le seul
@@ -257,12 +257,13 @@ Par semaine*, et une cellule dont l'intensité suit le nombre d'erreurs brutes
 accessible expose aussi l'évolution par rapport à la colonne précédente. Le
 classement sous la heatmap est indépendant : il trie les périmètres sur le total
 d'erreurs de la période sélectionnée. Les incidents ne sont pas soustraits : cette
-vue répond à « combien d'erreurs ont été observées ? », tandis que la grille répond
-à « quel est l'état du traitement ? ».
+vue répond à « combien d'erreurs ont été observées ? ». Une activité à zéro erreur
+affiche `0`, alors qu'une période sans activité affiche `—` et porte le libellé
+accessible « aucune saisie ».
 
 La première carte est organisée selon la décision à prendre : **Période**, puis
 **Affichage**, puis **Périmètres comparés** sur toute la largeur. Le bloc des
-périmètres explique que les graphiques et la grille dépendent uniquement de cette
+  périmètres explique que les graphiques dépendent uniquement de cette
 sélection, affiche `N périmètres sur M`, et désactive l'action globale qui n'a
 plus d'effet (`Tout sélectionner` quand tout est déjà sélectionné, ou `Tout
 désélectionner` quand la sélection est vide). Une sélection vide reste possible
@@ -278,30 +279,17 @@ visibles après filtrage.
 
 ### Chaque bloc mesure une chose différente
 
-La page juxtapose deux matrices colorées, ce qui les fait lire comme la même vue
-deux fois. Elles ne mesurent pas la même chose, et c'est ce qui les rend
-nécessaires l'une et l'autre :
+La page rassemble les indicateurs de période, la heatmap et le classement :
 
 | Bloc | Résolution | Métrique |
 | --- | --- | --- |
 | Compteurs de période | période entière | erreurs, incidents, en attente, couverture |
 | Heatmap | jour ou semaine, selon le réglage | volume d'erreurs observées |
 | Classement | période entière | total d'erreurs par périmètre |
-| Grille | jour ou semaine | état du traitement, puis erreurs en attente |
+| Cellule sans saisie | jour ou semaine | aucune activité distinguée de zéro erreur |
 
-Deux distinctions portent l'essentiel de la valeur de la grille :
-
-- **L'état de traitement n'existe qu'elle.** La heatmap ramène une colonne sans
-  saisie à `0` (`buildErrorHeatmap`), ce qui confond « personne n'a rien saisi »
-  et « on a saisi zéro erreur ». La grille seule distingue `nonSaisi` de
-  `traite` et `encours`, et elle est la seule à exposer le `aria-label` qui
-  nominate cet état.
-- **Elle seule est un tableau.** La ligne entière est un lien vers le détail, et
-  la navigation au clavier suit les jours. La heatmap n'a aucun lien ; seul son
-  classement en a.
-
-La heatmap et la grille suivent donc toutes deux le réglage *Par jour / Par
-semaine*, et leurs en-têtes nomment la résolution réellement affichée. La heatmap
+La heatmap suit le réglage *Par jour / Par semaine*, et ses en-têtes nomment la
+résolution réellement affichée. La heatmap
 a un titre et un sous-titre par granularité (« Erreurs par jour et par
 périmètre · jours ISO »), ce qui évite qu'un utilisateur lise un détail
 journalier là où il n'y a qu'une semaine.
@@ -318,53 +306,21 @@ en-tête conservant son `title` et chaque cellule son libellé complet.
 Deux plafonds de lisibilité restent explicites parce qu'ils changent ce qui est
 affiché : au-delà de **120 jours** l'agrégat passe en semaine — annoncé par un
 bandeau, car le choix « par jour » de l'utilisateur est alors ignoré et l'URL
-réécrite — et le classement s'arrête aux **15** périmètres les plus exposés, la
-grille restant le chemin vers les suivants. La heatmap, elle, affiche toutes les
-lignes sélectionnées : une troncature y ferait disparaître un périmètre sans
-indiquer pourquoi.
+réécrite — et le classement s'arrête aux **15** périmètres les plus exposés. La
+heatmap affiche toutes les lignes sélectionnées : une troncature y ferait
+disparaître un périmètre sans indiquer pourquoi.
 
-La grille porte donc une légende explicite sous son titre, qui nomme sa métrique
-et ses couleurs — vert traité, ambre en cours, pointillé non saisi, intensité
-proportionnelle à l'en attente. La légende du sous-titre de la heatmap fait de
-même pour le volume d'erreurs : deux sous-titres qui se répondent, plutôt que
-deux échelles de couleur que rien ne distingue.
+La heatmap porte aussi la distinction entre une saisie sans erreur et une absence
+de saisie : une activité à zéro erreur affiche `0`, tandis qu'une colonne sans
+activité affiche `—` et porte le libellé accessible « aucune saisie ». Cette
+distinction ne repose donc pas sur la couleur seule. La légende indique également
+que la variation compare chaque jour ou semaine à la colonne précédente.
 
-### La grille tient dans la largeur, ou n'affiche pas
-
-La **grille de supervision** (ligne = périmètre, colonne = jour) est la signature
-de la page : c'est ce qu'aucun graphique ne montre d'aussi bien. L'état d'une
-cellule ne peut pas être porté par la seule couleur — chaque pastille porte un
-`aria-label` complet (« Alpha, lundi 21 septembre 2026 : traité, 3 en attente »),
-la ligne entière est un lien vers le détail, et un résumé `role="img"` porte les
-totaux. En agrégat semaine, une colonne porte plusieurs jours et l'état retenu est
-le plus dégradé de la semaine, sinon une semaine traitée mais inachevée
-s'afficherait verte.
-
-Elle reste un `<table>` : la navigation au clavier suit les jours, ce qu'une suite
-de `div` ne ferait pas. Elle tient dans la largeur **par construction** — un
-`<colgroup>` fixe la colonne de nom à 11 rem et un `<col>` par jour, le tableau est
-en `table-fixed`, donc les colonnes se partagent l'espace restant et ne peuvent pas
-déborder.
-
-C'est un choix à contre-courant du réflexe « je mets un `overflow-x-auto` autour ».
-Un conteneur défilant ne supprime pas le débordement, il le rend consultable — au
-prix d'une barre de défilement permanente dès une quinzaine de jours, et d'une
-première colonne que le lecteur doit faire glisser pour retrouver. Le `min-w-max`
-qui va avec est la cause exacte : il confie la largeur au contenu, si bien que le
-tableau déborde dès que le contenu est plus large que la fenêtre. Aucune des deux
-classes ne doit revenir ; les tests le vérifient (`SupervisionGrid.test.tsx`).
-
-Deux conséquences assumées :
-
-- **Les libellés de date s'affichent un sur N** (12 au plus, soit environ tous les
-  5 jours sur un trimestre), sinon ils se chevauchent. Les colonnes muettes gardent
-  un nom accessible et un `title`, donc la grille reste complète pour un lecteur
-  d'écran comme à la souris.
-- **Les cellules rétrécissent** et finissent par n'être qu'un ruban de couleur.
-  Aucune règle ne force la semaine au-delà d'un certain nombre de colonnes : ce
-  serait ignorer un choix explicite de l'utilisateur, et l'agrégat semaine est
-  accessible d'un clic. Le test compte les cellules pour garantir qu'aucun jour
-  n'est *masqué* — la rétrécissement ne doit jamais se payer en données perdues.
+La matrice reste un `overflow-x-auto` : en vue journalière, 120 jours représentent
+120 colonnes d'au moins 2 rem. La colonne des noms reste `sticky` et la région
+devient focusable lorsqu'elle déborde, afin que le défilement reste accessible au
+clavier. Les libellés de date s'affichent un sur N (12 au plus), tandis que chaque
+en-tête conserve un `title` et chaque cellule son libellé complet.
 
 ### Le reste de la page
 
