@@ -262,11 +262,20 @@ désélectionner` quand la sélection est vide). Une sélection vide reste possi
 et affiche un message directement dans la carte au lieu de laisser l'utilisateur
 deviner pourquoi les graphiques ont disparu.
 
+Le bloc **Codes de facturation** propose une sélection multiple, y compris
+`Sans code` pour les anciens périmètres qui n'ont pas encore de code. Le filtre
+réduit les périmètres analysés sans effacer leur sélection : retirer le filtre
+restaure donc les périmètres précédemment retenus. Les actions `Tout sélectionner`
+et `Tout désélectionner` s'appliquent uniquement aux périmètres actuellement
+visibles après filtrage.
+
 Deux plafonds de lisibilité, explicites parce qu'ils changent ce qui est affiché :
 au-delà de **120 jours** l'agrégat passe en semaine (annoncé à l'utilisateur, car
 son choix « par jour » est ignoré), et au-delà de **8 périmètres** l'aire empilée
-garde le top 8 plus un « Autres (n) » en gris neutre. Le classement, lui, s'arrête
-à 15 lignes et renvoie vers la grille pour le reste.
+garde le top 8 plus un « Autres (n) » en gris neutre dans les vues qui utilisent
+des séries empilées. La heatmap affiche toutes les lignes sélectionnées ; son
+classement est limité aux 15 périmètres les plus exposés et renvoie vers la grille
+pour le reste.
 
 ### La grille tient dans la largeur, ou n'affiche pas
 

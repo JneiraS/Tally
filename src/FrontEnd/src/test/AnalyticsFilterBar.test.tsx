@@ -18,6 +18,10 @@ function scope(id: string, name: string): ScopeMonitoring {
   };
 }
 
+function codedScope(id: string, name: string, billing_code: string | null): ScopeMonitoring {
+  return { ...scope(id, name), billing_code };
+}
+
 const MANY = Array.from({ length: 20 }, (_, i) => scope(`s${i}`, `Périmètre ${i + 1}`));
 
 const FILTERS: AnalyticsFilters = {
@@ -28,6 +32,7 @@ const FILTERS: AnalyticsFilters = {
   workingDaysOnly: true,
   compare: false,
   scopeIds: MANY.map((s) => s.id),
+  billingCodes: [],
 };
 
 function renderBar(scopes: ScopeMonitoring[] = MANY, filters: AnalyticsFilters = FILTERS) {
@@ -94,6 +99,23 @@ describe("AnalyticsFilterBar — sélection des périmètres", () => {
     expect(unselectedChip?.className).toContain("dark:bg-nord-0");
     expect(unselectedChip?.className).toContain("dark:text-nord-4");
     expect(unselectedChip?.className).toContain("dark:hover:text-nord-6");
+  });
+
+  it("permet de sélectionner un code de facturation", () => {
+    const scopes = [
+      codedScope("s1", "Alpha", "FAC-A"),
+      codedScope("s2", "Beta", "FAC-B"),
+      codedScope("s3", "Gamma", null),
+    ];
+    const filters = { ...FILTERS, scopeIds: scopes.map((scope) => scope.id), billingCodes: [] };
+    const onChange = renderBar(scopes, filters);
+
+    expect(screen.getByRole("checkbox", { name: "FAC-A" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Sans code" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "FAC-A" }));
+
+    expect(onChange).toHaveBeenCalledWith({ billingCodes: ["FAC-A"] });
   });
 
   it("n'affiche qu'un lot de pastilles et renvoie le reste derrière un bouton", () => {

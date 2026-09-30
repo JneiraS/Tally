@@ -1418,6 +1418,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   quand elles n'ont plus d'effet. Une sélection vide est volontairement atteignable
   et signale la conséquence dans la carte, sans laisser un écran de graphiques vide
   sans explication.
+- **Le filtre de codes de facturation est multi-sélectionnable.** Il inclut une
+  option `Sans code` pour les lignes historiques sans code. Il ne détruit jamais
+  `scopeIds` : il réduit seulement les périmètres analysés et les actions globales
+  s'appliquent aux périmètres visibles après filtrage. Retirer tous les codes
+  sélectionnés restaure la sélection de périmètres précédente.
 - **La sélection des périmètres est une rangée de pastilles** (12 visibles, « +N
   autres » en ligne), pas une liste dans une boîte `max-h-* overflow-y-*` : cinq
   périmètres suffisaient à faire apparaître une barre. Ni le conteneur défilant ni

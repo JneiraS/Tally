@@ -17,6 +17,7 @@ export interface AnalyticsFilters {
   workingDaysOnly: boolean;
   compare: boolean;
   scopeIds: string[];
+  billingCodes: string[];
 }
 
 export interface AnalyticsFilterBarProps {
@@ -40,10 +41,19 @@ export function AnalyticsFilterBar({
   const { from, to, preset, granularity, workingDaysOnly, compare, scopeIds } =
     filters;
   const [expanded, setExpanded] = useState(false);
-  const shownScopes = expanded ? scopes : scopes.slice(0, SCOPE_CHIP_LIMIT);
-  const hiddenCount = scopes.length - shownScopes.length;
-  const allScopesSelected = scopes.length > 0 && scopeIds.length === scopes.length;
-  const noScopesSelected = scopeIds.length === 0;
+  const [billingExpanded, setBillingExpanded] = useState(false);
+  const billingOptions = uniqueBillingCodes(scopes);
+  const visibleScopes = scopes.filter(
+    (scope) =>
+      filters.billingCodes.length === 0 ||
+      filters.billingCodes.includes(billingCodeKey(scope.billing_code)),
+  );
+  const shownScopes = expanded ? visibleScopes : visibleScopes.slice(0, SCOPE_CHIP_LIMIT);
+  const hiddenCount = visibleScopes.length - shownScopes.length;
+  const visibleScopeIds = new Set(visibleScopes.map((scope) => scope.id));
+  const selectedVisibleCount = scopeIds.filter((id) => visibleScopeIds.has(id)).length;
+  const allScopesSelected = visibleScopes.length > 0 && selectedVisibleCount === visibleScopes.length;
+  const noScopesSelected = selectedVisibleCount === 0;
 
   const applyPreset = (next: Exclude<RangePreset, "perso">) => {
     const range = resolvePresetRange(
@@ -188,6 +198,52 @@ export function AnalyticsFilterBar({
         </fieldset>
       </div>
 
+      <fieldset className="mt-4 border-t border-slate-100 pt-4 dark:border-nord-2">
+        <legend className="text-sm font-semibold text-slate-900 dark:text-nord-6">
+          Codes de facturation
+        </legend>
+        <p className="mt-1 text-xs text-slate-500 dark:text-nord-4">
+          Filtrez les périmètres affichés par code. Aucun code sélectionné affiche tous les codes.
+        </p>
+        <ul aria-label="Codes de facturation" className="mt-3 flex flex-wrap gap-1.5">
+          {(billingExpanded ? billingOptions : billingOptions.slice(0, SCOPE_CHIP_LIMIT)).map((code) => {
+            const selected = filters.billingCodes.includes(code);
+            return (
+              <li key={code}>
+                <label
+                  className={`flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                    selected
+                      ? "border-blue-600 bg-blue-50 text-blue-900 shadow-xs dark:border-nord-8 dark:bg-nord-9/20 dark:text-nord-6"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-nord-2 dark:bg-nord-0 dark:text-nord-4 dark:hover:bg-nord-2 dark:hover:text-nord-6"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    onChange={() => toggleBillingCode(code, filters.billingCodes, onChange)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 accent-blue-600 dark:border-nord-3 dark:bg-nord-0 dark:accent-nord-8"
+                  />
+                  {selected && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                  <span>{code === NO_BILLING_CODE ? "Sans code" : code}</span>
+                </label>
+              </li>
+            );
+          })}
+          {billingOptions.length > SCOPE_CHIP_LIMIT && (
+            <li>
+              <button
+                type="button"
+                aria-expanded={billingExpanded}
+                onClick={() => setBillingExpanded((open) => !open)}
+                className="min-h-9 rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-2"
+              >
+                {billingExpanded ? "− replier" : `+${billingOptions.length - SCOPE_CHIP_LIMIT} autres`}
+              </button>
+            </li>
+          )}
+        </ul>
+      </fieldset>
+
       <fieldset className="mt-5 border-t border-slate-100 pt-4 dark:border-nord-2">
         <legend className="text-sm font-semibold text-slate-900 dark:text-nord-6">
           Périmètres comparés
@@ -197,12 +253,16 @@ export function AnalyticsFilterBar({
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-nord-4">
           <span className="font-medium text-slate-700 dark:text-nord-3">
-            {scopeCountLabel(scopeIds.length, scopes.length)}
+            {scopeCountLabel(selectedVisibleCount, visibleScopes.length)}
           </span>
           <button
             type="button"
             disabled={allScopesSelected}
-            onClick={() => onChange({ scopeIds: scopes.map((s) => s.id) })}
+            onClick={() =>
+              onChange({
+                scopeIds: [...new Set([...scopeIds, ...visibleScopes.map((scope) => scope.id)])],
+              })
+            }
             className="font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline dark:text-nord-8 dark:disabled:text-nord-3"
           >
             Tout sélectionner
@@ -210,7 +270,9 @@ export function AnalyticsFilterBar({
           <button
             type="button"
             disabled={noScopesSelected}
-            onClick={() => onChange({ scopeIds: [] })}
+            onClick={() =>
+              onChange({ scopeIds: scopeIds.filter((id) => !visibleScopeIds.has(id)) })
+            }
             className="font-medium text-blue-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline dark:text-nord-8 dark:disabled:text-nord-3"
           >
             Tout désélectionner
@@ -330,4 +392,30 @@ function ToggleButton({
  */
 function scopeCountLabel(selected: number, total: number): string {
   return `${selected} périmètre${selected === 1 ? "" : "s"} sur ${total}`;
+}
+
+const NO_BILLING_CODE = "__sans_code__";
+
+function billingCodeKey(code: string | null): string {
+  return code ?? NO_BILLING_CODE;
+}
+
+function uniqueBillingCodes(scopes: ScopeMonitoring[]): string[] {
+  return [...new Set(scopes.map((scope) => billingCodeKey(scope.billing_code)))].sort((a, b) => {
+    if (a === NO_BILLING_CODE) return 1;
+    if (b === NO_BILLING_CODE) return -1;
+    return a.localeCompare(b);
+  });
+}
+
+function toggleBillingCode(
+  code: string,
+  selectedCodes: string[],
+  onChange: (patch: Partial<AnalyticsFilters>) => void,
+) {
+  onChange({
+    billingCodes: selectedCodes.includes(code)
+      ? selectedCodes.filter((current) => current !== code)
+      : [...selectedCodes, code],
+  });
 }

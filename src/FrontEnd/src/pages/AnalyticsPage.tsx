@@ -145,8 +145,14 @@ export function AnalyticsPage({
   );
 
   const selected = useMemo(
-    () => scopes.filter((scope) => filters.scopeIds.includes(scope.id)),
-    [scopes, filters.scopeIds],
+    () =>
+      scopes.filter(
+        (scope) =>
+          filters.scopeIds.includes(scope.id) &&
+          (filters.billingCodes.length === 0 ||
+            filters.billingCodes.includes(scope.billing_code ?? "__sans_code__")),
+      ),
+    [scopes, filters.scopeIds, filters.billingCodes],
   );
 
   // Au-delà du plafond, l'agrégat journalier devient illisible : on force la
@@ -405,6 +411,7 @@ function initialFilters(
     compare: false,
     preset: from && to ? "perso" : "mois",
     scopeIds: [],
+    billingCodes: [],
   };
 }
 
