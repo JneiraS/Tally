@@ -7,20 +7,18 @@ import { getTodayIsoDate } from "../utils/date";
 import {
   buildPeriodDays,
   computePeriodSummary,
-  isoWeekKey,
   MAX_TRACKED_DAYS,
   normalizeRange,
   periodDelta,
   previousPeriod,
   resolvePresetRange,
-  weekLabel,
 } from "../utils/analytics";
 import {
   AnalyticsFilterBar,
   type AnalyticsFilters,
 } from "../components/AnalyticsFilterBar";
 import {
-  AnalyticsWeeklyErrors,
+  AnalyticsErrorHeatmap,
 } from "../components/AnalyticsCharts";
 import { SupervisionGrid } from "../components/SupervisionGrid";
 import {
@@ -185,7 +183,6 @@ export function AnalyticsPage({
     );
   }, [filters.compare, filters.from, filters.to, filters.workingDaysOnly, nonWorkingDays, selected, summary]);
 
-  const labelOf = granularity === "jour" ? (day: string) => day : isoWeekKey;
   const exportSelection = () => {
     const rows = buildExportRows(selected, filters.from, filters.to);
     downloadFile(
@@ -272,9 +269,10 @@ export function AnalyticsPage({
             />
           ) : (
             <>
-              <AnalyticsWeeklyErrors
+              <AnalyticsErrorHeatmap
                 scopes={selected}
                 days={days}
+                granularity={granularity}
               />
               <section aria-labelledby="analytics-grid-title">
                 <h3
@@ -283,6 +281,19 @@ export function AnalyticsPage({
                 >
                   Grille de supervision
                 </h3>
+                {/*
+                  La heatmap qui précède est une matrice colorée elle aussi, mais
+                  elle mesure le volume d'erreurs en semaines ISO. Sans cette
+                  légende, les deux se lisent comme la même vue deux fois : elle
+                  nomme la seconde métrique et la légende de couleurs, qui ne
+                  peuvent pas être déduites de la couleur seule.
+                */}
+                <p className="mb-2 text-xs text-slate-500 dark:text-nord-4">
+                  État du traitement et erreurs en attente, par jour ou par semaine
+                  selon l'affichage choisi. Vert : traité · ambre : en cours ·
+                  pointillé : non saisi. L'intensité suit le nombre d'erreurs en
+                  attente.
+                </p>
                 <SupervisionGrid
                   scopes={selected}
                   days={days}

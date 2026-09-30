@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { PageNav } from "./PageNav";
 import { SCOPE_LIST_PATH } from "../constants/routes";
 import {
   Activity,
@@ -109,9 +108,9 @@ export function Navbar({
             </Link>
           </div>
 
-          <div className="hidden md:block">
-            <PageNav />
-          </div>
+          {/* Pas de PageNav ici : « Périmètres » y ferait doublon avec le logo.
+              Analyse et Journal passent par Ctrl+Alt+G / Ctrl+Alt+L, et le pied
+              de page garde les trois liens pour le mobile, sans clavier. */}
 
           {/* Actions & Menu utilisateur */}
           <div className="flex items-center gap-2 sm:gap-3">

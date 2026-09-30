@@ -19,6 +19,7 @@ import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
 import { BillingCodeBadge } from '../components/BillingCodeBadge';
+import { CHECKBOX_CLASS } from '../constants/ui';
 import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } from '../utils/date';
 import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
@@ -519,7 +520,7 @@ export function ScopeDetailPage() {
                               checked={isSelected}
                               onChange={() => handleToggleSelectDay(activity.day)}
                               aria-label={`Sélectionner le jour ${activity.day}`}
-                              className="w-4 h-4 text-blue-600 rounded border-slate-300 dark:border-nord-2 dark:bg-nord-0 focus:ring-blue-500 cursor-pointer"
+                              className={CHECKBOX_CLASS}
                             />
                           ) : (
                             <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-nord-14 mx-auto" />

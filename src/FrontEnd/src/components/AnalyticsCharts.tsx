@@ -1,23 +1,40 @@
 import { useId, useMemo } from "react";
 import { Link } from "react-router-dom";
-import {
-  buildWeeklyErrorHeatmap,
-  weekLabel,
+import { buildErrorHeatmap, weekLabel } from "../utils/analytics";
+import type {
+  ErrorHeatmapCell,
+  ErrorHeatmapRow,
+  Granularity,
 } from "../utils/analytics";
-import type { WeeklyErrorCell, WeeklyErrorRow } from "../utils/analytics";
 import { ScopeMonitoring } from "../types";
+import { formatDateFr } from "../utils/date";
 import { BillingCodeBadge } from "./BillingCodeBadge";
 
-/** Erreurs brutes par périmètre et par semaine, avec classement de la période. */
-export function AnalyticsWeeklyErrors({
+/**
+ * Nombre maximal de libellés de colonne lisibles sur la ligne d'en-tête.
+ *
+ * Au-delà, les en-têtes se chevauchent. Un libellé sur N colonnes suffit : chaque
+ * en-tête garde un `title` et chaque cellule son libellé complet, donc la lecture
+ * au survol et celle d'un lecteur d'écran restent complètes.
+ */
+const MAX_VISIBLE_COLUMN_LABELS = 12;
+
+/** Erreurs brutes par périmètre et par colonne, avec classement de la période. */
+export function AnalyticsErrorHeatmap({
   scopes,
   days,
+  granularity = "semaine",
 }: {
   scopes: ScopeMonitoring[];
   days: string[];
+  granularity?: Granularity;
 }) {
   const titleId = useId();
-  const heatmap = useMemo(() => buildWeeklyErrorHeatmap(scopes, days), [scopes, days]);
+  const heatmap = useMemo(
+    () => buildErrorHeatmap(scopes, days, granularity),
+    [scopes, days, granularity],
+  );
+  const perColumn = granularity === "jour" ? "jour" : "semaine";
 
   return (
     <section
@@ -26,20 +43,20 @@ export function AnalyticsWeeklyErrors({
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h3 id={titleId} className="text-sm font-semibold text-slate-800 dark:text-nord-5">
-          Erreurs par semaine et par périmètre
+          Erreurs par {perColumn} et par périmètre
         </h3>
         <p className="text-xs text-slate-500 dark:text-nord-4">
-          Volume total d'erreurs · semaines ISO
+          Volume total d'erreurs · {perColumn}s ISO
         </p>
       </div>
 
-      {heatmap.weeks.length === 0 || heatmap.rows.length === 0 ? (
+      {heatmap.columns.length === 0 || heatmap.rows.length === 0 ? (
         <p className="p-8 text-center text-sm text-slate-500 dark:text-nord-4">
-          Aucune semaine ou aucun périmètre sur la période.
+          Aucune {perColumn} ou aucun périmètre sur la période.
         </p>
       ) : (
         <>
-          <WeeklyHeatmap heatmap={heatmap} />
+          <ErrorMatrix heatmap={heatmap} />
           <ErrorRanking rows={heatmap.rows} />
         </>
       )}
@@ -47,63 +64,141 @@ export function AnalyticsWeeklyErrors({
   );
 }
 
-function WeeklyHeatmap({ heatmap }: { heatmap: ReturnType<typeof buildWeeklyErrorHeatmap> }) {
+/**
+ * La matrice est un `overflow-x-auto` et non un `overflow-hidden` : en vue
+ * journalière, une période de 120 jours représente 120 colonnes d'au moins 2 rem,
+ * soit plusieurs fois la largeur de l'écran. Masquer ce qui dépasse laisserait
+ * des colonnes hors d'atteinte — visuellement et pour le clavier — ce qui est pire
+ * qu'une barre de défilement. La colonne des noms reste `sticky` pour que les
+ * lignes restent identifiables pendant le défilement, et la région devient
+ * focusable quand elle déborde réellement, faute de quoi le conteneur serait
+ * inatteignable au clavier (WCAG 2.1.1).
+ */
+function ErrorMatrix({ heatmap }: { heatmap: ReturnType<typeof buildErrorHeatmap> }) {
+  const labelStride = Math.max(
+    1,
+    Math.ceil(heatmap.columns.length / MAX_VISIBLE_COLUMN_LABELS),
+  );
+  const scrolls = heatmap.columns.length > MAX_VISIBLE_COLUMN_LABELS;
+
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-nord-2">
-      <div>
+      <div
+        role="region"
+        aria-label={
+          scrolls
+            ? "Heatmap des erreurs par période, défilement horizontal"
+            : "Heatmap des erreurs par période"
+        }
+        tabIndex={scrolls ? 0 : undefined}
+        className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-blue-600"
+      >
         <div
           className="grid"
-          style={{ gridTemplateColumns: `minmax(7rem, 1.5fr) repeat(${heatmap.weeks.length}, minmax(2rem, 1fr))` }}
+          style={{
+            gridTemplateColumns: `minmax(7rem, 1.5fr) repeat(${heatmap.columns.length}, minmax(2rem, 1fr))`,
+          }}
         >
-          <div className="bg-slate-50/80 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0/60 dark:text-nord-4">
+          <div className="sticky left-0 z-10 bg-slate-50/80 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0/60 dark:text-nord-4">
             Périmètre
           </div>
-          {heatmap.weeks.map((week) => (
-            <div key={week} className="bg-slate-50/80 px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0/60 dark:text-nord-4">
-              {weekLabel(week)}
-            </div>
-          ))}
+          {heatmap.columns.map((column, index) => {
+            const { full, short } = columnLabels(column, heatmap.granularity);
+            const visible = index % labelStride === 0;
+            return (
+              <div
+                key={column}
+                title={full}
+                className="bg-slate-50/80 px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0/60 dark:text-nord-4"
+              >
+                {visible ? (
+                  <span className="block truncate text-[10px] leading-tight">
+                    {short}
+                  </span>
+                ) : (
+                  <span className="sr-only">{full}</span>
+                )}
+              </div>
+            );
+          })}
           {heatmap.rows.map((row) => (
-            <HeatmapRow key={row.id} row={row} maxErrors={heatmap.maxErrors} />
+            <ErrorRow key={row.id} row={row} heatmap={heatmap} />
           ))}
         </div>
       </div>
       <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-500 dark:border-nord-2 dark:text-nord-4">
-        Intensité proportionnelle au volume d'erreurs. La variation compare chaque semaine à la précédente.
+        Intensité proportionnelle au volume d'erreurs. La variation compare chaque
+        {heatmap.granularity === "jour" ? " jour" : " semaine"} au précédent.
       </p>
     </div>
   );
 }
 
-function HeatmapRow({ row, maxErrors }: { row: WeeklyErrorRow; maxErrors: number }) {
+/**
+ * `short` est ce qui se lit dans la colonne, `full` ce que le survol et le nom
+ * accessible doivent restituer. En vue journalière, « 21 sept. 2026 » ne tient
+ * pas dans une colonne de 2 rem : `truncate` n'en montrerait que le premier
+ * chiffre, ce qui alignerait des jours différents sous le même nombre. Seul le
+ * jour est affiché, la date entière restant disponible.
+ */
+function columnLabels(
+  column: string,
+  granularity: Granularity,
+): { full: string; short: string } {
+  if (granularity === "semaine") {
+    const label = weekLabel(column);
+    return { full: label, short: label };
+  }
+  return { full: formatDateFr(column), short: column.slice(8, 10) };
+}
+
+function ErrorRow({
+  row,
+  heatmap,
+}: {
+  row: ErrorHeatmapRow;
+  heatmap: ReturnType<typeof buildErrorHeatmap>;
+}) {
   return (
     <>
-      <div className="flex min-w-0 items-center gap-1.5 border-t border-slate-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-nord-2 dark:bg-nord-1 dark:text-nord-4">
+      <div className="sticky left-0 z-10 flex min-w-0 items-center gap-1.5 border-t border-slate-100 bg-white px-3 py-2 text-sm text-slate-700 dark:border-nord-2 dark:bg-nord-1 dark:text-nord-4">
         <Link to={`/scopes/${row.id}`} className="min-w-0 truncate text-blue-600 hover:underline dark:text-nord-8">
           {row.name}
         </Link>
         <BillingCodeBadge code={row.billing_code} />
       </div>
       {row.cells.map((cell) => (
-        <HeatmapCell key={cell.week} cell={cell} scopeName={row.name} maxErrors={maxErrors} />
+        <ErrorCell
+          key={cell.column}
+          cell={cell}
+          scopeName={row.name}
+          maxErrors={heatmap.maxErrors}
+          granularity={heatmap.granularity}
+        />
       ))}
     </>
   );
 }
 
-function HeatmapCell({
+function ErrorCell({
   cell,
   scopeName,
   maxErrors,
+  granularity,
 }: {
-  cell: WeeklyErrorCell;
+  cell: ErrorHeatmapCell;
   scopeName: string;
   maxErrors: number;
+  granularity: Granularity;
 }) {
   const intensity = maxErrors === 0 ? 0 : cell.errors / maxErrors;
-  const week = weekLabel(cell.week);
-  const change = cell.changePct === null ? "évolution indisponible" : `${cell.changePct >= 0 ? "+" : ""}${cell.changePct} %`;
-  const label = `${scopeName}, ${week} : ${cell.errors} erreur${cell.errors === 1 ? "" : "s"}, ${change}`;
+  const column =
+    granularity === "jour" ? formatDateFr(cell.column) : weekLabel(cell.column);
+  const change =
+    cell.changePct === null
+      ? "évolution indisponible"
+      : `${cell.changePct >= 0 ? "+" : ""}${cell.changePct} %`;
+  const label = `${scopeName}, ${column} : ${cell.errors} erreur${cell.errors === 1 ? "" : "s"}, ${change}`;
 
   return (
     <div
@@ -117,7 +212,7 @@ function HeatmapCell({
   );
 }
 
-function ErrorRanking({ rows }: { rows: WeeklyErrorRow[] }) {
+function ErrorRanking({ rows }: { rows: ErrorHeatmapRow[] }) {
   const max = Math.max(...rows.map((row) => row.totalErrors), 1);
   return (
     <div className="mt-5 border-t border-slate-100 pt-4 dark:border-nord-2">

@@ -1253,6 +1253,31 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
 
+- **Une seule classe pour toutes les cases à cocher : `CHECKBOX_CLASS`**
+  (`src/constants/ui.ts`). Le même arbitrage que `constants/routes.ts` : une valeur
+  dupliquée dérive, et ici la dérive était mesurée — trois hauteurs, `text-*`
+  contre `accent-*`, deux jetons de bordure, deux traitements de focus pour six
+  cases. **La constante doit rester une chaîne littérale complète** : Tailwind
+  extrait les noms de classes par analyse statique du source, donc une classe
+  recombinée par concaténation ne serait jamais générée et le style disparaîtrait
+  sans erreur de compilation. **La preuve n'est ni `tsc` ni jsdom, c'est le CSS
+  compilé** : `grep -c` sur `dist/assets/index-*.css` pour chaque nom, en
+  n'oubliant pas que Tailwind v4 échappe le point d'un `h-3.5` en `h-3\.5` et le
+  séparateur de variante en `dark\:accent-nord-8`. Un build sans erreur n prouve
+  rien ici.
+- **`accent-*` et non `text-*` pour une case à cocher.** C'est `accent-color` qui
+  colore une case native ; la couleur de texte n'est qu'un contournement dont le
+  rendu dépend du navigateur, si bien que deux cases identiques n'affichaient pas
+  la même couleur. Le curseur et l'anneau de focus viennent de la constante, ce qui
+  est sans risque : chaque case est enveloppée dans un `<label>` d'au moins 36 px
+  (`min-h-9`), donc la cible cliquable reste bien au-dessus du plancher AA même à
+  14 px. Un `cursor-pointer` local reste possible pour une case nue, hors label.
+- **`AnalyticsFilterBar.test.tsx` verrouille l'unicité du style** : toutes les
+  cases de la carte doivent partager un seul `className`. C'est un **garde-fou de
+  classe, pas un test de rendu** — jsdom ne calcule aucune couleur, donc seul
+  l'égalité des chaînes est vérifiable. Vérifier qu'il échoue en cassant une
+  occurrence, sinon il ne prouve rien.
+
 - **La page principale est mono-jour, pas un cumul.** `ScopeListPage` n'affiche que les compteurs du
   jour sélectionné ; le jour à l'ouverture est `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour
   si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
@@ -1404,13 +1429,48 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
   périmètre le plus dégradé, en tête de liste, recevrait la barre la plus courte. Un
   taux indéfini n'a aucune barre — une barre nulle se lirait comme un 0 %.
-- **La heatmap de `/analyse` porte les erreurs brutes par semaine.** Une ligne
-  représente un périmètre, une colonne une semaine ISO et l'intensité de la cellule
-  est proportionnelle à `errors_reported`. Le classement sous la heatmap trie sur
-  le total d'erreurs de la période. Les incidents ne sont pas soustraits dans cette
-  vue : elle mesure le volume observé, tandis que la grille mesure l'état du
-  traitement. L'évolution d'une cellule compare la semaine à sa précédente et
-  reste indéfinie quand la base est absente ou nulle.
+- **La heatmap de `/analyse` porte les erreurs brutes par jour ou par semaine.** Une
+  ligne représente un périmètre, une colonne une jour ou une semaine ISO selon le
+  réglage `granularity`, et l'intensité de la cellule est proportionnelle à
+  `errors_reported`. Elle suit donc le même réglage que la grille : un regroupement
+  forcé en semaine rendrait le sélecteur « Par jour » mensonger. Le classement sous
+  la heatmap trie sur le total d'erreurs de la période. Les incidents ne sont pas
+  soustraits dans cette vue : elle mesure le volume observé, tandis que la grille
+  mesure l'état du traitement. L'évolution d'une cellule compare la colonne à la
+  précédente **affichée** — en vue journalière, deux colonnes consécutives peuvent
+  être séparées par un week-end filtré — et reste indéfinie quand la base est absente
+  ou nulle.
+- **La heatmap déborde, et doit pouvoir défiler.** En vue journalière, 120 jours font
+  120 colonnes d'au moins 2 rem : un `overflow-hidden` y.clipperait des colonnes hors
+  d'atteinte, visuellement **et** au clavier, ce qui est pire qu'une barre de
+  défilement. Le conteneur est donc `overflow-x-auto`, la colonne des noms est
+  `sticky left-0`, et la région prend `tabIndex={0}` quand elle déborde réellement
+  (au-delà de 12 colonnes) — un conteneur défilant non focusable est inatteignable au
+  clavier (WCAG 2.1.1), et un `tabIndex` permanent serait un point d'arrêt sans effet.
+  Le libellé de colonne visible est abrégé au jour seul : « 21 sept. 2026 » ne tient
+  pas dans 2 rem et `truncate` n'en montrerait que le premier chiffre, ce qui
+  alignerait des jours différents sous le même nombre ; la date complète reste dans
+  le `title` et le libellé accessible de la cellule.
+- **Un test de `/analyse` ne doit pas chercher un nombre global.** En vue
+  journalière, les en-têtes de colonne portent « 11 », « 12 »… Un `getByText("11")`
+  sur la page entière peut donc tomber sur la heatmap au lieu du compteur KPI :
+  passer par `within(screen.getByRole("region", { name: /résumé/i }))`.
+- **La grille de supervision ne doit pas être retirée comme doublon de la
+  heatmap.** Les deux sont des matrices `périmètre × période` colorées, d'où la
+  tentation, mais elles ne mesurent rien de même : la heatmap le **volume
+  d'erreurs observées**, la grille l'**état du traitement** puis l'en attente.
+  Deux propriétés n'existent que dans la grille et justifient de la garder :
+  `nonSaisi` y est distinct de « zéro erreur saisie » (la heatmap ramène une
+  colonne sans activité à `0`) ; et c'est le seul tableau, donc le seul chemin
+  clavier vers le détail. Le titre de la grille porte une légende qui nomme sa
+  métrique et ses couleurs — sans elle, les deux échelles de couleur se lisent
+  comme la même vue.
+- **Le classement est un doublon assumé de la heatmap.** `ErrorRanking` trie les
+  mêmes `totalErrors` que les lignes de la heatmap, sur un seul critère décroissant
+  (l'ancien tri à deux sens selon la métrique, avec taux de transformation, a été
+  supprimé avec l'aire empilée). Il est conservé pour l'ordre, la navigation vers
+  le détail et la valeur en texte : le supprimer est possible, le « réparer » en
+  réintroduisant une métrique ne l'est pas.
 - **La première carte de `/analyse` suit la hiérarchie de décision.** `Période` et
   `Affichage` sont regroupés en réglages secondaires ; `Périmètres comparés` est
   un bloc pleine largeur, avec l'explication de son effet sur les graphiques, le
@@ -1430,15 +1490,24 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - **`min-w-0` sur le lien du nom de la grille**, comme dans la carte de la liste des
   périmètres : sans lui, `min-width: auto` empêche le rétrécissement sous la largeur
   du texte et la colonne `w-44` est ignorée.
-- **`PageNav` est monté deux fois** (en-tête `md`+, pied de page en dessous) parce que la
-  barre d'en-tête se condense sur mobile. `NavLink` a besoin de `end` sur
-  `SCOPE_LIST_PATH` : sans lui, `/` est active sur toutes les pages et « Périmètres » serait
-  marqué courant partout. `aria-current` porte l'information d'état actif, pas la couleur.
+- **`PageNav` n'est monté que dans le pied de page.** Il était aussi dans l'en-tête, où
+  « Périmètres » faisait doublon avec le logo : on a retiré l'instance de `Navbar`, pas ses
+  entrées, ce qui laisse `PageNav` complet pour le mobile. **Le pied de page est le seul chemin
+  vers Analyse et Journal sur téléphone**, là où Ctrl+Alt n'existe pas : le supprimer de `App.tsx`
+  les rendrait inatteignables sur mobile. `NavLink` a besoin de `end` sur `SCOPE_LIST_PATH` :
+  sans lui, `/` est active sur toutes les pages et « Périmètres » serait marqué courant partout.
+  `aria-current` porte l'information d'état actif, pas la couleur.
+- **Les deux vues hors en-tête passent par `PageShortcuts`** (`Ctrl+Alt+G`, `Ctrl+Alt+L`), un seul
+  `keydown` pour les deux liaisons — deux composants dupliqueraient la même garde. La touche est
+  comparée en minuscules, et `shiftKey` est explicitement refusé pour ne pas capter une mainlevée
+  que le bureau envoie pour autre chose. Le raccourci navigue **modale ouverte comprise**, ce qui
+  démonte une saisie en cours : il est global, il ne consulte donc pas l'état des modales qui vit
+  dans `AppContent`, et c'est un choix assumé.
 - **`/analyse` n'a pas de location nginx.** Le `try_files $uri $uri/ /index.html` de la SPA
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
-- Tests : `npm test` (vitest, 198 tests) et `npm run lint` (`tsc --noEmit`). Le
+- Tests : `npm test` (vitest, 195 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

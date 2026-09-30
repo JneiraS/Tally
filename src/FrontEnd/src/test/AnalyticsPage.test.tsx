@@ -100,7 +100,7 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /Erreurs par semaine et par périmètre/i })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /Erreurs par jour et par périmètre/i })).toBeInTheDocument();
     });
     expect(screen.getByRole("heading", { name: /Périmètres les plus exposés/i })).toBeInTheDocument();
     expect(
@@ -108,14 +108,54 @@ describe("AnalyticsPage", () => {
     ).toBeInTheDocument();
   });
 
+  // La heatmap et la grille sont deux matrices colorées consécutives : sans
+  // légende nommant la seconde métrique, elles se lisent comme la même vue.
+  it("distingue l'état du traitement du volume d'erreurs", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Grille de supervision/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText(/volume total d'erreurs · jours iso/i)).toBeInTheDocument();
+    expect(screen.getByText(/état du traitement et erreurs en attente/i)).toBeInTheDocument();
+  });
+
+  // La heatmap regroupait systématiquement par semaine : choisir « par jour »
+  // ne déplaçait que la grille, et l'utilisateur croyait voir un détail
+  // journalier qui n'existait pas.
+  it("suit le réglage d'affichage, jour comme semaine", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Erreurs par jour et par périmètre/i })).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("img", { name: /Alpha, 21 sept/i }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Par semaine" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: /Erreurs par semaine et par périmètre/i })).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("img", { name: /Alpha, S39 : 4 erreurs/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/volume total d'erreurs · semaines iso/i)).toBeInTheDocument();
+  });
+
   it("additionne erreurs, incidents et arriéré des périmètres retenus", async () => {
     renderPage();
 
-    // Alpha 4/1 et Beta 8/0 => 12 erreurs, 1 incident, 11 en attente
+    // Alpha 4/1 et Beta 8/0 => 12 erreurs, 1 incident, 11 en attente.
+    // La recherche est scopée au résumé : en vue journalière, un en-tête de
+    // colonne de la heatmap porte aussi « 11 », et une recherche globale
+    //rencontrerait les deux.
+    const summary = await screen.findByRole("region", { name: /résumé de la période/i });
     await waitFor(() => {
-      expect(screen.getByText("12")).toBeInTheDocument();
+      expect(within(summary).getByText("12")).toBeInTheDocument();
     });
-    expect(screen.getByText("11")).toBeInTheDocument();
+    expect(within(summary).getByText("11")).toBeInTheDocument();
   });
 
   it("pré-sélectionne tous les périmètres et annonce le compte", async () => {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Download, SlidersHorizontal } from "lucide-react";
+import { CHECKBOX_CLASS } from "../constants/ui";
 import { firstActivityDay, resolvePresetRange } from "../utils/analytics";
 import { getTodayIsoDate } from "../utils/date";
 import type { NonWorkingDays, ScopeMonitoring } from "../types";
@@ -182,7 +183,7 @@ export function AnalyticsFilterBar({
               onChange={(event) =>
                 onChange({ workingDaysOnly: event.target.checked })
               }
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 dark:border-nord-3 dark:bg-nord-0"
+              className={CHECKBOX_CLASS}
             />
             Jours ouvrés uniquement
           </label>
@@ -191,7 +192,7 @@ export function AnalyticsFilterBar({
               type="checkbox"
               checked={compare}
               onChange={(event) => onChange({ compare: event.target.checked })}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 dark:border-nord-3 dark:bg-nord-0"
+              className={CHECKBOX_CLASS}
             />
             Comparer à la période précédente
           </label>
@@ -221,7 +222,7 @@ export function AnalyticsFilterBar({
                     type="checkbox"
                     checked={selected}
                     onChange={() => toggleBillingCode(code, filters.billingCodes, onChange)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 accent-blue-600 dark:border-nord-3 dark:bg-nord-0 dark:accent-nord-8"
+                    className={CHECKBOX_CLASS}
                   />
                   {selected && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                   <span>{code === NO_BILLING_CODE ? "Sans code" : code}</span>
@@ -302,7 +303,7 @@ export function AnalyticsFilterBar({
                     type="checkbox"
                     checked={scopeIds.includes(scope.id)}
                     onChange={() => toggleScope(scope.id)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 accent-blue-600 dark:border-nord-3 dark:bg-nord-0 dark:accent-nord-8"
+                    className={CHECKBOX_CLASS}
                   />
                   {scopeIds.includes(scope.id) && (
                     <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

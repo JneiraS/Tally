@@ -58,24 +58,27 @@ export interface PeriodDelta {
   couverturePct: number | null;
 }
 
-export interface WeeklyErrorCell {
-  week: string;
+export interface ErrorHeatmapCell {
+  /** Jour ISO en granularité « jour », clé ISO (« 2026-W39 ») en « semaine ». */
+  column: string;
   errors: number;
   changePct: number | null;
 }
 
-export interface WeeklyErrorRow {
+export interface ErrorHeatmapRow {
   id: string;
   name: string;
   billing_code: string | null;
-  cells: WeeklyErrorCell[];
+  cells: ErrorHeatmapCell[];
   totalErrors: number;
 }
 
-export interface WeeklyErrorHeatmap {
-  weeks: string[];
-  rows: WeeklyErrorRow[];
+export interface ErrorHeatmap {
+  /** Colonnes de l'axe, triées, partagées par toutes les lignes. */
+  columns: string[];
+  rows: ErrorHeatmapRow[];
   maxErrors: number;
+  granularity: Granularity;
 }
 
 export type CellState = "traite" | "encours" | "nonSaisi";
@@ -207,34 +210,43 @@ export function aggregateByWeek(
 
 /**
  * Prépare la heatmap d'erreurs : une ligne par périmètre et une colonne par
- * semaine de la période. Les semaines sans activité restent présentes avec une
- * valeur nulle afin que toutes les lignes partagent le même axe.
+ * jour ou par semaine, selon la granularité demandée.
+ *
+ * Les colonnes sans activité restent présentes avec une valeur nulle afin que
+ * toutes les lignes partagent le même axe. `changePct` compare chaque colonne à
+ * la précédente **affichée** : en granularité jour, deux colonnes consécutives
+ * peuvent être séparées par un week-end si les jours non ouvrés sont filtrés,
+ * et la comparaison porte donc bien sur la colonne voisine, pas sur la veille
+ * calendaire.
  */
-export function buildWeeklyErrorHeatmap(
+export function buildErrorHeatmap(
   scopes: ScopeMonitoring[],
   days: string[],
-): WeeklyErrorHeatmap {
-  const weeks = [...new Set(days.map(isoWeekKey))].sort();
+  granularity: Granularity = "semaine",
+): ErrorHeatmap {
+  const labelOf = granularity === "jour" ? (day: string) => day : isoWeekKey;
+  const columns = [...new Set(days.map(labelOf))].sort();
   const daySet = new Set(days);
   let maxErrors = 0;
 
-  const rows = scopes.map((scope): WeeklyErrorRow => {
-    const errorsByWeek = new Map<string, number>();
+  const rows = scopes.map((scope): ErrorHeatmapRow => {
+    const errorsByColumn = new Map<string, number>();
     (scope.daily_activities || []).forEach((activity) => {
       if (!daySet.has(activity.day)) return;
-      const week = isoWeekKey(activity.day);
-      errorsByWeek.set(
-        week,
-        (errorsByWeek.get(week) ?? 0) + activity.errors_reported,
+      const column = labelOf(activity.day);
+      errorsByColumn.set(
+        column,
+        (errorsByColumn.get(column) ?? 0) + activity.errors_reported,
       );
     });
 
-    const cells = weeks.map((week, index) => {
-      const errors = errorsByWeek.get(week) ?? 0;
+    const cells = columns.map((column, index) => {
+      const errors = errorsByColumn.get(column) ?? 0;
       maxErrors = Math.max(maxErrors, errors);
-      const previous = index === 0 ? null : errorsByWeek.get(weeks[index - 1]) ?? 0;
+      const previous =
+        index === 0 ? null : errorsByColumn.get(columns[index - 1]) ?? 0;
       return {
-        week,
+        column,
         errors,
         changePct: previous === null || previous === 0
           ? null
@@ -252,9 +264,12 @@ export function buildWeeklyErrorHeatmap(
   });
 
   return {
-    weeks,
-    rows: rows.sort((a, b) => b.totalErrors - a.totalErrors || a.name.localeCompare(b.name)),
+    columns,
+    rows: rows.sort(
+      (a, b) => b.totalErrors - a.totalErrors || a.name.localeCompare(b.name),
+    ),
     maxErrors,
+    granularity,
   };
 }
 

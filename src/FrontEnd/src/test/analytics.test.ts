@@ -4,7 +4,7 @@ import {
   aggregateByWeek,
   buildPeriodDays,
   buildSupervisionGrid,
-  buildWeeklyErrorHeatmap,
+  buildErrorHeatmap,
   clampRange,
   computePeriodSummary,
   firstActivityDay,
@@ -192,26 +192,47 @@ describe("heatmap hebdomadaire des erreurs", () => {
   ];
 
   it("cumule les erreurs brutes par semaine et par périmètre", () => {
-    const heatmap = buildWeeklyErrorHeatmap(SCOPES, [
+    const heatmap = buildErrorHeatmap(SCOPES, [
       "2026-09-21",
       "2026-09-22",
       "2026-09-28",
     ]);
 
-    expect(heatmap.weeks).toEqual(["2026-W39", "2026-W40"]);
+    expect(heatmap.columns).toEqual(["2026-W39", "2026-W40"]);
+    expect(heatmap.granularity).toBe("semaine");
     expect(heatmap.rows[0]).toMatchObject({
       name: "Alpha",
       totalErrors: 13,
       cells: [
-        { week: "2026-W39", errors: 10, changePct: null },
-        { week: "2026-W40", errors: 3, changePct: -70 },
+        { column: "2026-W39", errors: 10, changePct: null },
+        { column: "2026-W40", errors: 3, changePct: -70 },
       ],
     });
     expect(heatmap.maxErrors).toBe(10);
   });
 
+  it("décline une colonne par jour quand la granularité le demande", () => {
+    const heatmap = buildErrorHeatmap(
+      SCOPES,
+      ["2026-09-21", "2026-09-22", "2026-09-28"],
+      "jour",
+    );
+
+    expect(heatmap.columns).toEqual(["2026-09-21", "2026-09-22", "2026-09-28"]);
+    expect(heatmap.granularity).toBe("jour");
+    expect(heatmap.rows[0]).toMatchObject({
+      totalErrors: 13,
+      cells: [
+        { column: "2026-09-21", errors: 4, changePct: null },
+        { column: "2026-09-22", errors: 6, changePct: 50 },
+        { column: "2026-09-28", errors: 3, changePct: -50 },
+      ],
+    });
+    expect(heatmap.maxErrors).toBe(6);
+  });
+
   it("classe les périmètres sur le total d'erreurs de la période", () => {
-    const heatmap = buildWeeklyErrorHeatmap(SCOPES, [
+    const heatmap = buildErrorHeatmap(SCOPES, [
       "2026-09-21",
       "2026-09-22",
       "2026-09-28",
@@ -222,14 +243,14 @@ describe("heatmap hebdomadaire des erreurs", () => {
   });
 
   it("distingue une semaine sans erreur d'une semaine absente de la période", () => {
-    const heatmap = buildWeeklyErrorHeatmap(
+    const heatmap = buildErrorHeatmap(
       [scope("s1", "Alpha", [activity("2026-09-21", 0, 0)])],
       ["2026-09-21", "2026-09-28"],
     );
 
     expect(heatmap.rows[0].cells).toEqual([
-      { week: "2026-W39", errors: 0, changePct: null },
-      { week: "2026-W40", errors: 0, changePct: null },
+      { column: "2026-W39", errors: 0, changePct: null },
+      { column: "2026-W40", errors: 0, changePct: null },
     ]);
   });
 });

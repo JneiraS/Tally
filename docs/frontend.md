@@ -113,10 +113,22 @@ navigation d'un coup.
 SPA sert déjà les routes inconnues ; un bloc dédié serait un no-op qui donnerait
 l'illusion d'une étape nécessaire.
 
-`PageNav` porte les trois liens (Périmètres · Analyse · Journal) et est monté
-deux fois : dans l'en-tête (`md` et au-dessus) et dans le pied de page, qui n'est
-visible qu'en dessous. Sur mobile l'en-tête se condense et la navigation doit
-rester atteignable sans revenir par le logo.
+`PageNav` porte les trois liens (Périmètres · Analyse · Journal) et n'est monté
+que dans le **pied de page**. L'en-tête ne le porte plus : « Périmètres » y ferait
+doublon avec le logo, qui pointe déjà sur `SCOPE_LIST_PATH`. Au-dessus de `lg`,
+Analyse et Journal s'atteignent donc par `Ctrl+Alt+G` et `Ctrl+Alt+L`, gérés par
+un seul composant `PageShortcuts` monté dans `App.tsx` — une liaison et un chemin
+par entrée, et `shiftKey` explicitement refusé pour ne pas capter une mainlevée
+que le bureau envoie pour autre chose.
+
+**Le pied de page n'est pas un doublon, c'est le seul chemin de ces deux pages sur
+mobile**, où Ctrl+Alt n'existe pas. Le retirer de `App.tsx` les rendrait
+inatteignables sur téléphone : c'est la contrainte qui a fait retirer `PageNav`
+de l'en-tête plutôt que ses deux entrées.
+
+Le raccourci navigue même modale ouverte, ce qui démonte une saisie en cours. Il
+est global, il ne consulte donc pas l'état des modales qui vit dans `AppContent` ;
+C'est un choix assumé, pas un oubli.
 
 ---
 
@@ -234,24 +246,19 @@ Trois règles qu'un coup d'œil au rendu ne donne pas :
   complète sans qu'il l'ait demandée. L'écriture est suspendue pendant le
   chargement, sinon elle figerait une liste vide que le partageur ne retrouverait
   pas.
-- **Le tri du classement est toujours « du plus dégradé au moins dégradé »**, y
-  compris pour le taux de transformation (croissant). C'est le seul ordre qui sert
-  un superviseur ; faire varier le sens de lecture selon la métrique lui serait une
-  faute. Un taux indéfini (aucune erreur) passe en dernier dans les deux sens
-  plutôt que d'être traité comme un 0 %.
-
 Sous les filtres, la page rappelle la période, le nombre de périmètres sélectionnés
 et la granularité réellement affichée ; ce contexte reste visible quand les
 contrôles ne sont plus dans le viewport.
 
-La section principale de l'analyse affiche désormais une **heatmap hebdomadaire
-des erreurs** : une ligne par périmètre, une colonne par semaine ISO et une cellule
-dont l'intensité suit le nombre d'erreurs brutes (`errors_reported`). La valeur est
-visible dans la cellule, et le libellé accessible expose aussi l'évolution par
-rapport à la semaine précédente. Le classement sous la heatmap est indépendant :
-il trie les périmètres sur le total d'erreurs de la période sélectionnée. Les
-incidents ne sont pas soustraits : cette vue répond à « combien d'erreurs ont été
-observées ? », tandis que la grille répond à « quel est l'état du traitement ? ».
+La section principale de l'analyse affiche une **heatmap des erreurs** : une ligne
+par périmètre, une colonne par jour ou par semaine selon le réglage *Par jour /
+Par semaine*, et une cellule dont l'intensité suit le nombre d'erreurs brutes
+(`errors_reported`). La valeur est visible dans la cellule, et le libellé
+accessible expose aussi l'évolution par rapport à la colonne précédente. Le
+classement sous la heatmap est indépendant : il trie les périmètres sur le total
+d'erreurs de la période sélectionnée. Les incidents ne sont pas soustraits : cette
+vue répond à « combien d'erreurs ont été observées ? », tandis que la grille répond
+à « quel est l'état du traitement ? ».
 
 La première carte est organisée selon la décision à prendre : **Période**, puis
 **Affichage**, puis **Périmètres comparés** sur toute la largeur. Le bloc des
@@ -269,13 +276,58 @@ restaure donc les périmètres précédemment retenus. Les actions `Tout sélect
 et `Tout désélectionner` s'appliquent uniquement aux périmètres actuellement
 visibles après filtrage.
 
-Deux plafonds de lisibilité, explicites parce qu'ils changent ce qui est affiché :
-au-delà de **120 jours** l'agrégat passe en semaine (annoncé à l'utilisateur, car
-son choix « par jour » est ignoré), et au-delà de **8 périmètres** l'aire empilée
-garde le top 8 plus un « Autres (n) » en gris neutre dans les vues qui utilisent
-des séries empilées. La heatmap affiche toutes les lignes sélectionnées ; son
-classement est limité aux 15 périmètres les plus exposés et renvoie vers la grille
-pour le reste.
+### Chaque bloc mesure une chose différente
+
+La page juxtapose deux matrices colorées, ce qui les fait lire comme la même vue
+deux fois. Elles ne mesurent pas la même chose, et c'est ce qui les rend
+nécessaires l'une et l'autre :
+
+| Bloc | Résolution | Métrique |
+| --- | --- | --- |
+| Compteurs de période | période entière | erreurs, incidents, en attente, couverture |
+| Heatmap | jour ou semaine, selon le réglage | volume d'erreurs observées |
+| Classement | période entière | total d'erreurs par périmètre |
+| Grille | jour ou semaine | état du traitement, puis erreurs en attente |
+
+Deux distinctions portent l'essentiel de la valeur de la grille :
+
+- **L'état de traitement n'existe qu'elle.** La heatmap ramène une colonne sans
+  saisie à `0` (`buildErrorHeatmap`), ce qui confond « personne n'a rien saisi »
+  et « on a saisi zéro erreur ». La grille seule distingue `nonSaisi` de
+  `traite` et `encours`, et elle est la seule à exposer le `aria-label` qui
+  nominate cet état.
+- **Elle seule est un tableau.** La ligne entière est un lien vers le détail, et
+  la navigation au clavier suit les jours. La heatmap n'a aucun lien ; seul son
+  classement en a.
+
+La heatmap et la grille suivent donc toutes deux le réglage *Par jour / Par
+semaine*, et leurs en-têtes nomment la résolution réellement affichée. La heatmap
+a un titre et un sous-titre par granularité (« Erreurs par jour et par
+périmètre · jours ISO »), ce qui évite qu'un utilisateur lise un détail
+journalier là où il n'y a qu'une semaine.
+
+En vue journalière, la heatmap est un `overflow-x-auto` et non un
+`overflow-hidden` : 120 jours représentent 120 colonnes d'au moins 2 rem, soit
+plusieurs fois la largeur de l'écran. Masquer le débordement laisserait des
+colonnes hors d'atteinte, ce qui est pire qu'une barre de défilement. La
+colonne des noms est `sticky` pour que les lignes restent identifiables, et la
+région devient focusable quand elle déborde réellement, faute de quoi elle
+serait inatteignable au clavier. Un libellé de date sur N colonnes suffit, chaque
+en-tête conservant son `title` et chaque cellule son libellé complet.
+
+Deux plafonds de lisibilité restent explicites parce qu'ils changent ce qui est
+affiché : au-delà de **120 jours** l'agrégat passe en semaine — annoncé par un
+bandeau, car le choix « par jour » de l'utilisateur est alors ignoré et l'URL
+réécrite — et le classement s'arrête aux **15** périmètres les plus exposés, la
+grille restant le chemin vers les suivants. La heatmap, elle, affiche toutes les
+lignes sélectionnées : une troncature y ferait disparaître un périmètre sans
+indiquer pourquoi.
+
+La grille porte donc une légende explicite sous son titre, qui nomme sa métrique
+et ses couleurs — vert traité, ambre en cours, pointillé non saisi, intensité
+proportionnelle à l'en attente. La légende du sous-titre de la heatmap fait de
+même pour le volume d'erreurs : deux sous-titres qui se répondent, plutôt que
+deux échelles de couleur que rien ne distingue.
 
 ### La grille tient dans la largeur, ou n'affiche pas
 

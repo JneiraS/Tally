@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AnalyticsFilterBar, type AnalyticsFilters } from "../components/AnalyticsFilterBar";
+import { CHECKBOX_CLASS } from "../constants/ui";
 import { ScopeMonitoring } from "../types";
 
 function scope(id: string, name: string): ScopeMonitoring {
@@ -116,6 +117,28 @@ describe("AnalyticsFilterBar — sélection des périmètres", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "FAC-A" }));
 
     expect(onChange).toHaveBeenCalledWith({ billingCodes: ["FAC-A"] });
+  });
+
+  /**
+   * Garde-fou de classe, pas test de rendu : jsdom ne calcule aucune couleur, il
+   * ne pourrait donc pas prouver le rendu. Ce qui est vérifiable ici, et qui a
+   * déjà dérivé, c'est l'unicité du style dans toute la carte — les cases
+   * isolées de « Affichage » et les pastilles partageaient avant trois
+   * hauteurs, `text-*` contre `accent-*` et deux jetons de bordure.
+   */
+  it("applique le même style à toutes les cases de la carte", () => {
+    const scopes = [
+      codedScope("s1", "Alpha", "FAC-A"),
+      codedScope("s2", "Beta", "FAC-B"),
+    ];
+    renderBar(scopes, { ...FILTERS, scopeIds: scopes.map((scope) => scope.id) });
+
+    const classes = new Set(
+      screen.getAllByRole("checkbox").map((input) => input.getAttribute("class")),
+    );
+
+    expect(classes.size).toBe(1);
+    expect([...classes][0]).toBe(CHECKBOX_CLASS);
   });
 
   it("n'affiche qu'un lot de pastilles et renvoie le reste derrière un bouton", () => {

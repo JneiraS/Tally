@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Navbar } from "./components/Navbar";
-import { AuditShortcut } from "./components/AuditShortcut";
+import { PageShortcuts } from "./components/PageShortcuts";
 import { ToastProvider } from "./hooks/useToast";
 import { ToastContainer } from "./components/Toast";
 import { ThemeProvider } from "./hooks/useTheme";
@@ -97,7 +97,7 @@ function AppContent() {
               onLogout={handleLogout}
               onOpenSettings={() => setIsWorkingDaysOpen(true)}
             />
-            <AuditShortcut />
+            <PageShortcuts />
 
             {/* Contenu principal */}
             <main className="flex-1 max-w-screen-2xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
