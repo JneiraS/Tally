@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Download } from "lucide-react";
 import { firstActivityDay, resolvePresetRange } from "../utils/analytics";
 import { getTodayIsoDate } from "../utils/date";
@@ -31,6 +32,9 @@ export interface AnalyticsFilterBarProps {
   onExport: () => void;
 }
 
+/** Pastilles de périmètre affichées avant de renvoyer le reste derrière « +N autres ». */
+const SCOPE_CHIP_LIMIT = 12;
+
 export function AnalyticsFilterBar({
   filters,
   onChange,
@@ -40,6 +44,9 @@ export function AnalyticsFilterBar({
 }: AnalyticsFilterBarProps) {
   const { from, to, preset, granularity, workingDaysOnly, compare, scopeIds } =
     filters;
+  const [expanded, setExpanded] = useState(false);
+  const shownScopes = expanded ? scopes : scopes.slice(0, SCOPE_CHIP_LIMIT);
+  const hiddenCount = scopes.length - shownScopes.length;
 
   const applyPreset = (next: Exclude<RangePreset, "perso">) => {
     const range = resolvePresetRange(
@@ -62,7 +69,7 @@ export function AnalyticsFilterBar({
   return (
     <section
       aria-label="Filtres d'analyse"
-      className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-nord-2 dark:bg-nord-1"
+      className="bg-white dark:bg-nord-1 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs"
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="md:col-span-2">
@@ -198,23 +205,48 @@ export function AnalyticsFilterBar({
               Tout décocher
             </button>
           </div>
+          {/*
+            Des pastilles, pas une liste dans une boîte défilante : la zone
+            défilante imposait une barre dès cinq périmètres, pour une sélection
+            qui se lit d'un coup d'œil. Le reste est renvoyé derrière un bouton
+            « +N autres » qui le déploie en ligne — une modale n'aurait ici qu'un
+            « Annuler » en doublon de celui de la page.
+          */}
           <ul
             aria-labelledby="analytics-scope-label"
-            className="max-h-28 space-y-1 overflow-y-auto rounded border border-slate-200 p-2 dark:border-nord-2"
+            className="flex flex-wrap gap-1.5"
           >
-            {scopes.map((scope) => (
+            {shownScopes.map((scope) => (
               <li key={scope.id}>
-                <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-nord-4">
+                <label
+                  className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2 py-1 text-xs transition-colors ${
+                    scopeIds.includes(scope.id)
+                      ? "border-blue-600 bg-blue-50 text-blue-900 dark:border-nord-8 dark:bg-nord-9/20 dark:text-nord-6"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-nord-2 dark:bg-nord-0 dark:text-nord-4 dark:hover:bg-nord-2 dark:hover:text-nord-6"
+                  }`}
+                >
                   <input
                     type="checkbox"
                     checked={scopeIds.includes(scope.id)}
                     onChange={() => toggleScope(scope.id)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 dark:border-nord-3 dark:bg-nord-0"
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 accent-blue-600 dark:border-nord-3 dark:bg-nord-0 dark:accent-nord-8"
                   />
-                  {scope.name}
+                  <span className="max-w-40 truncate">{scope.name}</span>
                 </label>
               </li>
             ))}
+            {scopes.length > SCOPE_CHIP_LIMIT && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setExpanded((open) => !open)}
+                  aria-expanded={expanded}
+                  className="rounded-lg border border-dashed border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-nord-3 dark:text-nord-4 dark:hover:bg-nord-2"
+                >
+                  {expanded ? "− replier" : `+${hiddenCount} autres`}
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       </div>

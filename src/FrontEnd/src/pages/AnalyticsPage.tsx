@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BarChart3, Filter, Inbox } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { protabApi } from "../services/api";
 import { NonWorkingDays, ScopeMonitoring } from "../types";
@@ -207,6 +208,17 @@ export function AnalyticsPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-nord-6 flex items-center gap-2.5">
+          <BarChart3 className="w-6 h-6 text-blue-600 dark:text-nord-9" />
+          Analyse
+        </h1>
+        <p className="text-sm text-slate-500 dark:text-nord-4 mt-1">
+          Où en est le traitement des erreurs, périmètre par périmètre et jour par
+          jour
+        </p>
+      </div>
+
       <AnalyticsFilterBar
         filters={filters}
         onChange={update}
@@ -215,26 +227,32 @@ export function AnalyticsPage({
         onExport={exportSelection}
       />
 
-
       {selected.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white py-12 text-center text-sm text-slate-500 dark:border-nord-2 dark:bg-nord-1 dark:text-nord-4">
-          Sélectionnez au moins un périmètre pour lancer l'analyse.
-        </p>
+        <AnalyticsEmptyState
+          icon={<Filter className="w-6 h-6" />}
+          title="Sélectionnez au moins un périmètre"
+          hint="Cochez un ou plusieurs périmètres ci-dessus : l'analyse porte sur eux seuls."
+        />
       ) : (
         <>
           <SummaryCards summary={summary} delta={delta} compare={filters.compare} />
 
           {granularity !== filters.granularity && (
-            <p className="text-xs text-slate-500 dark:text-nord-4">
+            <p
+              role="status"
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-nord-3 dark:bg-nord-0 dark:text-nord-4"
+            >
               Période trop longue pour un affichage journalier : l'agrégat est
               passé en semaine.
             </p>
           )}
 
           {summary.traitees === 0 ? (
-            <p className="rounded-lg border border-slate-200 bg-white py-12 text-center text-sm text-slate-500 dark:border-nord-2 dark:bg-nord-1 dark:text-nord-4">
-              Aucune saisie sur la période choisie.
-            </p>
+            <AnalyticsEmptyState
+              icon={<Inbox className="w-6 h-6" />}
+              title="Aucune saisie sur la période choisie"
+              hint="Aucun jour traité n'apparaît dans cette période. Élargissez la période, ou saisissez les compteurs depuis la page des périmètres."
+            />
           ) : (
             <>
               <AnalyticsStack
@@ -272,6 +290,30 @@ export function AnalyticsPage({
 }
 
 
+function AnalyticsEmptyState({
+  icon,
+  title,
+  hint,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-12 text-center shadow-2xs space-y-3">
+      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-nord-0 text-blue-600 dark:text-nord-8 flex items-center justify-center mx-auto">
+        {icon}
+      </div>
+      <h2 className="text-base font-semibold text-slate-800 dark:text-nord-6">
+        {title}
+      </h2>
+      <p className="text-xs text-slate-500 dark:text-nord-4 max-w-sm mx-auto">
+        {hint}
+      </p>
+    </div>
+  );
+}
+
 function SummaryCards({
   summary,
   delta,
@@ -295,16 +337,16 @@ function SummaryCards({
 
   return (
     <section aria-label="Résumé de la période">
-      <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {cards.map((card) => (
           <div
             key={card.label}
-            className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs dark:border-nord-2 dark:bg-nord-1"
+            className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs"
           >
-            <dt className="text-xs text-slate-500 dark:text-nord-4">
+            <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-nord-4">
               {card.label}
             </dt>
-            <dd className="mt-1 text-xl font-semibold tabular-nums text-slate-800 dark:text-nord-5">
+            <dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-nord-6">
               {card.value.toLocaleString("fr-FR")}
               {card.suffix}
             </dd>

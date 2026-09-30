@@ -38,5 +38,10 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
+    // Chaque fichier ouvre son propre jsdom. En `forks` (le défaut), cela
+    // signifiait jusqu'à un processus node par cœur, et la suite se faisait tuer
+    // par l'OOM sur une machine déjà chargée : l'échaillement venait d'un worker
+    // mort, pas d'une régression. Les threads partagent un seul processus.
+    pool: "threads",
   },
 });

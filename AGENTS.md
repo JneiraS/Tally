@@ -1384,10 +1384,33 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   pendant le chargement des périmètres.
 - **La grille de supervision est la signature de `/analyse`, pas ses graphiques.** Aucun
   graphique ne montre l'état de chaque journée de chaque périmètre. Elle reste un
-  `<table>` (navigation au clavier suivant les jours) avec première colonne `sticky`, et
-  chaque pastille porte son `aria-label` complet : l'état d'une journée ne peut pas être
-  porté par la seule couleur. En agrégat semaine, l'état retenu est le **plus dégradé** de
-  la semaine — sinon une semaine traitée mais inachevée s'afficherait verte.
+  `<table>` (navigation au clavier suivant les jours) et chaque pastille porte son
+  `aria-label` complet : l'état d'une journée ne peut pas être porté par la seule
+  couleur. En agrégat semaine, l'état retenu est le **plus dégradé** de la semaine —
+  sinon une semaine traitée mais inachevée s'afficherait verte.
+- **La grille tient dans la largeur par construction, pas par un conteneur défilant.**
+  `<colgroup>` + `table-fixed` : les colonnes se partagent l'espace restant, donc
+  aucune barre horizontale, quelle que soit la période. **`min-w-max` et
+  `overflow-x-auto` ne doivent pas revenir** — le premier confie la largeur au
+  contenu (débordement dès une quinzaine de jours), le second ne fait que rendre le
+  débordement consultable. Les libellés de date s'affichent un sur N (12 au plus) et
+  les colonnes muettes gardent un nom accessible ; les cellules rétrécissent, et
+  aucune règle ne force la semaine au-delà d'un seuil de colonnes, car ignorer un
+  choix explicite de l'utilisateur est pire que des cellules étroites. Un test
+  compte les cellules : **aucun jour ne doit être masqué**, la rétrécissement ne se
+  paie pas en données perdues.
+- **Le classement de `/analyse` est une liste HTML, pas un graphique à barres.** La
+  valeur est en texte (la barre est `aria-hidden`), la barre est calée sur le pire
+  périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
+  périmètre le plus dégradé, en tête de liste, recevrait la barre la plus courte. Un
+  taux indéfini n'a aucune barre — une barre nulle se lirait comme un 0 %.
+- **La sélection des périmètres est une rangée de pastilles** (12 visibles, « +N
+  autres » en ligne), pas une liste dans une boîte `max-h-* overflow-y-*` : cinq
+  périmètres suffisaient à faire apparaître une barre. Ni le conteneur défilant ni
+  une modale ne doivent revenir — son « Annuler » doublonnerait celui de la page.
+- **`min-w-0` sur le lien du nom de la grille**, comme dans la carte de la liste des
+  périmètres : sans lui, `min-width: auto` empêche le rétrécissement sous la largeur
+  du texte et la colonne `w-44` est ignorée.
 - **`PageNav` est monté deux fois** (en-tête `md`+, pied de page en dessous) parce que la
   barre d'en-tête se condense sur mobile. `NavLink` a besoin de `end` sur
   `SCOPE_LIST_PATH` : sans lui, `/` est active sur toutes les pages et « Périmètres » serait
@@ -1396,9 +1419,16 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
-- Tests : `npm test` (vitest, 177 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
-  `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
-  sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
+- Tests : `npm test` (vitest, 198 tests) et `npm run lint` (`tsc --noEmit`). Le
+  `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
+  **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
+  et tous les scénarios décalent d'un jour. `setup.ts` allonge
+  `asyncUtilTimeout` : le délai d'une seconde par défaut ne suffit pas quand la suite
+  lance un jsdom par fichier en parallèle, et l'échec qui en résulte est une
+  panne de machine, pas une régression. Même origine pour `pool: "threads"` dans
+  `vite.config.ts` : en `forks`, un processus node par cœur × un jsdom par fichier
+  se fait tuer par l'OOM sur une machine chargée, et l'échec affiché est un worker
+  mort, non un test rouge.
 
 
 ## graphify

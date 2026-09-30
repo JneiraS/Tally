@@ -83,6 +83,19 @@ describe("AnalyticsPage", () => {
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValue(SCOPES);
   });
 
+  it("porte un titre de page comme les autres pages de l'application", async () => {
+    renderPage();
+
+    // Un seul `h1` par page : il donne le nom du document au lecteur d'écran et
+    // sert de cible au focus clavier.
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 1, name: /Analyse/i }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
   it("résume la période sélectionnée et nomme ses trois sections", async () => {
     renderPage();
 

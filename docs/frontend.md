@@ -244,7 +244,9 @@ Deux plafonds de lisibilité, explicites parce qu'ils changent ce qui est affich
 au-delà de **120 jours** l'agrégat passe en semaine (annoncé à l'utilisateur, car
 son choix « par jour » est ignoré), et au-delà de **8 périmètres** l'aire empilée
 garde le top 8 plus un « Autres (n) » en gris neutre. Le classement, lui, s'arrête
-à 15 barres et renvoie vers la grille pour le reste.
+à 15 lignes et renvoie vers la grille pour le reste.
+
+### La grille tient dans la largeur, ou n'affiche pas
 
 La **grille de supervision** (ligne = périmètre, colonne = jour) est la signature
 de la page : c'est ce qu'aucun graphique ne montre d'aussi bien. L'état d'une
@@ -256,8 +258,49 @@ le plus dégradé de la semaine, sinon une semaine traitée mais inachevée
 s'afficherait verte.
 
 Elle reste un `<table>` : la navigation au clavier suit les jours, ce qu'une suite
-de `div` ne ferait pas. La première colonne est `sticky`, sinon elle disparaît
-dans le défilement horizontal dès qu'un projet a plus d'une quinzaine de jours.
+de `div` ne ferait pas. Elle tient dans la largeur **par construction** — un
+`<colgroup>` fixe la colonne de nom à 11 rem et un `<col>` par jour, le tableau est
+en `table-fixed`, donc les colonnes se partagent l'espace restant et ne peuvent pas
+déborder.
+
+C'est un choix à contre-courant du réflexe « je mets un `overflow-x-auto` autour ».
+Un conteneur défilant ne supprime pas le débordement, il le rend consultable — au
+prix d'une barre de défilement permanente dès une quinzaine de jours, et d'une
+première colonne que le lecteur doit faire glisser pour retrouver. Le `min-w-max`
+qui va avec est la cause exacte : il confie la largeur au contenu, si bien que le
+tableau déborde dès que le contenu est plus large que la fenêtre. Aucune des deux
+classes ne doit revenir ; les tests le vérifient (`SupervisionGrid.test.tsx`).
+
+Deux conséquences assumées :
+
+- **Les libellés de date s'affichent un sur N** (12 au plus, soit environ tous les
+  5 jours sur un trimestre), sinon ils se chevauchent. Les colonnes muettes gardent
+  un nom accessible et un `title`, donc la grille reste complète pour un lecteur
+  d'écran comme à la souris.
+- **Les cellules rétrécissent** et finissent par n'être qu'un ruban de couleur.
+  Aucune règle ne force la semaine au-delà d'un certain nombre de colonnes : ce
+  serait ignorer un choix explicite de l'utilisateur, et l'agrégat semaine est
+  accessible d'un clic. Le test compte les cellules pour garantir qu'aucun jour
+  n'est *masqué* — la rétrécissement ne doit jamais se payer en données perdues.
+
+### Le reste de la page
+
+Le **classement** est une liste HTML de liens, pas un graphique à barres
+horizontales : à quarante périmètres un graphique est un mur, son axe de noms de
+140 px mangeait la moitié de la largeur sur mobile, et la seule façon d'y lire une
+valeur était de passer la souris dessus. Chaque ligne porte la valeur **en texte** — la
+barre est décorative, `aria-hidden` — et la barre est calée sur le pire périmètre,
+faute de quoi elle ne comparerait rien. Pour le taux de transformation la barre est
+**inversée** (`100 − taux`), sinon le périmètre le plus dégradé, en tête de liste,
+recevrait la barre la plus courte. Un taux indéfini n'a aucune barre : une barre de
+longueur nulle se lirait comme un 0 %.
+
+La **sélection des périmètres** est une rangée de pastilles, avec les 12 premières
+visibles et un bouton « +N autres » qui déploie la suite en ligne. La liste était
+dans une boîte `max-h-28 overflow-y-auto` : cinq périmètres suffisaient à faire
+apparaître une barre de défilement pour une sélection qui se lit d'un coup d'œil.
+Le déploiement ne passe pas par une modale — son « Annuler » doublonnerait celui de
+la page, et sa superposition masquerait le graphique qu'on est en train de filtrer.
 
 ---
 
@@ -293,9 +336,18 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-23 fichiers dans `src/test/`. `src/test/setup.ts` se limite à importer
-`@testing-library/jest-dom/vitest` : ni `ResizeObserver` ni dimensions ne sont
-mockés, ce qui a des conséquences (voir `docs/testing.md` §6).
+24 fichiers dans `src/test/`. `src/test/setup.ts` importe
+`@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
+(`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
+environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses
+d'API. Ni `ResizeObserver` ni dimensions ne sont mockés, ce qui a des conséquences
+(voir `docs/testing.md` §6).
+
+`vite.config.ts` impose `pool: "threads"`. Chaque fichier ouvre son propre jsdom ;
+en `forks`, le défaut, cela veut dire un processus node par cœur, et la suite se
+faisait tuer par l'OOM sur une machine déjà chargée — l'échec qui en résultait était
+un worker mort, pas une régression. Les threads partagent un seul processus, pour
+une durée inchangée.
 
 Trois pièges à connaître avant d'écrire un test :
 
