@@ -6183,7 +6183,7 @@
       "file_type": "code",
       "norm_label": "presetbutton()",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L284"
+      "source_location": "L307"
     },
     {
       "id": "src_frontend_src_components_analyticsfilterbar_scopecountlabel",
@@ -6195,7 +6195,7 @@
       "file_type": "code",
       "norm_label": "scopecountlabel()",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L340"
+      "source_location": "L363"
     },
     {
       "id": "src_frontend_src_components_analyticsfilterbar_togglebutton",
@@ -6207,7 +6207,7 @@
       "file_type": "code",
       "norm_label": "togglebutton()",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L309"
+      "source_location": "L332"
     },
     {
       "id": "src_frontend_src_test_analyticsfilterbar_test_renderbar",
@@ -11938,7 +11938,7 @@
       "node_kind": "heading",
       "norm_label": "la grille tient dans la largeur, ou n'affiche pas",
       "source_file": "docs/frontend.md",
-      "source_location": "L257"
+      "source_location": "L266"
     },
     {
       "id": "docs_frontend_le_reste_de_la_page",
@@ -11950,7 +11950,7 @@
       "node_kind": "heading",
       "norm_label": "le reste de la page",
       "source_file": "docs/frontend.md",
-      "source_location": "L294"
+      "source_location": "L303"
     },
     {
       "id": "src_protab_application_commands_daily_activity",
@@ -15034,7 +15034,7 @@
       "node_kind": "heading",
       "norm_label": "10. tests",
       "source_file": "docs/frontend.md",
-      "source_location": "L341"
+      "source_location": "L350"
     },
     {
       "id": "docs_frontend_11_ce_qui_n_existe_pas",
@@ -15046,7 +15046,7 @@
       "node_kind": "heading",
       "norm_label": "11. ce qui n'existe pas",
       "source_file": "docs/frontend.md",
-      "source_location": "L372"
+      "source_location": "L381"
     },
     {
       "id": "docs_frontend_12_build_et_d\u00e9ploiement",
@@ -15058,7 +15058,7 @@
       "node_kind": "heading",
       "norm_label": "12. build et deploiement",
       "source_file": "docs/frontend.md",
-      "source_location": "L387"
+      "source_location": "L396"
     },
     {
       "id": "docs_frontend_13_documents_voisins",
@@ -15070,7 +15070,7 @@
       "node_kind": "heading",
       "norm_label": "13. documents voisins",
       "source_file": "docs/frontend.md",
-      "source_location": "L401"
+      "source_location": "L410"
     },
     {
       "id": "docs_frontend_1_pile_technique",
@@ -15106,7 +15106,7 @@
       "node_kind": "heading",
       "norm_label": "9. graphiques et styles",
       "source_file": "docs/frontend.md",
-      "source_location": "L315"
+      "source_location": "L324"
     },
     {
       "id": "docs_frontend_frontend",
@@ -17655,7 +17655,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L219",
+      "source_location": "L232",
       "weight": 1.0
     },
     {
@@ -17667,7 +17667,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L52",
+      "source_location": "L54",
       "weight": 1.0
     },
     {
@@ -17679,7 +17679,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L54",
+      "source_location": "L56",
       "weight": 1.0
     },
     {
@@ -17691,7 +17691,7 @@
       "confidence_score": 1.0,
       "context": "call",
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L56",
+      "source_location": "L58",
       "weight": 1.0
     },
     {
@@ -36745,7 +36745,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L257",
+      "source_location": "L266",
       "weight": 1.0
     },
     {
@@ -36756,7 +36756,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L294",
+      "source_location": "L303",
       "weight": 1.0
     },
     {
@@ -36822,7 +36822,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L315",
+      "source_location": "L324",
       "weight": 1.0
     },
     {
@@ -36833,7 +36833,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L341",
+      "source_location": "L350",
       "weight": 1.0
     },
     {
@@ -36844,7 +36844,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L372",
+      "source_location": "L381",
       "weight": 1.0
     },
     {
@@ -36855,7 +36855,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L387",
+      "source_location": "L396",
       "weight": 1.0
     },
     {
@@ -36866,7 +36866,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L401",
+      "source_location": "L410",
       "weight": 1.0
     },
     {
@@ -37702,7 +37702,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L284",
+      "source_location": "L307",
       "weight": 1.0
     },
     {
@@ -37713,7 +37713,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L309",
+      "source_location": "L332",
       "weight": 1.0
     },
     {
@@ -37724,7 +37724,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "src/FrontEnd/src/components/AnalyticsFilterBar.tsx",
-      "source_location": "L340",
+      "source_location": "L363",
       "weight": 1.0
     },
     {
@@ -48049,7 +48049,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L390",
+      "source_location": "L399",
       "weight": 1.0
     },
     {
@@ -48060,7 +48060,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "docs/frontend.md",
-      "source_location": "L405",
+      "source_location": "L414",
       "weight": 1.0
     },
     {

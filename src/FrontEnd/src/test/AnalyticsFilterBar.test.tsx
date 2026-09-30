@@ -53,7 +53,7 @@ describe("AnalyticsFilterBar — sélection des périmètres", () => {
    */
   function scopeChips() {
     return within(
-      screen.getByRole("list", { name: "Périmètres" }),
+      screen.getByRole("list", { name: "Périmètres comparés" }),
     ).queryAllByRole("checkbox");
   }
 
@@ -155,7 +155,7 @@ describe("AnalyticsFilterBar — sélection des périmètres", () => {
     renderBar();
 
     expect(screen.getByText("20 périmètres sur 20")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Tout cocher/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Tout décocher/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Tout sélectionner/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Tout désélectionner/i })).toBeInTheDocument();
   });
 });

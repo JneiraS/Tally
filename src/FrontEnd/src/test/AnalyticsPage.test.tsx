@@ -165,13 +165,15 @@ describe("AnalyticsPage", () => {
       expect(screen.getByText("2 périmètres sur 2")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Tout décocher/i }));
+    const filters = screen.getByRole("region", { name: "Filtres d'analyse" });
+    fireEvent.click(
+      within(filters).getByRole("button", { name: /Tout désélectionner/i }),
+    );
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Sélectionnez au moins un périmètre/i),
-      ).toBeInTheDocument();
+      expect(within(filters).getByText("0 périmètres sur 2")).toBeInTheDocument();
     });
+    expect(screen.getByRole("heading", { name: /Sélectionnez au moins un périmètre/i })).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 

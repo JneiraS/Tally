@@ -1409,6 +1409,13 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   modifie que le classement, pas les KPI ni l'aire empilée. La page rappelle sous
   les filtres la période, le nombre de périmètres retenus et la granularité effective
   afin que le contexte reste lisible hors du panneau de contrôles.
+- **La première carte de `/analyse` suit la hiérarchie de décision.** `Période` et
+  `Affichage` sont regroupés en réglages secondaires ; `Périmètres comparés` est
+  un bloc pleine largeur, avec l'explication de son effet sur les graphiques, le
+  compteur `N sur M`, des actions globales explicitement nommées et désactivées
+  quand elles n'ont plus d'effet. Une sélection vide est volontairement atteignable
+  et signale la conséquence dans la carte, sans laisser un écran de graphiques vide
+  sans explication.
 - **La sélection des périmètres est une rangée de pastilles** (12 visibles, « +N
   autres » en ligne), pas une liste dans une boîte `max-h-* overflow-y-*` : cinq
   périmètres suffisaient à faire apparaître une barre. Ni le conteneur défilant ni

@@ -1,7 +1,7 @@
 # Graph Report - ProTab  (2026-09-30)
 
 ## Corpus Check
-- 180 files · ~90,224 words
+- 180 files · ~90,557 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 12 file(s) not represented in the graph (top: (none) 8, .example 1, .conf 1)
 
@@ -437,11 +437,11 @@ _Questions this graph is uniquely positioned to answer:_
 - **What is the exact relationship between `React Root Mount (#root)` and `Audit Trail (best-effort mutation journal)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **Why does `Tests` connect `InMemoryScopeMonitoringRepository` to `FakeAuthRepository`, `ScopeMonitoring`, `architecture.md`?**
-  _High betweenness centrality (0.319) - this node is a cross-community bridge._
+  _High betweenness centrality (0.322) - this node is a cross-community bridge._
 - **Why does `6. Tests frontend` connect `ScopeMonitoring` to `App.tsx`, `useTheme.tsx`, `useToast.tsx`, `isValidIsoDate`, `AnalyticsPage.tsx`, `kpi.ts`, `InMemoryScopeMonitoringRepository`, `AuditLogPage.tsx`?**
-  _High betweenness centrality (0.300) - this node is a cross-community bridge._
+  _High betweenness centrality (0.303) - this node is a cross-community bridge._
 - **Why does `InMemoryScopeMonitoringRepository` connect `InMemoryScopeMonitoringRepository` to `pytest`, `project_context`, `CreateScopeMonitoringUseCase`, `api_test.py`, `FakeAuthRepository`, `protab_adapters_outbound_persistence_in_memory_scope_monitoring_repository`, `update_daily_activity_test.py`, `DailyActivity`, `ScopeMonitoring`, `datetime`, `create_daily_activity_test.py`, `app.py`, `repository`, `complete_daily_activity_test.py`?**
-  _High betweenness centrality (0.182) - this node is a cross-community bridge._
+  _High betweenness centrality (0.184) - this node is a cross-community bridge._
 - **Are the 53 inferred relationships involving `DailyActivity` (e.g. with `_activity_to_response()` and `InMemoryScopeMonitoringRepository`) actually correct?**
   _`DailyActivity` has 53 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 50 inferred relationships involving `create_app()` (e.g. with `API — `adapters/inbound/api/`` and `close_persistence()`) actually correct?**

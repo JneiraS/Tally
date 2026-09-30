@@ -248,6 +248,15 @@ filtres, la page rappelle la période, le nombre de périmètres sélectionnés 
 granularité réellement affichée ; ce contexte reste visible quand les contrôles
 ne sont plus dans le viewport.
 
+La première carte est organisée selon la décision à prendre : **Période**, puis
+**Affichage**, puis **Périmètres comparés** sur toute la largeur. Le bloc des
+périmètres explique que les graphiques et la grille dépendent uniquement de cette
+sélection, affiche `N périmètres sur M`, et désactive l'action globale qui n'a
+plus d'effet (`Tout sélectionner` quand tout est déjà sélectionné, ou `Tout
+désélectionner` quand la sélection est vide). Une sélection vide reste possible
+et affiche un message directement dans la carte au lieu de laisser l'utilisateur
+deviner pourquoi les graphiques ont disparu.
+
 Deux plafonds de lisibilité, explicites parce qu'ils changent ce qui est affiché :
 au-delà de **120 jours** l'agrégat passe en semaine (annoncé à l'utilisateur, car
 son choix « par jour » est ignoré), et au-delà de **8 périmètres** l'aire empilée
