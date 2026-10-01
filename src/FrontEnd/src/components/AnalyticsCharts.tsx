@@ -247,13 +247,13 @@ function ErrorRanking({ rows }: { rows: ErrorHeatmapRow[] }) {
 
 function heatmapClass(intensity: number): string {
   if (intensity === 0) {
-    return "bg-slate-50 text-slate-400 dark:bg-nord-2 dark:text-nord-4";
+    return "bg-slate-50 text-slate-600 dark:bg-nord-2 dark:text-nord-4";
   }
   if (intensity <= 0.25) {
-    return "bg-sky-100 text-slate-700 dark:bg-nord-3 dark:text-nord-6";
+    return "bg-blue-100 text-slate-700 dark:bg-nord-3 dark:text-nord-6";
   }
   if (intensity <= 0.55) {
-    return "bg-sky-300 text-slate-900 dark:bg-nord-8 dark:text-nord-0";
+    return "bg-blue-300 text-slate-900 dark:bg-nord-8 dark:text-nord-0";
   }
-  return "bg-sky-600 text-white dark:bg-nord-9 dark:text-nord-0";
+  return "bg-blue-700 text-white dark:bg-nord-9 dark:text-nord-0";
 }

@@ -105,6 +105,7 @@ describe("AnalyticsPage", () => {
     expect(screen.getByRole("heading", { name: /Périmètres les plus exposés/i })).toBeInTheDocument();
     expect(screen.getByText(/— : aucune saisie/i)).toBeInTheDocument();
     expect(screen.getAllByRole("img", { name: /aucune saisie/i }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("img", { name: /Beta, 21 sept/i })).toHaveClass("bg-blue-700", "text-white");
   });
 
   // La heatmap regroupait systématiquement par semaine : choisir « par jour »
