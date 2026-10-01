@@ -347,6 +347,18 @@ la page, et sa superposition masquerait le graphique qu'on est en train de filtr
 
 ## 9. Graphiques et styles
 
+La page de détail d'un périmètre (`ScopeDetailCharts.tsx`) ne porte **qu'un**
+graphique, « Tendance des erreurs et incidents », en valeurs quotidiennes. C'est
+délibéré : c'est la seule échelle qui répond à une question actionnable — quel
+jour a eu des erreurs sans incident. Un graphique cumulé y avait sa place, puis
+a été retiré (`buildCumulativeTrend`) parce qu'un cumul ne fait qu'augmenter — il
+répond « combien depuis le début ? », ce qui ne bouge plus après quelques semaines —
+et parce que son arriéré valait `erreurs - incidents` : empiler `incidents` +
+`arriéré` reconstruisait `erreurs`, donc la courbe du dessus reproduisait
+exactement le haut de son propre empilement. Le même total s'affichait deux fois,
+dans deux registres visuels, lisibles comme deux mesures distinctes. L'arriéré
+reste lisible comme valeur dans les KPI. Voir `AGENTS.md` §28.6.
+
 Deux pièges liés aux recharts, documentés en `AGENTS.md` §28.6 et utiles à
 rappeler :
 

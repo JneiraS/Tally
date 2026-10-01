@@ -108,9 +108,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ScopeDetailCharts.tsx": {
-    "mtime": 1790518628.6217496,
-    "seen": 1790527147.3729322,
-    "ast_hash": "55d85ee4abce56ccc808f4a543c05439",
+    "mtime": 1790860167.3547912,
+    "seen": 1790860316.7279885,
+    "ast_hash": "a83ed1dd3ae3d697e46d6989ccf8bdbe",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ScopeFormModal.tsx": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/ScopeDetailCharts.test.tsx": {
-    "mtime": 1790769253.9374037,
-    "seen": 1790771680.6327653,
-    "ast_hash": "62d1f39d67a3bbdc518b3ec4679ebf8f",
+    "mtime": 1790860195.3087046,
+    "seen": 1790860316.7280686,
+    "ast_hash": "cf806448b2a4866a5e87b8d0a134a02e",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/ScopeListPage.test.tsx": {
@@ -258,9 +258,9 @@
     "semantic_hash": "bd667d9ae3cb6e85e7688a89f0aad8e8"
   },
   "src/FrontEnd/src/test/kpi.test.ts": {
-    "mtime": 1790769253.9378076,
-    "seen": 1790771680.6328154,
-    "ast_hash": "1bcbb8383cca445b47f613d73368f401",
+    "mtime": 1790860205.8297107,
+    "seen": 1790860316.7280855,
+    "ast_hash": "0ea11417a3e406c67e93017f19028e13",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/setup.ts": {
@@ -306,9 +306,9 @@
     "semantic_hash": "15ae0b5fbe5a07327ca99a799078d842"
   },
   "src/FrontEnd/src/utils/kpi.ts": {
-    "mtime": 1790511097.62489,
-    "seen": 1790512578.5206933,
-    "ast_hash": "0186b23858ec3bad2421839783363216",
+    "mtime": 1790860178.4537382,
+    "seen": 1790860316.7281067,
+    "ast_hash": "c9a985f37fc21dfa17c457318f776b17",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/utils/validation.ts": {
@@ -840,9 +840,9 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790855985.5001743,
-    "seen": 1790856337.2537472,
-    "ast_hash": "6c98b4b9455089d697da22143b697033",
+    "mtime": 1790860297.9735298,
+    "seen": 1790860316.728322,
+    "ast_hash": "e402fbd7138e0685b4b6a9a4401131b8",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1008,9 +1008,9 @@
     "semantic_hash": ""
   },
   "docs/frontend.md": {
-    "mtime": 1790855764.7573166,
-    "seen": 1790855774.4521608,
-    "ast_hash": "9539097338f996b128d9b6bf55c9705a",
+    "mtime": 1790860265.0870938,
+    "seen": 1790860316.7283382,
+    "ast_hash": "556ea932a06932ad13bdeb2d3a4a797d",
     "semantic_hash": ""
   },
   "docs/testing.md": {

@@ -1,8 +1,6 @@
 import { useMemo } from "react";
 import {
   CartesianGrid,
-  ComposedChart,
-  Area,
   Legend,
   Line,
   LineChart,
@@ -13,7 +11,6 @@ import {
 } from "recharts";
 import { ScopeMonitoring } from "../types";
 import { formatDateFr } from "../utils/date";
-import { buildCumulativeTrend } from "../utils/kpi";
 
 interface ScopeDetailChartsProps {
   scope: ScopeMonitoring;
@@ -32,13 +29,8 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
     [scope.daily_activities],
   );
 
-  const cumulativeData = useMemo(
-    () => buildCumulativeTrend(scope.daily_activities),
-    [scope.daily_activities],
-  );
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 gap-4">
       <section
         aria-labelledby="scope-detail-trend-title"
         className="bg-white dark:bg-nord-1 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs"
@@ -116,90 +108,6 @@ export function ScopeDetailCharts({ scope }: ScopeDetailChartsProps) {
                 activeDot={{ r: 5 }}
               />
             </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="scope-detail-cumulative-title"
-        className="bg-white dark:bg-nord-1 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs"
-      >
-        <div className="mb-4">
-          <h2
-            id="scope-detail-cumulative-title"
-            className="text-sm font-semibold text-slate-800 dark:text-nord-5"
-          >
-            Cumul : erreurs / incidents — arriéré non transformées
-          </h2>
-          <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            Écart cumulé entre les erreurs signalées et les incidents créés
-          </p>
-        </div>
-
-        <div className="h-64 min-w-0 [&_.recharts-surface]:outline-none [&_.recharts-surface]:focus-visible:outline-2 [&_.recharts-surface]:focus-visible:outline-solid [&_.recharts-surface]:focus-visible:outline-offset-2 [&_.recharts-surface]:focus-visible:outline-blue-500 dark:[&_.recharts-surface]:focus-visible:outline-nord-8">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={cumulativeData}
-              margin={{ top: 4, right: 8, left: -16, bottom: 4 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                stroke="var(--chart-grid)"
-                opacity={0.3}
-              />
-              <XAxis
-                dataKey="day"
-                stroke="var(--chart-axis)"
-                tick={{ fontSize: 10 }}
-                tickFormatter={(day: string) =>
-                  formatDateFr(day).replace(/\s+\d{4}$/, "")
-                }
-                minTickGap={24}
-              />
-              <YAxis
-                stroke="var(--chart-axis)"
-                tick={{ fontSize: 10 }}
-                allowDecimals={false}
-                width={32}
-              />
-              <Tooltip
-                labelFormatter={(day) => formatDateFr(String(day))}
-                contentStyle={{
-                  backgroundColor: "#2e3440",
-                  borderColor: "#434c5e",
-                }}
-                labelStyle={{ color: "#eceff4", fontSize: "12px" }}
-                itemStyle={{ fontSize: "12px" }}
-              />
-              <Legend wrapperStyle={{ fontSize: "12px" }} />
-              <Area
-                type="monotone"
-                dataKey="incidents"
-                name="Incidents cumulés"
-                stackId="cumulative"
-                stroke="#f6ae2d"
-                fill="#f6ae2d"
-                fillOpacity={0.3}
-              />
-              <Area
-                type="monotone"
-                dataKey="gap"
-                name="Non transformées (arriéré)"
-                stackId="cumulative"
-                stroke="#4c566a"
-                fill="#4c566a"
-                fillOpacity={0.4}
-              />
-              <Line
-                type="monotone"
-                dataKey="erreurs"
-                name="Erreurs cumulées"
-                stroke="#bf616a"
-                strokeWidth={2}
-                strokeDasharray="4 2"
-                dot={false}
-              />
-            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </section>

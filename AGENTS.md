@@ -1393,9 +1393,36 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   métrique est une faute d'usage, pas une commodité : un superviseur cherche qui traiter
   en premier. Un taux indéfini (aucune erreur) passe en dernier dans **les deux** sens,
   et jamais comme un 0 % — un `null` mal trié placerait le meilleur périmètre en tête.
-- **`buildStackSeries` réimplanterait `trailingErrors` si on lui passait des
-  « erreurs brutes ».** L'arriéré et les erreurs ne sont pas la même quantité : une aire
-  empilée d'erreurs brutes se lirait comme un backlog qui n'en est pas un.
+- **L'arriéré et les erreurs ne sont pas la même quantité** : une aire empilée
+  d'erreurs brutes se lirait comme un backlog qui n'en est pas un.
+- **Un cumul n'a pas sa place sur une page de consultation.** La page de détail ne
+  porte qu'un graphique, « Tendance des erreurs et incidents », en valeurs
+  quotidiennes : c'est le graphique qui répond à la seule question actionnable —
+  quel jour a eu des erreurs sans incident. Le cumul erreurs/incidents a été retiré
+  (avec `buildCumulativeTrend`) pour deux raisons cumulatives, dont une
+  **algébrique** : son arriéré valait `erreurs - incidents`, donc empiler
+  `incidents` + `arriéré` reconstruisait `erreurs`, et la courbe du dessus
+  reproduisait exactement le haut de son propre empilement. Le graphique affichait
+  deux fois le même total dans deux registres visuels, lisibles comme deux mesures
+  distinctes. S'y ajoute le fait qu'un cumul ne croît que par construction : il
+  répond « combien depuis le début ? », ce qui ne change plus après quelques
+  semaines. Ne pas le réintroduire en version « plus jolie » : sans la seconde
+  courbe du dessus, la seule grandeur cumulative défendable est l'arriéré, et elle
+  se lit comme un nombre dans les KPI.
+- **`incidents ⊆ erreurs` est une convention de saisie, garantie nulle part.** Ni
+  `CHECK` SQL (`errors_reported` et `incidents_created` sont deux `INTEGER NOT
+  NULL DEFAULT 0` indépendants), ni validation croisée Pydantic, ni règle de
+  domaine — `InvalidIncidentsCreatedError` existe mais n'est jamais levée. Pire,
+  la relation est **absorbée en silence** : `trailingErrors` fait
+  `max(erreurs - incidents, 0)` et `transformationRate` fait
+  `round(incidents / erreurs * 100)`, donc une saisie incohérente donne un
+  arriéré de 0 et un taux > 100 % — des chiffres plausibles, non signalés. Ne pas
+  « durcir » ça par une contrainte : un `CHECK` ajouté au schéma idempotent du
+  démarrage est un no-op sur une base déjà peuplée (`CREATE TABLE IF NOT EXISTS`),
+  et un vrai `ALTER TABLE ... ADD CONSTRAINT` bloquerait le démarrage sur une
+  ligne historique incohérente — même piège que `billing_code` (§28.1). La
+  garantie, si on la veut un jour, passe par une exception de domaine et un
+  avertissement affichable, jamais par une colonne.
 - **Les deux plafonds de lisibilité de `/analyse` sont explicites parce qu'ils
   contredisent le choix de l'utilisateur** : au-delà de 120 jours on force la semaine (et on
   le dit), au-delà de 8 périmètres l'aire empilée garde le top 8 + « Autres (n) » en gris
@@ -1480,7 +1507,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 184 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 183 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge
