@@ -1,5 +1,9 @@
 import type { NonWorkingDays, ScopeMonitoring } from "../types";
-import { DEFAULT_NON_WORKING_DAYS, toIsoWeekday } from "../constants/nonWorkingDays";
+import {
+  DEFAULT_NON_WORKING_DAYS,
+  ISO_WEEKDAY_COUNT,
+  toIsoWeekday,
+} from "../constants/nonWorkingDays";
 
 /**
  * Profondeur des deux séries fondées sur les jours ouvrés : la tendance du
@@ -43,6 +47,15 @@ export function isWorkingDay(
   );
 }
 
+/**
+ * Jours ouvrés les plus récents, du plus récent au plus ancien.
+ *
+ * La recherche est bornée, et la borne est déduite du calendrier : il faut une
+ * semaine par jour cherché, plus une semaine par date ponctuelle exclue, car une
+ * date exclue qui tombe sur le seul jour ouvrable coûte sept jours de recherche.
+ * Sans cette borne, un calendrier sans aucun jour ouvré ferait tourner la
+ * boucle jusqu'à la limite de `Date` : un gel du rendu, pas un écran vide.
+ */
 export function lastWorkingDays(
   today: string,
   n: number,
@@ -50,8 +63,14 @@ export function lastWorkingDays(
 ): string[] {
   const days: string[] = [];
   const date = new Date(`${today}T00:00:00Z`);
-  while (days.length < n) {
-    const isoDate = date.toISOString().split("T")[0];
+  const maxLookbackDays =
+    ISO_WEEKDAY_COUNT * (n + config.excluded_dates.length);
+  for (
+    let back = 0;
+    back < maxLookbackDays && days.length < n;
+    back += 1
+  ) {
+    const isoDate = date.toISOString().split('T')[0];
     if (isWorkingDay(isoDate, config)) days.push(isoDate);
     date.setUTCDate(date.getUTCDate() - 1);
   }

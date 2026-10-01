@@ -1125,6 +1125,18 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
     liste `[]` reste un choix. Le repli n'existe que pour les jours récurrents : il n'y a pas d'équivalent
     pour les dates ponctuelles. Verrouillé par
     `postgres_auth_repository_test.py::test_an_unreadable_column_reads_as_the_default_calendar`.
+  - **une semaine entière n'est pas un calendrier.** `[1,2,3,4,5,6,7]` ne laisse **aucun** jour
+    ouvré : la vue mono-jour chercherait une date ouvrée jusqu'à la limite de `Date` — mesuré, 20 M
+    d'itérations en 58 s sans terme, puis `RangeError`. La page principale gelait, pas l'écran vide.
+    La modale ne peut pas produire ce réglage (décocher tout donne `[]`), mais un `curl` si : les deux
+    portes sont donc nécessaires, à deux étages. **À l'écriture**, `NonWorkingDaysRequest` (Pydantic)
+    refuse `len(set(values)) == ISO_WEEKDAY_COUNT` en `422` — c'est la frontière entrante, le même
+    endroit que les bornes. **À la relecture**, `from_raw()` retombe sur le défaut : un calendrier sans
+    jour ouvré est inexploitable, donc illisible au sens du repli ci-dessus, et une ligne déjà en base
+    ne doit pas pouvoir geler l'UI. Ne pas remonter l'exception côté lecture : une seule ligne
+    dégénérée viderait le calendrier de tous les projets (§28.1). Verrouillé par
+    `test_project_settings_reject_a_calendar_without_any_working_day` et
+    `non_working_days_test.py::test_a_calendar_without_any_working_day_reads_as_the_default`.
   - L'adapter ne valide donc plus rien sur ce champ : il persiste `to_dict()` et relit par `from_raw()`.
     `NonWorkingDaysRequest` (Pydantic) prend ses bornes dans le **domaine**
     (`MIN_ISO_WEEKDAY`/`MAX_ISO_WEEKDAY`) — jamais dans l'adapter, dont l'import créerait une dépendance
@@ -1552,7 +1564,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 189 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 192 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

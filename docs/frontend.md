@@ -182,6 +182,17 @@ les libellés `Lun`…`Dim` et le défaut « week-end exclu » (`ISO_SATURDAY`,
 `ISO_SUNDAY`, aligné sur `NonWorkingDays.default()` côté API) en découlent :
 n'en réécrivez aucune.
 
+**La recherche d'un jour ouvré est bornée, et sa borne est dérivée.**
+`lastWorkingDays()` ne peut pas boucler indéfiniment : il faut une semaine par
+jour cherché, plus une semaine par date ponctuelle exclue, car une date exclue qui
+tombe sur le seul jour ouvrable coûte sept jours de recherche. La borne est
+donc `ISO_WEEKDAY_COUNT * (n + excluded_dates.length)`. Sans elle, un calendrier
+sans aucun jour ouvré ferait tourner la boucle jusqu'à la limite de `Date` : un
+gel du rendu, pas un écran vide. Un calendrier de ce genre est refusé à
+l'écriture par l'API (`422`) et réparé à la lecture par le défaut — mais la borne
+reste, parce qu'elle est ce qui rend la fonction totale, indépendamment de ce que
+contient la configuration.
+
 Un jour non ouvré n'a rien à afficher ni à saisir. Deux règles d'affichage
 complètent le tableau :
 

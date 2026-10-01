@@ -22,6 +22,7 @@ class IsoWeekday(IntEnum):
 
 MIN_ISO_WEEKDAY: int = IsoWeekday.MONDAY
 MAX_ISO_WEEKDAY: int = IsoWeekday.SUNDAY
+ISO_WEEKDAY_COUNT: int = len(IsoWeekday)
 
 DEFAULT_EXCLUDED_WEEKDAYS: tuple[int, ...] = (
     int(IsoWeekday.SATURDAY),
@@ -67,12 +68,13 @@ class NonWorkingDays:
 
         raw_weekdays = value.get("excluded_weekdays") or []
         weekdays = sorted({int(day) for day in raw_weekdays if _is_iso_weekday(day)})
-        # Une liste présente mais entièrement illisible est une corruption, pas
-        # un choix : l'ignorer reviendrait à affirmer « tous les jours sont
-        # ouvrés » et à compter les week-ends dans les KPI. Une liste
-        # réellement vide reste un choix, et le défaut ne s'applique qu'aux jours
-        # récurrents — il n'existe pas d'équivalent pour les dates ponctuelles.
-        if raw_weekdays and not weekdays:
+        # Deux situations retombent sur le défaut, pour deux raisons distinctes :
+        # une liste présente dont il ne survit aucune entrée est une corruption,
+        # et une liste qui couvre la semaine entière ne laisse aucun jour
+        # ouvré — donc rien à ouvrir, rien à saisir, et une recherche de jour
+        # ouvré qui ne se termine pas. Une liste réellement vide n'est ni l'un ni
+        # l'autre : c'est un choix, et il est respecté.
+        if len(weekdays) == ISO_WEEKDAY_COUNT or (raw_weekdays and not weekdays):
             weekdays = list(DEFAULT_EXCLUDED_WEEKDAYS)
 
         dates = sorted(

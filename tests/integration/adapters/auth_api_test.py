@@ -144,6 +144,43 @@ def test_project_settings_reject_invalid_weekday():
     assert response.status_code == 422
 
 
+def test_project_settings_reject_a_calendar_without_any_working_day():
+    """Un calendrier sans jour ouvré n'a rien à afficher : la page principale
+    chercherait un jour ouvré jusqu'à geler. Un client HTTP peut demander ce que
+    la modale ne peut pas produire, donc la porte est ici."""
+    auth = FakeAuthRepository()
+    client = TestClient(create_app(InMemoryScopeMonitoringRepository(), auth))
+    client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+
+    response = client.put(
+        "/project/settings",
+        json={"excluded_weekdays": [1, 2, 3, 4, 5, 6, 7], "excluded_dates": []},
+    )
+
+    assert response.status_code == 422
+    assert auth.settings == NonWorkingDays.default()
+
+
+def test_project_settings_still_accept_a_calendar_without_a_weekday():
+    """Le refus porte sur la semaine entière, pas sur le week-end : un projet qui
+    travaille le samedi reste saisissable."""
+    client = TestClient(create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository()))
+    client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+
+    response = client.put(
+        "/project/settings",
+        json={"excluded_weekdays": [6, 7], "excluded_dates": []},
+    )
+
+    assert response.status_code == 200
+
+
 def login_and_read_session_cookie() -> str:
     client = TestClient(
         create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository())

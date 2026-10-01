@@ -20,7 +20,7 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 | Unitaire Python | `tests/unit/` | `make test` | 147 tests |
 | Intégration Python | `tests/integration/` | `make test-db` | 134 tests, dont **84 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 189 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 192 tests (vitest) |
 
 Deux exécutions, donc :
 

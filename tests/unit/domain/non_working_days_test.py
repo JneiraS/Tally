@@ -11,6 +11,7 @@ import pytest
 
 from protab.domain.value_objects.non_working_days import (
     DEFAULT_EXCLUDED_WEEKDAYS,
+    ISO_WEEKDAY_COUNT,
     MAX_ISO_WEEKDAY,
     MIN_ISO_WEEKDAY,
     IsoWeekday,
@@ -24,6 +25,7 @@ def test_the_iso_scale_runs_from_monday_to_sunday():
     assert [day.value for day in IsoWeekday] == [1, 2, 3, 4, 5, 6, 7]
     assert MIN_ISO_WEEKDAY == IsoWeekday.MONDAY
     assert MAX_ISO_WEEKDAY == IsoWeekday.SUNDAY
+    assert ISO_WEEKDAY_COUNT == len(IsoWeekday)
 
 
 def test_the_default_excludes_the_week_end_only():
@@ -93,6 +95,23 @@ def test_an_explicitly_empty_weekday_list_is_respected():
     assert NonWorkingDays.from_raw(
         {"excluded_weekdays": [], "excluded_dates": []}
     ) == NonWorkingDays()
+
+
+def test_a_calendar_without_any_working_day_reads_as_the_default():
+    """Every day excluded leaves nothing to open, nothing to type into and
+    nothing to chart: the front would search a working day until ``Date`` itself
+    gave up. The API refuses to store such a calendar, so reaching this means a
+    row written elsewhere — repair it on read rather than hand the UI a trap."""
+    assert NonWorkingDays.from_raw(
+        {"excluded_weekdays": [1, 2, 3, 4, 5, 6, 7]}
+    ) == NonWorkingDays.default()
+
+
+def test_a_weekday_list_covering_the_whole_week_reads_as_the_default():
+    """Order and duplicates must not hide the fault."""
+    assert NonWorkingDays.from_raw(
+        {"excluded_weekdays": [7, 3, 5, 1, 6, 2, 4, 3]}
+    ) == NonWorkingDays.default()
 
 
 def test_dates_are_sorted_deduplicated_and_compacted_of_blanks():

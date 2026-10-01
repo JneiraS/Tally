@@ -33,6 +33,9 @@ export const ISO_MONDAY: IsoWeekday = 1;
 export const ISO_SUNDAY: IsoWeekday = 7;
 export const ISO_SATURDAY: IsoWeekday = 6;
 
+/** Taille de la semaine ISO : le nombre de jours entre deux occurrences d'un même jour. */
+export const ISO_WEEKDAY_COUNT: number = ISO_WEEKDAY_MAX - ISO_WEEKDAY_MIN + 1;
+
 /**
  * Libellés de la semaine, dans l'ordre ISO.
  *
