@@ -112,11 +112,7 @@ def _project_to_response(project) -> ProjectResponse:
     return ProjectResponse(
         id=project.id,
         name=project.name,
-        non_working_days=getattr(
-            project,
-            "non_working_days",
-            {"excluded_weekdays": [6, 7], "excluded_dates": []},
-        ),
+        non_working_days=project.non_working_days.to_dict(),
     )
 
 

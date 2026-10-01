@@ -1,7 +1,10 @@
 import { NonWorkingDays, ScopeMonitoring } from "../types";
-import { addDaysIso, isValidIsoDate } from "./date";
 import {
   DEFAULT_NON_WORKING_DAYS,
+  toMondayFirstIndex,
+} from "../constants/nonWorkingDays";
+import { addDaysIso, isValidIsoDate } from "./date";
+import {
   coverageRate,
   isWorkingDay,
   lastWorkingDays,
@@ -27,6 +30,13 @@ export type RangePreset = "7j" | "30j" | "mois" | "tout" | "perso";
 
 /** Nombre de jours au-delà duquel la série n'est plus lisible jour par jour. */
 export const MAX_TRACKED_DAYS = 120;
+
+const MS_PER_DAY = 86_400_000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+/** Jour de janvier qui tombe toujours dans la semaine ISO 1. */
+const ISO_WEEK_ANCHOR_DAY = 4;
+/** Le jeudi décide de l'année ISO : on l'atteint depuis le lundi. */
+const ISO_WEEK_ANCHOR_OFFSET_DAYS = 3;
 
 
 export interface PeriodPoint {
@@ -87,7 +97,7 @@ function dayCount(from: string, to: string): number {
   const [fy, fm, fd] = from.split("-").map(Number);
   const [ty, tm, td] = to.split("-").map(Number);
   const diff = Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd);
-  return Math.round(diff / 86_400_000) + 1;
+  return Math.round(diff / MS_PER_DAY) + 1;
 }
 
 /**
@@ -152,15 +162,18 @@ export function buildPeriodDays(
  */
 export function isoWeekKey(day: string): string {
   const date = new Date(`${day}T00:00:00Z`);
-  const mondayIndex = (date.getUTCDay() + 6) % 7;
-  date.setUTCDate(date.getUTCDate() - mondayIndex + 3);
+  const mondayIndex = toMondayFirstIndex(date.getUTCDay());
+  date.setUTCDate(date.getUTCDate() - mondayIndex + ISO_WEEK_ANCHOR_OFFSET_DAYS);
 
   const isoYear = date.getUTCFullYear();
-  const firstThursday = new Date(Date.UTC(isoYear, 0, 4));
-  const firstThursdayIndex = (firstThursday.getUTCDay() + 6) % 7;
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstThursdayIndex + 3);
+  const firstThursday = new Date(Date.UTC(isoYear, 0, ISO_WEEK_ANCHOR_DAY));
+  const firstThursdayIndex = toMondayFirstIndex(firstThursday.getUTCDay());
+  firstThursday.setUTCDate(
+    firstThursday.getUTCDate() - firstThursdayIndex + ISO_WEEK_ANCHOR_OFFSET_DAYS,
+  );
 
-  const week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / 604_800_000);
+  const elapsedWeeks = (date.getTime() - firstThursday.getTime()) / MS_PER_WEEK;
+  const week = 1 + Math.round(elapsedWeeks);
   return `${isoYear}-W${String(week).padStart(2, "0")}`;
 }
 

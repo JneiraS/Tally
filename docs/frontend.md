@@ -56,6 +56,8 @@ src/FrontEnd/src/
 ├── services/api.ts       Client HTTP unique (protabApi)
 ├── types/index.ts        Interfaces partagées avec l'API
 ├── constants/routes.ts   Chemins déclarés une seule fois (API + SPA)
+├── constants/ui.ts       Classe de case à cocher partagée
+├── constants/nonWorkingDays.ts  Échelle ISO des jours, source unique
 ├── hooks/                useTheme, useToast
 ├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
 │                         AuditLogPage, LoginPage, NotFoundPage
@@ -165,8 +167,20 @@ descend par props. Il n'y a pas de bibliothèque de gestion d'état global.
 ## 6. Le modèle mono-jour
 
 **`ScopeListPage` affiche un seul jour, pas un cumul.** Le jour à l'ouverture
-vient de `defaultDisplayDay()` (`utils/kpi.ts:83`) : la date du jour si elle est
+vient de `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour si elle est
 ouvrée, sinon le dernier jour ouvré.
+
+**« Jour ouvré » se décide dans `constants/nonWorkingDays.ts`, nulle part
+ailleurs.** `getUTCDay()` et `getDay()` numérotent à partir du dimanche alors
+que l'ISO part du lundi : `toIsoWeekday()` fait la conversion, et
+`toMondayFirstIndex()` indexe les lignes de la heatmap d'audit. Ces deux
+fonctions prennent le **numéro** du jour et non la date, pour que l'appelant
+reste maître de son horloge — `kpi.ts` raisonne en UTC sur des dates ISO,
+`auditStats.ts` en heure locale parce que son audience est locale. Les
+confondre uniformiserait un affichage qui ne doit pas l'être. Les bornes 1–7,
+les libellés `Lun`…`Dim` et le défaut « week-end exclu » (`ISO_SATURDAY`,
+`ISO_SUNDAY`, aligné sur `NonWorkingDays.default()` côté API) en découlent :
+n'en réécrivez aucune.
 
 Un jour non ouvré n'a rien à afficher ni à saisir. Deux règles d'affichage
 complètent le tableau :

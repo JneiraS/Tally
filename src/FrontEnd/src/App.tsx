@@ -16,7 +16,6 @@ import { ScopeFormModal } from "./components/ScopeFormModal";
 import { CsvImportModal } from "./components/CsvImportModal";
 import { WorkingDaysModal } from "./components/WorkingDaysModal";
 import { NonWorkingDays } from "./types";
-import { DEFAULT_NON_WORKING_DAYS } from "./utils/kpi";
 import { ExternalLink, Terminal } from "lucide-react";
 import { AuthSession, protabApi } from "./services/api";
 import {
@@ -109,10 +108,7 @@ function AppContent() {
                       onOpenCreateScope={() => setIsCreateScopeOpen(true)}
                       onOpenImportCsv={() => setIsImportCsvOpen(true)}
                       refreshTrigger={refreshTrigger}
-                      nonWorkingDays={
-                        session.project.non_working_days ??
-                        DEFAULT_NON_WORKING_DAYS
-                      }
+                      nonWorkingDays={session.project.non_working_days}
                     />
                   }
                 />
@@ -121,10 +117,7 @@ function AppContent() {
                   path={ANALYTICS_PATH}
                   element={
                     <AnalyticsPage
-                      nonWorkingDays={
-                        session.project.non_working_days ??
-                        DEFAULT_NON_WORKING_DAYS
-                      }
+                      nonWorkingDays={session.project.non_working_days}
                     />
                   }
                 />
@@ -157,9 +150,7 @@ function AppContent() {
 
             <WorkingDaysModal
               isOpen={isWorkingDaysOpen}
-              settings={
-                session.project.non_working_days ?? DEFAULT_NON_WORKING_DAYS
-              }
+              settings={session.project.non_working_days}
               onClose={() => setIsWorkingDaysOpen(false)}
               onSaved={(settings: NonWorkingDays) =>
                 setSession((current) =>

@@ -118,6 +118,7 @@ table SQL. C'est la partie la plus facile à tester et la moins volatile.
 | `DailyActivity` | `entities/daily_activity.py` | Valeurs d'une journée, mutable, avec `update()` et `mark_completed()` |
 | `AuditEvent`, `build_changes()` | `entities/audit_event.py` | Événement immuable ; `build_changes` ne retient que les champs réellement modifiés |
 | `OfficialCode` | `value_objects/official_code.py` | Forme scalaire d'un quadrigramme administrateur (2–20 caractères, refuse `/`) |
+| `NonWorkingDays`, `IsoWeekday` | `value_objects/non_working_days.py` | Calendrier ouvré d'un projet ; l'échelle ISO (1 = lundi) et le défaut « week-end exclu » y sont déclarés, `from_raw()` reconstruit la colonne JSONB de façon lenient |
 | Exceptions métier | `exceptions/` | `DomainError` et ses spécialisations, toutes traduites en codes HTTP par `adapters/inbound/api/errors.py` |
 
 `domain/repositories/` et `domain/services/` ne contiennent qu'un
@@ -152,6 +153,11 @@ Deux méthodes : `record(event)` et une requête de consultation acceptant un
 l'utilisent directement. C'est cohérent avec le fait que l'authentification est
 une préoccupation d'infrastructure, mais cela lie l'adaptateur entrant
 (`app.py`, `auth.py`) au module `psycopg` — voir §8.
+
+Ce lien reste réel, donc aucune **règle** ne doit y être importée depuis
+l'adapter : les bornes ISO de `NonWorkingDaysRequest` viennent du value object du
+domaine, comme la durée de session (`SESSION_DURATION`), dont le cookie dérive son
+`Max-Age` au lieu de la redéclarer.
 
 ---
 
@@ -262,7 +268,9 @@ mode **synchrone**, avec un pool partagé construit par `postgres_pool.py`.
 - `PostgresScopeMonitoringRepository` — schéma de `projects`,
   `scope_monitorings` et `daily_activities` (`postgres_scope_monitoring_repository.py:42-75`).
 - `PostgresAuthRepository` — `projects`, `auth_sessions`, `project_admins`
-  (`postgres_auth_repository.py:171-208`), plus l'amorçage du projet initial.
+  (`postgres_auth_repository.py`), plus l'amorçage du projet initial. Il ne
+  valide plus les jours non travaillés : il persiste `NonWorkingDays.to_dict()`
+  et relit par `NonWorkingDays.from_raw()`.
 - `PostgresAuditTrailRepository` — table `audit_log`
   (`postgres_audit_trail_repository.py:25`).
 

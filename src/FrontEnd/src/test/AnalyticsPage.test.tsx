@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 import { AnalyticsPage } from "../pages/AnalyticsPage";
 import { protabApi } from "../services/api";
 import { getTodayIsoDate } from "../utils/date";
+import type { NonWorkingDays } from "../types";
 
 vi.mock("../services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/api")>();
@@ -66,7 +67,10 @@ const SCOPES = [
   },
 ];
 
-const NON_WORKING_DAYS = { excluded_weekdays: [6, 7], excluded_dates: [] };
+const NON_WORKING_DAYS: NonWorkingDays = {
+  excluded_weekdays: [6, 7],
+  excluded_dates: [],
+};
 
 function renderPage() {
   return render(

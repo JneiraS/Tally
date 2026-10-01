@@ -3,6 +3,10 @@
  * Dérivés des contrats de l'API REST FastAPI.
  */
 
+import type { IsoWeekday } from "../constants/nonWorkingDays";
+
+export type { IsoWeekday };
+
 export interface DailyActivity {
   day: string; // Format strict "YYYY-MM-DD"
   errors_reported: number; // Entier >= 0
@@ -25,8 +29,9 @@ export interface ScopeMonitoring {
 }
 
 export interface NonWorkingDays {
-  excluded_weekdays: number[];
-  excluded_dates: string[];
+  /** Jours ISO (1 = lundi … 7 = dimanche), pas des index JS. */
+  excluded_weekdays: IsoWeekday[];
+  excluded_dates: string[]; // Dates ISO strictes "YYYY-MM-DD"
 }
 
 export interface CreateScopeInput {

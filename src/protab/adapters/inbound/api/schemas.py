@@ -2,6 +2,11 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from protab.domain.value_objects.non_working_days import (
+    MAX_ISO_WEEKDAY,
+    MIN_ISO_WEEKDAY,
+)
+
 
 class CreateScopeItem(BaseModel):
     name: str
@@ -45,8 +50,11 @@ class NonWorkingDaysRequest(BaseModel):
     @field_validator("excluded_weekdays")
     @classmethod
     def validate_weekdays(cls, values: list[int]) -> list[int]:
-        if any(day < 1 or day > 7 for day in values):
-            raise ValueError("Les jours doivent être compris entre 1 et 7.")
+        if any(day < MIN_ISO_WEEKDAY or day > MAX_ISO_WEEKDAY for day in values):
+            raise ValueError(
+                f"Les jours doivent être compris entre {MIN_ISO_WEEKDAY} "
+                f"et {MAX_ISO_WEEKDAY}."
+            )
         return sorted(set(values))
 
 

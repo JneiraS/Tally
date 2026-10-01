@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect } from 'vitest';
-import { ScopeMonitoring, DailyActivity } from '../types';
+import { NonWorkingDays, ScopeMonitoring, DailyActivity } from '../types';
 import {
   baselineDelta,
   
@@ -201,7 +201,10 @@ describe('defaultDisplayDay', () => {
   });
 
   it('respecte les jours non ouvrés configurés par le projet', () => {
-    const config = { excluded_weekdays: [6, 7], excluded_dates: ['2026-09-25'] };
+    const config: NonWorkingDays = {
+      excluded_weekdays: [6, 7],
+      excluded_dates: ['2026-09-25'],
+    };
     expect(defaultDisplayDay('2026-09-25', config)).toBe('2026-09-24');
     expect(
       defaultDisplayDay('2026-09-27', {

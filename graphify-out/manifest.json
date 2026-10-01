@@ -24,9 +24,9 @@
     "semantic_hash": "ce430b734575012345cea7428aa1d2a1"
   },
   "src/FrontEnd/src/App.tsx": {
-    "mtime": 1790785339.8951688,
-    "seen": 1790785506.933311,
-    "ast_hash": "76d29293655b6cec2c9fb61c6ea404bc",
+    "mtime": 1790882705.154958,
+    "seen": 1790883393.3176966,
+    "ast_hash": "eabb8320e10624e718e3b7c5682b6f5e",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ActivityFormModal.tsx": {
@@ -132,10 +132,10 @@
     "semantic_hash": "8ce779b99e00b96e1809e7c5250e1ce0"
   },
   "src/FrontEnd/src/components/WorkingDaysModal.tsx": {
-    "mtime": 1790091251.4882793,
-    "seen": 1790410609.1049774,
-    "ast_hash": "afc289a5fe43a7438c04be83099c9da3",
-    "semantic_hash": "afc289a5fe43a7438c04be83099c9da3"
+    "mtime": 1790882692.0586803,
+    "seen": 1790883393.3177834,
+    "ast_hash": "749a1472d821648e02693edecfc2ba01",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/hooks/useTheme.tsx": {
     "mtime": 1789830139.9199636,
@@ -258,9 +258,9 @@
     "semantic_hash": "bd667d9ae3cb6e85e7688a89f0aad8e8"
   },
   "src/FrontEnd/src/test/kpi.test.ts": {
-    "mtime": 1790860205.8297107,
-    "seen": 1790860316.7280855,
-    "ast_hash": "0ea11417a3e406c67e93017f19028e13",
+    "mtime": 1790882726.1453917,
+    "seen": 1790883393.3178895,
+    "ast_hash": "af64ecb180bc776148a0882614217da5",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/setup.ts": {
@@ -276,16 +276,16 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/types/index.ts": {
-    "mtime": 1790769253.9378786,
-    "seen": 1790771680.632833,
-    "ast_hash": "58816af944960364cec22ff4292f07ef",
+    "mtime": 1790882616.4534445,
+    "seen": 1790883393.3179014,
+    "ast_hash": "747cf2856e8c3c7985af7103353fbcc5",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/utils/auditStats.ts": {
-    "mtime": 1790091251.4892795,
-    "seen": 1790410609.1050105,
-    "ast_hash": "e1962e77aee33fb2e0769f670598214d",
-    "semantic_hash": "e1962e77aee33fb2e0769f670598214d"
+    "mtime": 1790882671.457871,
+    "seen": 1790883393.3179066,
+    "ast_hash": "32c26aeb1cb649f7f92bf6dbc861a61a",
+    "semantic_hash": ""
   },
   "src/FrontEnd/src/utils/date.ts": {
     "mtime": 1790410838.4396865,
@@ -306,9 +306,9 @@
     "semantic_hash": "15ae0b5fbe5a07327ca99a799078d842"
   },
   "src/FrontEnd/src/utils/kpi.ts": {
-    "mtime": 1790860178.4537382,
-    "seen": 1790860316.7281067,
-    "ast_hash": "c9a985f37fc21dfa17c457318f776b17",
+    "mtime": 1790883001.8120582,
+    "seen": 1790883393.317918,
+    "ast_hash": "8c3d6be5a6316fccb014315d0e42d00a",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/utils/validation.ts": {
@@ -360,15 +360,15 @@
     "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "src/protab/adapters/inbound/api/app.py": {
-    "mtime": 1790769253.9379075,
-    "seen": 1790771680.6329203,
-    "ast_hash": "a683d214f89f51255d62f2885a495d0c",
+    "mtime": 1790882467.8025386,
+    "seen": 1790883393.3179436,
+    "ast_hash": "b0ae9ed7554f8fcc355fe9d5e80b546c",
     "semantic_hash": ""
   },
   "src/protab/adapters/inbound/api/auth.py": {
-    "mtime": 1790511097.62589,
-    "seen": 1790512578.520731,
-    "ast_hash": "098278a026e672c380af28fec1a076c1",
+    "mtime": 1790882549.1292865,
+    "seen": 1790883393.3179464,
+    "ast_hash": "9950e1cc166260c144bc1d90f116e846",
     "semantic_hash": ""
   },
   "src/protab/adapters/inbound/api/config.py": {
@@ -384,9 +384,9 @@
     "semantic_hash": "1c1ac97384fcb394980e81457c16d4a6"
   },
   "src/protab/adapters/inbound/api/schemas.py": {
-    "mtime": 1790769253.9379075,
-    "seen": 1790771680.632944,
-    "ast_hash": "5a4fab68091a9c2ff1d1efa1b239635a",
+    "mtime": 1790882464.934588,
+    "seen": 1790883393.3179545,
+    "ast_hash": "28215b63cbc0156ad88a20c353887430",
     "semantic_hash": ""
   },
   "src/protab/adapters/inbound/cli/__init__.py": {
@@ -438,9 +438,9 @@
     "semantic_hash": ""
   },
   "src/protab/adapters/outbound/persistence/postgres_auth_repository.py": {
-    "mtime": 1790678786.3717828,
-    "seen": 1790689092.4618716,
-    "ast_hash": "22b11a051e1d809a348a9218044b11a1",
+    "mtime": 1790882452.1967576,
+    "seen": 1790883393.3179808,
+    "ast_hash": "16fe83af77b800c3f00f1b1a8bbca032",
     "semantic_hash": ""
   },
   "src/protab/adapters/outbound/persistence/postgres_pool.py": {
@@ -702,9 +702,9 @@
     "semantic_hash": ""
   },
   "tests/integration/adapters/auth_api_test.py": {
-    "mtime": 1790511097.62689,
-    "seen": 1790512578.521007,
-    "ast_hash": "7d5f3e0b1ccc316b45405fd4e626ed97",
+    "mtime": 1790882532.6365185,
+    "seen": 1790883393.3181264,
+    "ast_hash": "f42069113760cac858ce9d34d6c9664c",
     "semantic_hash": ""
   },
   "tests/integration/adapters/postgres_audit_trail_repository_test.py": {
@@ -714,9 +714,9 @@
     "semantic_hash": "bb77e71e6ee53d633f72ba4bcf758a41"
   },
   "tests/integration/adapters/postgres_auth_repository_test.py": {
-    "mtime": 1790678786.3727827,
-    "seen": 1790689092.461973,
-    "ast_hash": "54d886eb7bb30f4525dc8f2b6b30c51a",
+    "mtime": 1790883064.021951,
+    "seen": 1790883393.318132,
+    "ast_hash": "6f64d078d4b571b38e337631eb2fe907",
     "semantic_hash": ""
   },
   "tests/integration/adapters/postgres_scope_monitoring_repository_test.py": {
@@ -840,9 +840,9 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1790860297.9735298,
-    "seen": 1790860316.728322,
-    "ast_hash": "e402fbd7138e0685b4b6a9a4401131b8",
+    "mtime": 1790883226.7419121,
+    "seen": 1790883393.318218,
+    "ast_hash": "4f049c28cfc1187438cf10e12e326ebd",
     "semantic_hash": ""
   },
   "README.md": {
@@ -948,9 +948,9 @@
     "semantic_hash": ""
   },
   "docs/tally-vs-excel.md": {
-    "mtime": 1790678786.3426888,
-    "seen": 1790689092.4620569,
-    "ast_hash": "558a4cfc56db35068cd65e382b7e56d4",
+    "mtime": 1790878301.1393876,
+    "seen": 1790883393.3182385,
+    "ast_hash": "822ad418da96be32c57de0a9955db557",
     "semantic_hash": ""
   },
   "src/protab/domain/exceptions/official_code.py": {
@@ -990,9 +990,9 @@
     "semantic_hash": ""
   },
   "docs/architecture.md": {
-    "mtime": 1790769253.9149075,
-    "seen": 1790771680.6334898,
-    "ast_hash": "672039cf5da11b6c7d0e23359808f7ad",
+    "mtime": 1790882883.3114393,
+    "seen": 1790883393.3182256,
+    "ast_hash": "0a4f2a29dc9714353c0561fd1ccf124c",
     "semantic_hash": ""
   },
   "docs/development.md": {
@@ -1008,15 +1008,15 @@
     "semantic_hash": ""
   },
   "docs/frontend.md": {
-    "mtime": 1790860265.0870938,
-    "seen": 1790860316.7283382,
-    "ast_hash": "556ea932a06932ad13bdeb2d3a4a797d",
+    "mtime": 1790882864.1175258,
+    "seen": 1790883393.318236,
+    "ast_hash": "78d21c2a5f52951bdab5dafcf110efb0",
     "semantic_hash": ""
   },
   "docs/testing.md": {
-    "mtime": 1790793585.0449603,
-    "seen": 1790793824.7430992,
-    "ast_hash": "3bb9fe13eda5003a2d2cbe7c9be93d6b",
+    "mtime": 1790883217.5529063,
+    "seen": 1790883393.318241,
+    "ast_hash": "bf5444531b80fad391d1627f83ba2efd",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/AnalyticsCharts.tsx": {
@@ -1044,9 +1044,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/AnalyticsPage.test.tsx": {
-    "mtime": 1790855706.5966141,
-    "seen": 1790855774.4515793,
-    "ast_hash": "d4714c6cc529ce6278302b6fcc66da16",
+    "mtime": 1790882740.3672807,
+    "seen": 1790883393.3178308,
+    "ast_hash": "25244bd89ebd7ce1210208b17dc0fffd",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/PageNav.test.tsx": {
@@ -1062,9 +1062,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/utils/analytics.ts": {
-    "mtime": 1790792846.9597511,
-    "seen": 1790793373.34207,
-    "ast_hash": "30933fe71a388b2845e547a9d24ebc08",
+    "mtime": 1790883260.8069413,
+    "seen": 1790883393.3179042,
+    "ast_hash": "3853850abe50dc012546a4d18edd44ac",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/AnalyticsFilterBar.test.tsx": {
@@ -1101,6 +1101,30 @@
     "mtime": 1790855694.883674,
     "seen": 1790855774.4515848,
     "ast_hash": "b211db99cad2403986f29d1ec4d23d51",
+    "semantic_hash": ""
+  },
+  "src/FrontEnd/src/constants/nonWorkingDays.ts": {
+    "mtime": 1790882814.1152747,
+    "seen": 1790883393.3177872,
+    "ast_hash": "dddad985c5e94c4743740cdb6d0da050",
+    "semantic_hash": ""
+  },
+  "src/FrontEnd/src/test/nonWorkingDays.test.ts": {
+    "mtime": 1790882800.2848701,
+    "seen": 1790883393.3178923,
+    "ast_hash": "65147bfdccb5a57ec978910a2263ce65",
+    "semantic_hash": ""
+  },
+  "src/protab/domain/value_objects/non_working_days.py": {
+    "mtime": 1790883381.3001292,
+    "seen": 1790883393.3180826,
+    "ast_hash": "bd492801d47cbf179978c13a2d6ccd4d",
+    "semantic_hash": ""
+  },
+  "tests/unit/domain/non_working_days_test.py": {
+    "mtime": 1790883132.3088956,
+    "seen": 1790883393.3182015,
+    "ast_hash": "78a27b475b87b3d6122d69fce3c75c7e",
     "semantic_hash": ""
   }
 }

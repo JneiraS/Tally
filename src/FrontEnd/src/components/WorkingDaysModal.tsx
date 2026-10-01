@@ -1,18 +1,9 @@
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import { NonWorkingDays } from "../types";
+import { IsoWeekday, WEEKDAY_LABELS } from "../constants/nonWorkingDays";
 import { protabApi } from "../services/api";
 import { useToast } from "../hooks/useToast";
-
-const WEEKDAYS = [
-  [1, "Lun"],
-  [2, "Mar"],
-  [3, "Mer"],
-  [4, "Jeu"],
-  [5, "Ven"],
-  [6, "Sam"],
-  [7, "Dim"],
-] as const;
 
 interface WorkingDaysModalProps {
   isOpen: boolean;
@@ -28,7 +19,7 @@ export function WorkingDaysModal({
   onSaved,
 }: WorkingDaysModalProps) {
   const { success, error } = useToast();
-  const [excludedWeekdays, setExcludedWeekdays] = useState<number[]>([]);
+  const [excludedWeekdays, setExcludedWeekdays] = useState<IsoWeekday[]>([]);
   const [excludedDates, setExcludedDates] = useState<string[]>([]);
   const [dateToAdd, setDateToAdd] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -40,7 +31,7 @@ export function WorkingDaysModal({
     setDateToAdd("");
   }, [isOpen, settings]);
 
-  const toggleWeekday = (weekday: number) => {
+  const toggleWeekday = (weekday: IsoWeekday) => {
     setExcludedWeekdays((current) =>
       current.includes(weekday)
         ? current.filter((day) => day !== weekday)
@@ -85,7 +76,7 @@ export function WorkingDaysModal({
             Jours récurrents
           </legend>
           <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mt-3">
-            {WEEKDAYS.map(([value, label]) => {
+            {WEEKDAY_LABELS.map(([value, label]) => {
               const selected = excludedWeekdays.includes(value);
               return (
                 <button

@@ -1109,6 +1109,35 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `project_id` valide avant de l'ajouter.
 - L'API de production utilise une session HTTP-only et filtre les périmètres par `project_id` ; les routes
   métier sont protégées par l'authentification projet/quadrigramme.
+- **`projects.non_working_days` est un `NonWorkingDays`, pas un `dict`.** La colonne est du JSONB non typé,
+  donc `NonWorkingDays.from_raw()` (dans `domain/value_objects/`) est **lenient** : une entrée illisible
+  est écartée, jamais signalée, pour la même raison que `billing_code` ci-dessus — une seule ligne ancienne
+  ne doit pas vider le calendrier de tous les projets de l'instance. Deux conséquences à tenir :
+  - **un défaut ne doit jamais être un `dict` partagé.** Un `dict.copy()` est superficiel et laisse les deux
+    copies partager les listes ; les `tuple` du value object rendent l'erreur impossible. C'est le défaut que
+    `tests/unit/domain/non_working_days_test.py::test_two_defaults_share_no_mutable_state` verrouille.
+  - **vide ≠ défaut.** `NonWorkingDays()` = « tous les jours sont ouvrés » (case décochée dans la modale),
+    `NonWorkingDays.default()` = « week-end exclu », l'installation qui n'a rien configuré. Une colonne
+    `NULL` lit le défaut, jamais le vide.
+  - **présente mais illisible ≠ vide.** `{"excluded_weekdays": ["nope"]}` retombait sur une liste vide, donc
+    sur « tous les jours sont ouvrés », et les week-ends seraient entrés dans le KPI de couverture. Une
+    liste non vide dont **aucune** entrée ne survit à la normalisation retombe donc sur le défaut ; une
+    liste `[]` reste un choix. Le repli n'existe que pour les jours récurrents : il n'y a pas d'équivalent
+    pour les dates ponctuelles. Verrouillé par
+    `postgres_auth_repository_test.py::test_an_unreadable_column_reads_as_the_default_calendar`.
+  - L'adapter ne valide donc plus rien sur ce champ : il persiste `to_dict()` et relit par `from_raw()`.
+    `NonWorkingDaysRequest` (Pydantic) prend ses bornes dans le **domaine**
+    (`MIN_ISO_WEEKDAY`/`MAX_ISO_WEEKDAY`) — jamais dans l'adapter, dont l'import créerait une dépendance
+    domain → infrastructure. Le format de série ne change pas : `{"excluded_weekdays": [...],
+    "excluded_dates": [...]}`.
+- **Une durée, une seule déclaration.** `SESSION_DURATION` (adapter) fixe l'expiration en base ;
+  `SESSION_COOKIE_MAX_AGE_SECONDS` s'en **déduit** (`int(SESSION_DURATION.total_seconds())`) au lieu de
+  redéclarer `12 * 60 * 60`. Deux durées séparées laisseraient un cookie promettre une session déjà morte,
+  sans le moindre symptôme. Verrouillé par
+  `tests/integration/adapters/auth_api_test.py::test_session_cookie_expires_with_the_session_it_carries`.
+  Même règle pour les paramètres de hachage : `SCRYPT_N`/`SCRYPT_R`/`SCRYPT_P` sont lus par `_hash_password`
+  **et** `_check_password`, un écart entre les deux listes invalidant tous les mots de passe existants sans
+  lever d'erreur.
 - **Isolation multi-tenant par défaut** : le projet courant est porté par un `ContextVar` posé par la
   dépendance `project_context`. Les adaptateurs PostgreSQL appellent `require_current_project()` et
   lèvent `MissingProjectContextError` si le contexte est absent — aucun repli sur un projet par défaut.
@@ -1278,6 +1307,22 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   l'égalité des chaînes est vérifiable. Vérifier qu'il échoue en cassant une
   occurrence, sinon il ne prouve rien.
 
+- **L'échelle ISO des jours se décide dans `src/constants/nonWorkingDays.ts`, nulle part
+  ailleurs.** Même arbitrage que `constants/routes.ts` : `getUTCDay()` et `getDay()`
+  numérotent à partir du dimanche alors que l'ISO part du lundi, et la dérive était
+  déjà réelle — `[6, 7]` en dur dans le défaut front, les bornes réécrites dans le
+  validateur Pydantic, et deux conversions dimanche → ISO recopiées dans `kpi.ts` et
+  dans `analytics.ts`. `toIsoWeekday()` et `toMondayFirstIndex()` prennent le
+  **numéro** du jour et non la `Date` : l'appelant garde ainsi la main sur son
+  horloge, ce qui compte car `kpi.ts` raisonne en UTC sur des dates ISO et
+  `auditStats.ts` en heure locale (son audience est locale). Les fusionner
+  uniformiserait un affichage qui ne doit pas l'être. `WEEKDAY_LABELS` a quitté
+  `WorkingDaysModal.tsx` pour la même raison que le reste, et
+  `NonWorkingDays.excluded_weekdays` est typée `IsoWeekday[]` : c'est le seul endroit
+  où le compilateur peut refuser un `[0]` ou un `[8]`. Le défaut front doit rester
+  aligné sur `NonWorkingDays.default()` côté API, que
+  `src/test/nonWorkingDays.test.ts` verrouille avec le dimanche — la conversion 0 → 7
+  n'étant exercée par aucun autre test.
 - **La page principale est mono-jour, pas un cumul.** `ScopeListPage` n'affiche que les compteurs du
   jour sélectionné ; le jour à l'ouverture est `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour
   si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
@@ -1507,7 +1552,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 183 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 189 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

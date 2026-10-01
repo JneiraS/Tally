@@ -1,9 +1,12 @@
-import { NonWorkingDays, ScopeMonitoring } from "../types";
+import type { NonWorkingDays, ScopeMonitoring } from "../types";
+import { DEFAULT_NON_WORKING_DAYS, toIsoWeekday } from "../constants/nonWorkingDays";
 
-export const DEFAULT_NON_WORKING_DAYS: NonWorkingDays = {
-  excluded_weekdays: [6, 7],
-  excluded_dates: [],
-};
+/**
+ * Profondeur des deux séries fondées sur les jours ouvrés : la tendance du
+ * graphique et la baseline du delta. Unité en jours *ouvrés*, pas calendaires,
+ * d'où le nom.
+ */
+const WORKING_DAYS_WINDOW = 7;
 
 export interface BaselineDelta {
   deltaPct: number | null;
@@ -33,8 +36,7 @@ export function isWorkingDay(
   config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): boolean {
   const date = new Date(`${isoDate}T00:00:00Z`);
-  const sundayBasedDay = date.getUTCDay();
-  const isoWeekday = sundayBasedDay === 0 ? 7 : sundayBasedDay;
+  const isoWeekday = toIsoWeekday(date.getUTCDay());
   return (
     !config.excluded_weekdays.includes(isoWeekday) &&
     !config.excluded_dates.includes(isoDate)
@@ -102,7 +104,7 @@ export function buildDailyTrend(
   day: string,
   config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): DailyTrendPoint[] {
-  const days = lastWorkingDays(day, 7, config).reverse();
+  const days = lastWorkingDays(day, WORKING_DAYS_WINDOW, config).reverse();
   const dailyMap = new Map<string, DailyTrendPoint>(
     days.map((date) => [date, { day: date, erreurs: 0, incidents: 0 }]),
   );
@@ -144,7 +146,7 @@ export function baselineDelta(
   today: string,
   config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): BaselineDelta {
-  const days = [today, ...previousWorkingDays(today, 7, config)];
+  const days = [today, ...previousWorkingDays(today, WORKING_DAYS_WINDOW, config)];
   const daily = new Map<string, { errors: number; incidents: number }>(
     days.map((d) => [d, { errors: 0, incidents: 0 }]),
   );

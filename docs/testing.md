@@ -17,10 +17,10 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 120 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 126 tests, dont **80 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 147 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 134 tests, dont **84 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 182 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 189 tests (vitest) |
 
 Deux exécutions, donc :
 
@@ -48,6 +48,7 @@ helpers explicites. Chaque module déclare ses propres doublures.
 | --- | --- |
 | `daily_activity_test.py` (16) | Mise à jour, clôture, contraintes de `feai` |
 | `official_code_test.py` (14) | Forme scalaire du quadrigramme : longueur, `/` refusé |
+| `non_working_days_test.py` (17) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
 | `scope_monitoring_test.py` (11) | Accès à une activité par jour, agrégat |
 | `audit_event_test.py` (5) | `build_changes` ne conserve que les champs modifiés |
 | `exceptions_test.py` (1) | Hiérarchie des exceptions métier |
@@ -94,8 +95,8 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `postgres_scope_monitoring_repository_test.py` | 26 | Persistance de l'agrégat, écritures ciblées, traduction des violations de contrainte, isolation par projet |
-| `postgres_auth_repository_test.py` | 31 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
+| `postgres_scope_monitoring_repository_test.py` | 28 | Persistance de l'agrégat, écritures ciblées, traduction des violations de contrainte, isolation par projet |
+| `postgres_auth_repository_test.py` | 33 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
 | `postgres_audit_trail_repository_test.py` | 4 | Écriture et lecture du journal d'audit |
 
@@ -114,10 +115,10 @@ Deux détails qui font gagner du temps :
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `api_test.py` | 26 | Routes métier avec un adaptateur en mémoire injecté |
-| `auth_api_test.py` | 8 | Login, session, cookie `Secure` (`auth_api_test.py:169`) |
+| `api_test.py` | 28 | Routes métier avec un adaptateur en mémoire injecté |
+| `auth_api_test.py` | 9 | Login, session, cookie `Secure`, expiration du cookie alignée sur la session |
 | `audit_log_api_test.py` | 4 | Journal d'audit et sa pagination |
-| `scope_monitoring_csv_reader_test.py` | 5 | Lecture et rejet de CSV |
+| `scope_monitoring_csv_reader_test.py` | 6 | Lecture et rejet de CSV |
 | `route_authorization_test.py` | 3 | **Polarité inversée** sur l'authentification |
 
 `route_authorization_test.py` mérite une attention particulière : il liste les
