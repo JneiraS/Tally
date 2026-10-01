@@ -1456,10 +1456,13 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `scopeIds` : il réduit seulement les périmètres analysés et les actions globales
   s'appliquent aux périmètres visibles après filtrage. Retirer tous les codes
   sélectionnés restaure la sélection de périmètres précédente.
-- **La sélection des périmètres est une rangée de pastilles** (12 visibles, « +N
-  autres » en ligne), pas une liste dans une boîte `max-h-* overflow-y-*` : cinq
-  périmètres suffisaient à faire apparaître une barre. Ni le conteneur défilant ni
-  une modale ne doivent revenir — son « Annuler » doublonnerait celui de la page.
+ - **La sélection des périmètres passe par un multi-select compact.** La carte n'affiche
+   jamais la liste complète en permanence : un déclencheur affiche la recherche et le
+   compteur, puis ouvre un popover desktop ou la `Modal` existante sur mobile. La liste
+   contient une recherche, de vraies cases à cocher, « Tout cocher », « Tout décocher »
+   et « Terminé ». La sélection est appliquée immédiatement, sans état intermédiaire.
+   Le conteneur de la liste peut donc être `max-h-72 overflow-y-auto` : il reste dans le
+   popover, n'augmente pas la hauteur de la carte, et reste atteignable au clavier.
 - **`PageNav` n'est monté que dans le pied de page.** Il était aussi dans l'en-tête, où
   « Périmètres » faisait doublon avec le logo : on a retiré l'instance de `Navbar`, pas ses
   entrées, ce qui laisse `PageNav` complet pour le mobile. **Le pied de page est le seul chemin
@@ -1477,7 +1480,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
-- Tests : `npm test` (vitest, 182 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 184 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

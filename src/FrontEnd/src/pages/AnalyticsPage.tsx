@@ -229,14 +229,26 @@ export function AnalyticsPage({
       />
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-nord-4">
-        <p>
-          {formatPeriod(filters.from, filters.to)} · {selected.length} périmètre
-          {selected.length === 1 ? "" : "s"} sélectionné
-          {selected.length === 1 ? "" : "s"}
-        </p>
-        <p>
-          {granularity === "jour" ? "Vue quotidienne" : "Vue hebdomadaire"}
-          {filters.workingDaysOnly ? " · jours ouvrés" : " · tous les jours"}
+        <p aria-label="Configuration analysée" className="flex flex-wrap gap-x-2 gap-y-1">
+          <span>{formatPeriod(filters.from, filters.to)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{selected.length} périmètre{selected.length === 1 ? "" : "s"}</span>
+          <span aria-hidden="true">·</span>
+          <span>{granularity === "jour" ? "Par jour" : "Par semaine"}</span>
+          <span aria-hidden="true">·</span>
+          <span>{filters.workingDaysOnly ? "Jours ouvrés" : "Tous les jours"}</span>
+          {filters.billingCodes.length > 0 && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>Codes : {filters.billingCodes.map((code) => code === "__sans_code__" ? "Sans code" : code).join(", ")}</span>
+            </>
+          )}
+          {filters.compare && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span>Comparaison à la période précédente</span>
+            </>
+          )}
         </p>
       </div>
 
@@ -406,9 +418,4 @@ function formatPeriod(from: string, to: string): string {
     return `${fromDay}–${toDay}/${toMonth}/${toYear}`;
   }
   return `${fromDay}/${fromMonth}/${fromYear}–${toDay}/${toMonth}/${toYear}`;
-}
-
-function formatShort(iso: string): string {
-  const [, month, day] = iso.split("-");
-  return `${day}/${month}`;
 }

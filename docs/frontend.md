@@ -246,9 +246,10 @@ Trois règles qu'un coup d'œil au rendu ne donne pas :
   complète sans qu'il l'ait demandée. L'écriture est suspendue pendant le
   chargement, sinon elle figerait une liste vide que le partageur ne retrouverait
   pas.
-Sous les filtres, la page rappelle la période, le nombre de périmètres sélectionnés
-et la granularité réellement affichée ; ce contexte reste visible quand les
-contrôles ne sont plus dans le viewport.
+Sous les filtres, la page rappelle la période, le nombre de périmètres sélectionnés,
+la granularité réellement affichée, les codes retenus, les jours inclus et la
+comparaison éventuelle ; ce contexte reste visible quand les contrôles ne sont plus
+dans le viewport.
 
 La section principale de l'analyse affiche une **heatmap des erreurs** : une ligne
 par périmètre, une colonne par jour ou par semaine selon le réglage *Par jour /
@@ -261,14 +262,15 @@ vue répond à « combien d'erreurs ont été observées ? ». Une activité à 
 affiche `0`, alors qu'une période sans activité affiche `—` et porte le libellé
 accessible « aucune saisie ».
 
-La première carte est organisée selon la décision à prendre : **Période**, puis
-**Affichage**, puis **Périmètres comparés** sur toute la largeur. Le bloc des
-  périmètres explique que les graphiques dépendent uniquement de cette
-sélection, affiche `N périmètres sur M`, et désactive l'action globale qui n'a
-plus d'effet (`Tout sélectionner` quand tout est déjà sélectionné, ou `Tout
-désélectionner` quand la sélection est vide). Une sélection vide reste possible
-et affiche un message directement dans la carte au lieu de laisser l'utilisateur
-deviner pourquoi les graphiques ont disparu.
+La première carte est compacte et organisée selon la décision à prendre :
+**Période** et **Granularité** sur la première ligne, puis **Périmètres analysés**
+sur toute la largeur. Les périmètres sont choisis dans un multi-select : la carte
+affiche uniquement le déclencheur, la recherche et le compteur `N périmètres
+sélectionnés sur M`. La liste complète ouvre un popover desktop, ou la `Modal`
+existante sur mobile ; elle contient de vraies cases à cocher, la recherche, les
+actions globales et `Terminé`. Les cochages sont appliqués immédiatement. Une
+sélection vide reste possible et affiche un message directement dans la carte au
+lieu de laisser l'utilisateur deviner pourquoi les graphiques ont disparu.
 
 Le bloc **Codes de facturation** propose une sélection multiple, y compris
 `Sans code` pour les anciens périmètres qui n'ont pas encore de code. Le filtre

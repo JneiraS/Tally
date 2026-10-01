@@ -150,7 +150,7 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("2 périmètres sur 2")).toBeInTheDocument();
+      expect(screen.getByText("2 périmètres sélectionnés sur 2")).toBeInTheDocument();
     });
   });
 
@@ -160,20 +160,21 @@ describe("AnalyticsPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/01–21\/09\/2026/)).toBeInTheDocument();
     });
-    expect(screen.getByText(/Vue quotidienne · jours ouvrés/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Par jour" })).toBeInTheDocument();
   });
 
   it("décoche un périmètre et renégocie le compte affiché", async () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("2 périmètres sur 2")).toBeInTheDocument();
+      expect(screen.getByText("2 périmètres sélectionnés sur 2")).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByRole("button", { name: /sélectionner les périmètres/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Alpha/ }));
 
     await waitFor(() => {
-      expect(screen.getByText("1 périmètre sur 2")).toBeInTheDocument();
+      expect(screen.getByText("1 périmètre sélectionné sur 2")).toBeInTheDocument();
     });
 
     // Beta seul : 8 erreurs et 8 en attente. Les cartes sont ciblées par leur
@@ -188,16 +189,17 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("2 périmètres sur 2")).toBeInTheDocument();
+      expect(screen.getByText("2 périmètres sélectionnés sur 2")).toBeInTheDocument();
     });
 
     const filters = screen.getByRole("region", { name: "Filtres d'analyse" });
+    fireEvent.click(within(filters).getByRole("button", { name: /sélectionner les périmètres/i }));
     fireEvent.click(
-      within(filters).getByRole("button", { name: /Tout désélectionner/i }),
+      within(screen.getByRole("dialog", { name: /sélection des périmètres/i })).getByRole("button", { name: "Tout décocher" }),
     );
 
     await waitFor(() => {
-      expect(within(filters).getByText("0 périmètres sur 2")).toBeInTheDocument();
+      expect(within(filters).getByText("0 périmètres sélectionnés sur 2")).toBeInTheDocument();
     });
     expect(screen.getByRole("heading", { name: /Sélectionnez au moins un périmètre/i })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: /heatmap des erreurs/i })).not.toBeInTheDocument();
@@ -207,7 +209,7 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/Période : début/i)).toHaveValue("2026-09-01");
+      expect(screen.getByText(/01–21\/09\/2026/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: /7 jours ouvrés/i }));
@@ -215,9 +217,8 @@ describe("AnalyticsPage", () => {
     // 16 septembre est un jour ouvré ici (la config du test n'exclut pas de
     // date), donc les 7 jours ouvrés finissent le 21 remontent jusqu'au 11.
     await waitFor(() => {
-      expect(screen.getByLabelText(/Période : début/i)).toHaveValue("2026-09-11");
+      expect(screen.getByText(/11–21\/09\/2026/)).toBeInTheDocument();
     });
-    expect(screen.getByLabelText(/Période : fin/i)).toHaveValue("2026-09-21");
   });
 
   it("bascule l agrégat en semaine et renomme les colonnes", async () => {
@@ -243,6 +244,7 @@ describe("AnalyticsPage", () => {
       expect(screen.getByRole("region", { name: /heatmap des erreurs/i })).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "Personnalisée" }));
     const from = screen.getByLabelText(/Période : début/i);
     fireEvent.change(from, { target: { value: "2026-09-14" } });
     fireEvent.change(screen.getByLabelText(/Période : fin/i), { target: { value: "2026-09-18" } });
@@ -265,6 +267,7 @@ describe("AnalyticsPage", () => {
     const columnCount = () => within(heatmap()).getAllByRole("img").length / SCOPES.length;
 
     // Du 14 au 21 : 6 jours ouvrés (19 et 20 sont le week-end).
+    fireEvent.click(screen.getByRole("button", { name: "Personnalisée" }));
     fireEvent.change(screen.getByLabelText(/Période : début/i), { target: { value: "2026-09-14" } });
 
     await waitFor(() => {
@@ -282,7 +285,7 @@ describe("AnalyticsPage", () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/2 périmètres sur 2/)).toBeInTheDocument();
+      expect(screen.getByText(/2 périmètres sélectionnés sur 2/)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Comparer à la période précédente/i }));
