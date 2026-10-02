@@ -22,6 +22,7 @@ import { BillingCodeBadge } from "../components/BillingCodeBadge";
 import { CompleteTodayButton } from "../components/CompleteTodayButton";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildKnowledgeBaseUrl } from "../utils/knowledgeBase";
+import { matchesSearchQuery, sortByOfficialRelevance } from "../utils/search";
 import {
   baselineDelta,
   defaultDisplayDay,
@@ -241,21 +242,12 @@ export function ScopeListPage({
     });
   }, [scopes, selectedDay]);
 
-  // Filtrage combiné recherche + filtre rapide action
+  // Filtrage combiné recherche + filtre rapide action, puis priorité au
+  // responsable : une recherche par quadrigramme remonte les périmètres dont il
+  // est l'official_main avant ceux où il n'est que le suppléant.
   const filteredScopes = useMemo(() => {
-    return enrichedScopes.filter((scope) => {
-      const matchesSearch =
-        scope.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scope.knowledge_base_id
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase()) ||
-        scope.official_main.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scope.official_backup.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (scope.billing_code ?? '')
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
-
-      if (!matchesSearch) return false;
+    const matched = enrichedScopes.filter((scope) => {
+      if (!matchesSearchQuery(scope, searchQuery)) return false;
 
       switch (quickFilter) {
         case "to_process":
@@ -270,6 +262,8 @@ export function ScopeListPage({
           return true;
       }
     });
+
+    return sortByOfficialRelevance(matched, searchQuery);
   }, [enrichedScopes, searchQuery, quickFilter]);
 
   // Statistiques action-first pour le bandeau KPI

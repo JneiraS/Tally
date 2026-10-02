@@ -271,6 +271,84 @@ describe('ScopeListPage Component', () => {
     });
   });
 
+  it('classe les hits responsable avant les hits suppléant', async () => {
+    // L'ordre d'arrivée est volontairement l'inverse du résultat attendu :
+    // seul un réordonnancement peut produire cette liste.
+    const mockScopes = [
+      {
+        id: 'aaaa1111-e21b-23c4-a456-426614174000',
+        name: 'Périmètre Suppléant',
+        knowledge_base_id: 'KB-SUPP-0001',
+        official_main: 'NANA',
+        official_backup: 'MAMA',
+        billing_code: 'FACT-2026-SUP',
+        daily_activities: [],
+      },
+      {
+        id: 'bbbb2222-e21b-23c4-a456-426614174000',
+        name: 'MAMA Prod',
+        knowledge_base_id: 'KB-NOM-0001',
+        official_main: 'NANA',
+        official_backup: 'LOTO',
+        billing_code: 'FACT-2026-NOM',
+        daily_activities: [],
+      },
+      {
+        id: 'cccc3333-e21b-23c4-a456-426614174000',
+        name: 'Périmètre Responsable',
+        knowledge_base_id: 'KB-RESP-0001',
+        official_main: 'MAMA',
+        official_backup: 'LOTO',
+        billing_code: 'FACT-2026-RES',
+        daily_activities: [],
+      },
+    ];
+
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+
+    const table = within(await screen.findByRole('table'));
+    await waitFor(() => {
+      expect(table.getByText('Périmètre Suppléant')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/Rechercher/i), {
+      target: { value: 'MAMA' },
+    });
+
+    // Les trois périmètres matchent (resp. / suppl. / nom) : seul l'ordre change.
+    await waitFor(() => {
+      expect(table.getByText('MAMA Prod')).toBeInTheDocument();
+    });
+
+    // Le <tr> et le <li> mobile portent tous deux role="link" : il faut passer
+    // par le conteneur de chaque rendu, sinon les deux copies se répondent.
+    const comesFirst = (first: HTMLElement, second: HTMLElement) =>
+      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    const expectedOrder = ['Périmètre Responsable', 'Périmètre Suppléant', 'MAMA Prod'];
+
+    for (const container of [
+      table,
+      within(screen.getByRole('list', { name: 'Périmètres de supervision' })),
+    ]) {
+      const rendered = expectedOrder.map((name) => container.getByText(name));
+      for (let i = 0; i < rendered.length - 1; i += 1) {
+        expect(comesFirst(rendered[i], rendered[i + 1])).toBe(true);
+      }
+    }
+  });
+
   it('affiche le chargement puis la liste des périmètres', async () => {
     const mockScopes = [
       {

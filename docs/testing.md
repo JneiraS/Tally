@@ -178,15 +178,15 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Dix-huit fichiers dans `src/FrontEnd/src/test/`. Le setup est minimal :
+Dix-neuf fichiers dans `src/FrontEnd/src/test/`. Le setup est minimal :
 `src/test/setup.ts` ne fait qu'importer `@testing-library/jest-dom/vitest` —
-ni `ResizeObserver`, ni dimensions ne sont mockés.
+ni `ResizeObserver` ni dimensions ne sont mockés.
 
 Les tests se répartissent entre logique pure (`kpi.test.ts`, `export.test.ts`,
-`validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`) et rendu
-de composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
-`FeaiTagInput`, `ExportModal`, `DateNavigator`, `LoginBackground`,
-`AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`,
+`validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`,
+`search.test.ts`) et rendu de composants (`ScopeListPage`, `TodayActivityEditor`,
+`AuditLogPage`, `FeaiTagInput`, `ExportModal`, `DateNavigator`,
+`LoginBackground`, `AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`,
 `AuditActivityHeatmap`, `AuditShortcut`, `apiUnauthorized`).
 
 ### Pièges propres à cette suite

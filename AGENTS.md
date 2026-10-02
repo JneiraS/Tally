@@ -1354,7 +1354,17 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
   `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
   monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
-- Tests : `npm test` (vitest, 116 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
+- **Le filtre recherche de la page principale classe par où la requête a porté, pas par ordre
+  alphabétique.** Un quadrigramme apparu en `official_main` (responsable) doit remonter avant ceux où il
+  n'est qu'en `official_backup` (suppléant), eux-mêmes avant les hits nom / KB / code de facturation.
+  Le prédicat de filtre et le calcul du rang sont **le même** (`utils/search.ts` : `matchesSearchQuery`,
+  `officialMatchRank`, `sortByOfficialRelevance`) : deux règles séparées classeraient différemment de ce
+  qui a filtré, et afficheraient « sans correspondance » un périmètre retenu à l'écran. La comparaison
+  porte sur la chaîne entière, sans split sur `/`, pour cette même raison. L'ordre d'arrivée est conservé
+  à rang égal (index d'origine en second critère, pas de confiance implicite en la stabilité de `sort`) ;
+  l'API renvoyant `ORDER BY name`, chaque groupe reste alphabétique. Requête vide ⇒ tous les rangs égaux
+  ⇒ liste du serveur intacte.
+- Tests : `npm test` (vitest, 133 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
   `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
   sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
 

@@ -60,7 +60,8 @@ src/FrontEnd/src/
 ├── pages/                ScopeListPage, ScopeDetailPage, AuditLogPage,
 │                         LoginPage, NotFoundPage
 ├── components/           21 composants (modales, éditeurs, graphiques, toasts)
-└── utils/                kpi, date, export, validation, knowledgeBase, auditStats
+└── utils/                kpi, date, export, validation, knowledgeBase,
+                          auditStats, search
 ```
 
 La séparation utile à un mainteneur : **`utils/` est de la logique pure**, sans
@@ -152,6 +153,26 @@ complètent le tableau :
   proposant de l'afficher. Les deux ne doivent jamais coexister : deux
   `role="status"` simultanés rendraient l'un des deux inatteignable.
 
+### Recherche : le responsable passe avant le suppléant
+
+Une recherche par quadrigramme classe ses résultats par **où la requête a
+porté** : `official_main` (responsable) d'abord, `official_backup` (suppléant)
+ensuite, et en dernier les périmètres que la requête n'atteint qu'au nom, à la
+base KB ou au code de facturation.
+
+Les deux règles vivent dans `utils/search.ts` — `matchesSearchQuery()` pour le
+prédicat, `officialMatchRank()` et `sortByOfficialRelevance()` pour le
+réordonnancement — et `ScopeListPage.tsx:250` ne fait que les composer. **Ne pas
+reintroduire un second prédicat de filtre dans la page** : un rang calculé sur
+une autre règle que celle qui a filtré afficherait « sans correspondance » un
+périmètre pourtant retenu à l'écran.
+
+L'ordre d'arrivée est conservé à rang égal (index d'origine en second critère
+de tri, donc pas de dépendance à la stabilité implicite de `sort`). L'API
+renvoyant les périmètres par nom (`ORDER BY name`), chaque groupe reste donc
+alphabétique. Une recherche vide donne le même rang à tout le monde : la liste
+est alors celle du serveur, intacte.
+
 ---
 
 ## 7. Saisie et autosave
@@ -226,9 +247,9 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-18 fichiers dans `src/test/`. `src/test/setup.ts` se limite à importer
-`@testing-library/jest-dom/vitest` : ni `ResizeObserver` ni dimensions ne sont
-mockés, ce qui a des conséquences (voir `docs/testing.md` §6).
+Dix-neuf fichiers dans `src/test/` (133 tests). `src/test/setup.ts` se limite à
+importer `@testing-library/jest-dom/vitest` : ni `ResizeObserver` ni dimensions ne
+sont mockés, ce qui a des conséquences (voir `docs/testing.md` §6).
 
 Trois pièges à connaître avant d'écrire un test :
 
