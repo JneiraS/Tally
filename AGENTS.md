@@ -1564,7 +1564,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 192 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 204 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge
@@ -1574,6 +1574,16 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `vite.config.ts` : en `forks`, un processus node par cœur × un jsdom par fichier
   se fait tuer par l'OOM sur une machine chargée, et l'échec affiché est un worker
   mort, non un test rouge.
+- **Le filtre recherche de la page principale classe par où la requête a porté, pas par ordre
+  alphabétique.** Un quadrigramme apparu en `official_main` (responsable) doit remonter avant ceux où il
+  n'est qu'en `official_backup` (suppléant), eux-mêmes avant les hits nom / KB / code de facturation.
+  Le prédicat de filtre et le calcul du rang sont **le même** (`utils/search.ts` : `matchesSearchQuery`,
+  `officialMatchRank`, `sortByOfficialRelevance`) : deux règles séparées classeraient différemment de ce
+  qui a filtré, et afficheraient « sans correspondance » un périmètre retenu à l'écran. La comparaison
+  porte sur la chaîne entière, sans split sur `/`, pour cette même raison. L'ordre d'arrivée est conservé
+  à rang égal (index d'origine en second critère, pas de confiance implicite en la stabilité de `sort`) ;
+  l'API renvoyant `ORDER BY name`, chaque groupe reste alphabétique. Requête vide ⇒ tous les rangs égaux
+  ⇒ liste du serveur intacte.
 
 
 ## graphify

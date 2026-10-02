@@ -20,7 +20,7 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 | Unitaire Python | `tests/unit/` | `make test` | 147 tests |
 | Intégration Python | `tests/integration/` | `make test-db` | 134 tests, dont **84 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 192 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 204 tests (vitest) |
 
 Deux exécutions, donc :
 
@@ -179,16 +179,20 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Dix-huit fichiers dans `src/FrontEnd/src/test/`. Le setup est minimal :
-`src/test/setup.ts` ne fait qu'importer `@testing-library/jest-dom/vitest` —
-ni `ResizeObserver`, ni dimensions ne sont mockés.
+Vingt-cinq fichiers dans `src/FrontEnd/src/test/`. `src/test/setup.ts` importe
+`@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
+le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et
+attend deux réponses d'API. En revanche ni `ResizeObserver` ni dimensions ne sont
+mockés.
 
 Les tests se répartissent entre logique pure (`kpi.test.ts`, `export.test.ts`,
-`validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`) et rendu
-de composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
+`validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`,
+`analytics.test.ts`, `nonWorkingDays.test.ts`, `search.test.ts`) et rendu de
+composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
 `FeaiTagInput`, `ExportModal`, `DateNavigator`, `LoginBackground`,
-`AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`,
-`AuditActivityHeatmap`, `AuditShortcut`, `apiUnauthorized`).
+`AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`, `AuditActivityHeatmap`,
+`AuditShortcut`, `apiUnauthorized`, `AnalyticsPage`, `AnalyticsFilterBar`,
+`AnalyticsScopePicker`, `PageNav`, `PageShortcuts`).
 
 ### Pièges propres à cette suite
 
