@@ -4,12 +4,14 @@ from fastapi import HTTPException, Request, Response, status
 
 from protab.adapters.inbound.api.config import cookie_secure_from_env
 from protab.adapters.outbound.persistence.postgres_auth_repository import (
+    SESSION_DURATION,
     AuthSession,
     PostgresAuthRepository,
     Project,
 )
 
 SESSION_COOKIE = "protab_session"
+SESSION_COOKIE_MAX_AGE_SECONDS: int = int(SESSION_DURATION.total_seconds())
 
 
 @dataclass(frozen=True)
@@ -45,7 +47,7 @@ def set_session_cookie(response: Response, token: str) -> None:
         httponly=True,
         samesite="lax",
         secure=cookie_secure_from_env(),
-        max_age=12 * 60 * 60,
+        max_age=SESSION_COOKIE_MAX_AGE_SECONDS,
     )
 
 

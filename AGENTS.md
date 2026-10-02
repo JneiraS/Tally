@@ -672,6 +672,28 @@ Use where appropriate:
 
 Avoid `Any` unless there is a justified technical reason.
 
+## 14.1 Type checking is enforced, not merely requested
+
+Type hints that nothing checks are documentation. `mypy` runs over `src/protab`
+via `make typecheck`, with `disallow_untyped_defs` on: an unannotated function
+fails the check, so the convention above is a command and not an intention.
+Tests stay out of scope (`files` covers the application core only) — they are
+untyped by design and their behaviour is pinned by assertions.
+
+Two settings are load-bearing and should not be dropped casually:
+
+- `mypy_path = "src"` + `explicit_package_bases`. `protab` is installed in
+  editable mode, so without them mypy resolves the project's own imports
+  through `site-packages` and reports 107 `[import-untyped]` errors that say
+  nothing about the code.
+- `disallow_untyped_defs`. This is what turned a missing method into an error
+  rather than a silent `Any`.
+
+`mypy` covers the **production wiring**: an adapter is checked against the
+Protocol at the injection site (`create_app(repository=...)`). It cannot see the
+in-memory adapter used by tests, nor the recording decorator, so those are
+covered separately by the contract test (§11).
+
 ---
 
 # 15. Error Handling
@@ -1067,24 +1089,49 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
     `psycopg` (sync) + `psycopg_pool`. Le schéma est créé **idempotemment au démarrage**
     (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Les contraintes DB (nom unique, unique
     `(scope_id, day)`) sont traduites en exceptions de domaine par l'adapter.
-- **`save()` est réservé à la création d'agrégat.** Il remplace tout (`DELETE` + réinsertion des
-  activités dans une transaction) : un cas d'usage qui mute un périmètre existant l'interdit, sinon il
-  réécrit des jours qu'il n'a pas relus après une édition concurrente et écrase silencieusement la
-  modification d'un autre utilisateur. Les trois mutations d'activité passent donc par des écritures
-  ciblées du port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
+- **`save()` crée, il ne réécrit rien.** L'insertion est en `ON CONFLICT (id) DO NOTHING` : un `save`
+  sur un id déjà pris lève `ScopeMonitoringAlreadyExistsError` (`409`) **avant** toute écriture, au lieu
+  de fusionner. L'ancien `ON CONFLICT DO UPDATE` + `DELETE` des activités attendait là un cas
+  d'usage qui mute un périmètre existant : cet usage est interdit, car il réécrit des jours qu'il
+  n'a pas relus après une édition concurrente. Les mutations passent donc par des écritures ciblées du
+  port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed`, `update_note` —
   chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
-  `DailyActivityNotFoundError`.
-- **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les trois
-  écritures ciblées joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en plus
-  conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
+  `DailyActivityNotFoundError` ou `ScopeMonitoringNotFoundError`. Le refus a supprimé le cas
+  particulier de la note (§28.1) : il n'y a plus de `DO UPDATE` auquel il faille l'exclure, donc plus
+  d'asymétrie à documenter. Verrouillé par `test_save_refuses_an_existing_scope`,
+  `test_a_refused_save_leaves_a_concurrent_note_intact` et
+  `tests/unit/adapters/scope_monitoring_repository_save_test.py`.
+- **`scope_monitorings.note` est un texte libre nullable, et la première route qui modifie un périmètre.**
+  `PATCH /scope-monitorings/{id}` avec `{note}` ne touche qu'à elle — ni `name`, ni `billing_code`, ni les
+  activités. La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
+  Pydantic, jamais recopiée ; une requête trop longue est donc refusée en `422` à la frontière entrante,
+  tandis que `set_note()` conserve l'invariant pour les autres appelants. Deux règles distinctes, comme
+  pour `NonWorkingDaysRequest` : le constructeur hydrate **sans** refuser une note trop longue (une seule
+  ligne dégénérée viderait la liste des périmètres, cf. `billing_code` ci-dessus), la validation est un
+  invariant d'écriture. Une note blanche est normalisée en `None` partout — domaine, API et TypeScript
+  (`ScopeMonitoring.note` : `string | null`) — donc « pas de note » n'a qu'un état, pas deux.
+- **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les écritures
+  ciblées sur un périmètre joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en
+  plus conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
   accepterait un `scope_id` d'un autre tenant. Une écriture qui ne filtre pas le projet est un défaut,
   même si la ligne visée existe.
 - `InMemoryScopeMonitoringRepository` renvoie **les objets qu'elle stocke**. Elle ne peut donc pas
   prouver qu'un cas d'usage écrit de façon ciblée : `tests/unit/application/recording_repository.py`
   enregistre les appels au port pour cela, et la garantie « les autres jours sont intacts » se vérifie
   dans `postgres_scope_monitoring_repository_test.py`. Un nouveau port doit être implémenté par les
-  **deux** adapters (Liskov, AGENTS.md §11) : le dépôt n'a pas de CI, c'est donc à vérifier à la main
-  quand on ajoute une méthode.
+  **deux** adapters (Liskov, AGENTS.md §11) — et plus par le décorateur d'enregistrement, qui est une
+  troisième implémentation. **Ce n'est plus à vérifier à la main** :
+  `tests/unit/ports/scope_monitoring_repository_contract_test.py` compare, par réflexion, les méthodes
+  publiques du `Protocol` à celles des trois implémentations, et compare aussi l'ordre des paramètres.
+  L'assertion est une **inclusion**, jamais une égalité : `PostgresScopeMonitoringRepository` possède
+  `connect`/`close` qui n'appartiennent à aucun port. Vérifier que ce test échoue en retirant une
+  méthode d'un adapter, sinon il ne prouve rien.
+- **Les deux adapters sont interchangeables, pas seulement compatibles.** L'in-memory doit donc refuser
+  ce que le SQL refuse, avec les mêmes exceptions : un `save()` sur un id déjà pris y lève
+  `ScopeMonitoringAlreadyExistsError`, sur un nom déjà pris
+  `ScopeMonitoringNameAlreadyExistsError`. Sans cela, un cas d'usage passerait sous test et
+  échouerait en production sur la même ligne de code. Verrouillé par
+  `tests/unit/adapters/scope_monitoring_repository_save_test.py`.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
 - **`scope_monitorings.billing_code` est obligatoire à la création mais nullable en base.** Les deux
@@ -1095,9 +1142,13 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   toute la liste. Le champ est `str | None` côté domaine, API (`ScopeResponse`) et TypeScript
   (`ScopeMonitoring.billing_code` : `string | null`) ; les lignes sans code s'affichent « — ». Format
   **libre**, `strip`é, **non unique** : deux périmètres peuvent partager un code. Aucun `UNIQUE` en base.
-  Il n'existe **toujours aucune route de mise à jour d'un périmètre** (§28.3 bis) : la reprise d'un code
-  manquant se fait en SQL, procédure dans `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log`
-  ne voit que les use cases.
+  Il n'existe **aucune route de mise à jour du code de facturation** : `PATCH /scope-monitorings/{id}`
+  ne modifie que la note (§28.1). C'est un choix assumé, pas une dette : la reprise d'un code manquant
+  se fait en SQL, procédure dans `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log` ne voit
+  que les use cases. Ouvrir cette route pour un champ unique y ajouterait un troisième format
+  d'écriture (`name` est `UNIQUE` **mondial**, les officiels sont des listes délimitées par `/`) sans
+  résoudre un besoin exprimé ; si la demande revient, la forme attendue est une écriture ciblée du
+  port plus un use case et un événement d'audit, pas un `save()`.
 - **Le CSV d'import a gagné une 5e colonne** (`name, knowledge_base_id, official_main, official_backup,
   billing_code`), donc `REQUIRED_HEADERS` la rend obligatoire : un fichier préparé avant l'évolution est
   rejeté en `400 « Invalid headers » ». C'est la conséquence directe de l'obligation, pas un durcissement
@@ -1109,6 +1160,47 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `project_id` valide avant de l'ajouter.
 - L'API de production utilise une session HTTP-only et filtre les périmètres par `project_id` ; les routes
   métier sont protégées par l'authentification projet/quadrigramme.
+- **`projects.non_working_days` est un `NonWorkingDays`, pas un `dict`.** La colonne est du JSONB non typé,
+  donc `NonWorkingDays.from_raw()` (dans `domain/value_objects/`) est **lenient** : une entrée illisible
+  est écartée, jamais signalée, pour la même raison que `billing_code` ci-dessus — une seule ligne ancienne
+  ne doit pas vider le calendrier de tous les projets de l'instance. Deux conséquences à tenir :
+  - **un défaut ne doit jamais être un `dict` partagé.** Un `dict.copy()` est superficiel et laisse les deux
+    copies partager les listes ; les `tuple` du value object rendent l'erreur impossible. C'est le défaut que
+    `tests/unit/domain/non_working_days_test.py::test_two_defaults_share_no_mutable_state` verrouille.
+  - **vide ≠ défaut.** `NonWorkingDays()` = « tous les jours sont ouvrés » (case décochée dans la modale),
+    `NonWorkingDays.default()` = « week-end exclu », l'installation qui n'a rien configuré. Une colonne
+    `NULL` lit le défaut, jamais le vide.
+  - **présente mais illisible ≠ vide.** `{"excluded_weekdays": ["nope"]}` retombait sur une liste vide, donc
+    sur « tous les jours sont ouvrés », et les week-ends seraient entrés dans le KPI de couverture. Une
+    liste non vide dont **aucune** entrée ne survit à la normalisation retombe donc sur le défaut ; une
+    liste `[]` reste un choix. Le repli n'existe que pour les jours récurrents : il n'y a pas d'équivalent
+    pour les dates ponctuelles. Verrouillé par
+    `postgres_auth_repository_test.py::test_an_unreadable_column_reads_as_the_default_calendar`.
+  - **une semaine entière n'est pas un calendrier.** `[1,2,3,4,5,6,7]` ne laisse **aucun** jour
+    ouvré : la vue mono-jour chercherait une date ouvrée jusqu'à la limite de `Date` — mesuré, 20 M
+    d'itérations en 58 s sans terme, puis `RangeError`. La page principale gelait, pas l'écran vide.
+    La modale ne peut pas produire ce réglage (décocher tout donne `[]`), mais un `curl` si : les deux
+    portes sont donc nécessaires, à deux étages. **À l'écriture**, `NonWorkingDaysRequest` (Pydantic)
+    refuse `len(set(values)) == ISO_WEEKDAY_COUNT` en `422` — c'est la frontière entrante, le même
+    endroit que les bornes. **À la relecture**, `from_raw()` retombe sur le défaut : un calendrier sans
+    jour ouvré est inexploitable, donc illisible au sens du repli ci-dessus, et une ligne déjà en base
+    ne doit pas pouvoir geler l'UI. Ne pas remonter l'exception côté lecture : une seule ligne
+    dégénérée viderait le calendrier de tous les projets (§28.1). Verrouillé par
+    `test_project_settings_reject_a_calendar_without_any_working_day` et
+    `non_working_days_test.py::test_a_calendar_without_any_working_day_reads_as_the_default`.
+  - L'adapter ne valide donc plus rien sur ce champ : il persiste `to_dict()` et relit par `from_raw()`.
+    `NonWorkingDaysRequest` (Pydantic) prend ses bornes dans le **domaine**
+    (`MIN_ISO_WEEKDAY`/`MAX_ISO_WEEKDAY`) — jamais dans l'adapter, dont l'import créerait une dépendance
+    domain → infrastructure. Le format de série ne change pas : `{"excluded_weekdays": [...],
+    "excluded_dates": [...]}`.
+- **Une durée, une seule déclaration.** `SESSION_DURATION` (adapter) fixe l'expiration en base ;
+  `SESSION_COOKIE_MAX_AGE_SECONDS` s'en **déduit** (`int(SESSION_DURATION.total_seconds())`) au lieu de
+  redéclarer `12 * 60 * 60`. Deux durées séparées laisseraient un cookie promettre une session déjà morte,
+  sans le moindre symptôme. Verrouillé par
+  `tests/integration/adapters/auth_api_test.py::test_session_cookie_expires_with_the_session_it_carries`.
+  Même règle pour les paramètres de hachage : `SCRYPT_N`/`SCRYPT_R`/`SCRYPT_P` sont lus par `_hash_password`
+  **et** `_check_password`, un écart entre les deux listes invalidant tous les mots de passe existants sans
+  lever d'erreur.
 - **Isolation multi-tenant par défaut** : le projet courant est porté par un `ContextVar` posé par la
   dépendance `project_context`. Les adaptateurs PostgreSQL appellent `require_current_project()` et
   lèvent `MissingProjectContextError` si le contexte est absent — aucun repli sur un projet par défaut.
@@ -1213,10 +1305,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `protab-project set-password` **ne** vous sauverait pas : il supprime les sessions, donc il verrouille.
 - **`project_admins` fait partie de `connect()`**, donc `TRUNCATE ... projects ... CASCADE` la vide avec le
   projet : les fixtures `truncate_all()` n'ont rien à ajouter.
-- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** Il reste **aucune route de
-  mise à jour** d'un périmètre : `POST /scope-monitorings` ne fait que créer, et `name` est `UNIQUE`
-  **mondial** (donc pas par projet). Déclarer un quadrigramme supplémentaire dans un périmètre existant passe
-  encore par le SQL direct ou par un nouveau périmètre.
+- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** La seule route qui modifie un
+  périmètre existant est `PATCH /scope-monitorings/{id}`, et elle ne touche que la **note** (§28.1) : ni
+  `name`, ni `billing_code`, ni les officiels. `name` reste `UNIQUE` **mondial** (donc pas par projet).
+  Déclarer un quadrigramme supplémentaire ou corriger un code dans un périmètre existant passe encore par
+  le SQL direct ou par un nouveau périmètre.
 
 
 ## 28.4 Tests d'intégration PostgreSQL
@@ -1253,6 +1346,65 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
 
+- **Une seule fabrique de fixtures : `src/test/factories.ts`** (`makeScope`,
+  `makeActivity`, `makeScopes`). Même arbitrage que `CHECKBOX_CLASS` et
+  `routes.ts`, avec la mesure qui le justifie : ajouter `note` au contrat
+  TypeScript avait produit **40 erreurs** de `tsc`, dont 35 dans
+  `ScopeListPage.test.tsx`, une par littéral. Le remède « rendre le champ
+  optionnel » aurait été le mauvais : il réintroduirait `undefined` là où
+  l'  API n'a qu'un état absent (`note` et `billing_code` sont `string | null`),
+  donc deux erreurs pour un seul cas. **La factory garde donc les
+  défauts réalistes et le champ reste requis** ; un fichier de test ne doit pas
+  pouvoir mentir sur la forme d'une réponse.
+- **Un helper local qui délègue est acceptable, un helper qui redéclare les
+  défauts ne l'est pas.** Les helpers positionnels (`scope(id, name, days)`)
+  restent pour la lisibilité des assertions, mais délèguent à `makeScope` :
+  `knowledge_base_id`, `billing_code`, `note` et `daily_activities` ne sont
+  écrits qu'une fois dans le dépôt. Si un test asserte sur un officiel
+  (`export.test.ts`), la valeur doit rester explicite — la délégation l'a
+  d'ailleurs fait échouer, ce qui prouve que le test observait bien la donnée.
+
+- **Une seule classe pour toutes les cases à cocher : `CHECKBOX_CLASS`**
+  (`src/constants/ui.ts`). Le même arbitrage que `constants/routes.ts` : une valeur
+  dupliquée dérive, et ici la dérive était mesurée — trois hauteurs, `text-*`
+  contre `accent-*`, deux jetons de bordure, deux traitements de focus pour six
+  cases. **La constante doit rester une chaîne littérale complète** : Tailwind
+  extrait les noms de classes par analyse statique du source, donc une classe
+  recombinée par concaténation ne serait jamais générée et le style disparaîtrait
+  sans erreur de compilation. **La preuve n'est ni `tsc` ni jsdom, c'est le CSS
+  compilé** : `grep -c` sur `dist/assets/index-*.css` pour chaque nom, en
+  n'oubliant pas que Tailwind v4 échappe le point d'un `h-3.5` en `h-3\.5` et le
+  séparateur de variante en `dark\:accent-nord-8`. Un build sans erreur n prouve
+  rien ici.
+- **`accent-*` et non `text-*` pour une case à cocher.** C'est `accent-color` qui
+  colore une case native ; la couleur de texte n'est qu'un contournement dont le
+  rendu dépend du navigateur, si bien que deux cases identiques n'affichaient pas
+  la même couleur. Le curseur et l'anneau de focus viennent de la constante, ce qui
+  est sans risque : chaque case est enveloppée dans un `<label>` d'au moins 36 px
+  (`min-h-9`), donc la cible cliquable reste bien au-dessus du plancher AA même à
+  14 px. Un `cursor-pointer` local reste possible pour une case nue, hors label.
+- **`AnalyticsFilterBar.test.tsx` verrouille l'unicité du style** : toutes les
+  cases de la carte doivent partager un seul `className`. C'est un **garde-fou de
+  classe, pas un test de rendu** — jsdom ne calcule aucune couleur, donc seul
+  l'égalité des chaînes est vérifiable. Vérifier qu'il échoue en cassant une
+  occurrence, sinon il ne prouve rien.
+
+- **L'échelle ISO des jours se décide dans `src/constants/nonWorkingDays.ts`, nulle part
+  ailleurs.** Même arbitrage que `constants/routes.ts` : `getUTCDay()` et `getDay()`
+  numérotent à partir du dimanche alors que l'ISO part du lundi, et la dérive était
+  déjà réelle — `[6, 7]` en dur dans le défaut front, les bornes réécrites dans le
+  validateur Pydantic, et deux conversions dimanche → ISO recopiées dans `kpi.ts` et
+  dans `analytics.ts`. `toIsoWeekday()` et `toMondayFirstIndex()` prennent le
+  **numéro** du jour et non la `Date` : l'appelant garde ainsi la main sur son
+  horloge, ce qui compte car `kpi.ts` raisonne en UTC sur des dates ISO et
+  `auditStats.ts` en heure locale (son audience est locale). Les fusionner
+  uniformiserait un affichage qui ne doit pas l'être. `WEEKDAY_LABELS` a quitté
+  `WorkingDaysModal.tsx` pour la même raison que le reste, et
+  `NonWorkingDays.excluded_weekdays` est typée `IsoWeekday[]` : c'est le seul endroit
+  où le compilateur peut refuser un `[0]` ou un `[8]`. Le défaut front doit rester
+  aligné sur `NonWorkingDays.default()` côté API, que
+  `src/test/nonWorkingDays.test.ts` verrouille avec le dimanche — la conversion 0 → 7
+  n'étant exercée par aucun autre test.
 - **La page principale est mono-jour, pas un cumul.** `ScopeListPage` n'affiche que les compteurs du
   jour sélectionné ; le jour à l'ouverture est `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour
   si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
@@ -1311,6 +1463,17 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   « Annuler » (`ActivityFormModal.tsx:396`) qui **jette toute la saisie en cours**. Deux contrôles, le même
   libellé, deux sens opposés, dont un destructeur. Si la suppression dans ce modal doit devenir
   réversible, la forme correcte est un « référence retirée — restaurer » **en place** dans la liste.
+- **La note du périmètre est un brouillon, pas un autosave.** C'est le seul champ éditable de la page qui
+  ne soit pas un compteur d'activité : une note se rédige au clavier, donc un autosave enverrait un `PATCH`
+  par frappe — et donc un événement d'audit par caractère tapé. D'où le `ScopeNoteCard` dédié, avec
+  « Enregistrer » / « Annuler », sur la carte entre l'identité et l'activité du jour. Le bouton compare la
+  valeur **nettoyée** à la valeur enregistrée : « note » et «  note  » sont le même enregistrement, donc
+  « Annuler » ne doit pas s'activer pour rien. Le `2000` affiché vient d'une constante locale, alignée sur
+  le domaine sans le dupliquer dans la comparaison — seule la frontière serveur fait foi, d'où le refus
+  en `422` et non un `maxLength` qui tronquerait la saisie.
+- **La carte renvoie la note enregistrée, la page ne recharge rien.** `onSaved(note)` met à jour l'état
+  local : un `fetchScopeDetail()` au retour du `PATCH` remettrait `isLoading` à vrai et effacerait la
+  journée sélectionnée.
 - **Les images sont importées depuis `src/assets/`**, jamais référencées par une URL `public/` : l'import
   laisse Vite hasher le fichier et valide le chemin à la compilation. `tsconfig.json` déclare déjà
   `"types": ["vite/client"]`, un `import x from './x.svg'` type-check donc sans configuration ajoutée.
@@ -1354,9 +1517,197 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `<svg>` ne peint pas. Un test jsdom ne prouve aucun de ces deux faits : `setup.ts` ne mocke ni
   `ResizeObserver` ni les dimensions, `RootSurface` renvoie `null` sous 0×0, donc le `<svg>` n'est jamais
   monté et le test porte sur le conteneur — un garde-fou de classe, pas de rendu.
-- Tests : `npm test` (vitest, 116 tests) et `npm run lint` (`tsc --noEmit`). Le `beforeEach` de
-  `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un **jour ouvré** (lundi 2026-09-21),
-  sinon la page s'ouvre sur le jour ouvré précédent et tous les scénarios décalent d'un jour.
+- **La page `/analyse` dérive entièrement de `GET /scope-monitorings`.** Aucun
+  endpoint d'agrégation, aucun use case, aucune migration : la liste renvoie déjà les
+  périmètres avec leur historique. Un serveur d'agrégation n'aurait de sens qu'au-delà
+  de ce que le navigateur tient — et il faudrait l'avoir mesuré avant de le créer.
+- **Toute la logique de `/analyse` est pure et vit dans `utils/analytics.ts`.** Les
+  composants ne calculent rien : ils reçoivent des agrégats et les rendent. C'est ce qui
+  rend la page testable sans rendu — Recharts ne monte aucun `<svg>` sous jsdom
+  (`RootSurface` renvoie `null` sous 0×0), donc un test qui attend le graphique attend
+  l'échec.
+- **Un seul sens de tri pour le classement : du plus dégradé au moins dégradé.** Y
+  compris pour le taux de transformation, donc croissant. Faire varier le sens selon la
+  métrique est une faute d'usage, pas une commodité : un superviseur cherche qui traiter
+  en premier. Un taux indéfini (aucune erreur) passe en dernier dans **les deux** sens,
+  et jamais comme un 0 % — un `null` mal trié placerait le meilleur périmètre en tête.
+- **L'arriéré et les erreurs ne sont pas la même quantité** : une aire empilée
+  d'erreurs brutes se lirait comme un backlog qui n'en est pas un.
+- **Un cumul n'a pas sa place sur une page de consultation.** La page de détail ne
+  porte qu'un graphique, « Tendance des erreurs et incidents », en valeurs
+  quotidiennes : c'est le graphique qui répond à la seule question actionnable —
+  quel jour a eu des erreurs sans incident. Le cumul erreurs/incidents a été retiré
+  (avec `buildCumulativeTrend`) pour deux raisons cumulatives, dont une
+  **algébrique** : son arriéré valait `erreurs - incidents`, donc empiler
+  `incidents` + `arriéré` reconstruisait `erreurs`, et la courbe du dessus
+  reproduisait exactement le haut de son propre empilement. Le graphique affichait
+  deux fois le même total dans deux registres visuels, lisibles comme deux mesures
+  distinctes. S'y ajoute le fait qu'un cumul ne croît que par construction : il
+  répond « combien depuis le début ? », ce qui ne change plus après quelques
+  semaines. Ne pas le réintroduire en version « plus jolie » : sans la seconde
+  courbe du dessus, la seule grandeur cumulative défendable est l'arriéré, et elle
+  se lit comme un nombre dans les KPI.
+- **`incidents ⊆ erreurs` est une convention de saisie, garantie nulle part.** Ni
+  `CHECK` SQL (`errors_reported` et `incidents_created` sont deux `INTEGER NOT
+  NULL DEFAULT 0` indépendants), ni validation croisée Pydantic, ni règle de
+  domaine — `InvalidIncidentsCreatedError` existe mais n'est jamais levée. Pire,
+  la relation est **absorbée en silence** : `trailingErrors` fait
+  `max(erreurs - incidents, 0)` et `transformationRate` fait
+  `round(incidents / erreurs * 100)`, donc une saisie incohérente donne un
+  arriéré de 0 et un taux > 100 % — des chiffres plausibles, non signalés. Ne pas
+  « durcir » ça par une contrainte : un `CHECK` ajouté au schéma idempotent du
+  démarrage est un no-op sur une base déjà peuplée (`CREATE TABLE IF NOT EXISTS`),
+  et un vrai `ALTER TABLE ... ADD CONSTRAINT` bloquerait le démarrage sur une
+  ligne historique incohérente — même piège que `billing_code` (§28.1). La
+  garantie, si on la veut un jour, passe par une exception de domaine et un
+  avertissement affichable, jamais par une colonne.
+- **Les deux plafonds de lisibilité de `/analyse` sont explicites parce qu'ils
+  contredisent le choix de l'utilisateur** : au-delà de 120 jours on force la semaine (et on
+  le dit), au-delà de 8 périmètres l'aire empilée garde le top 8 + « Autres (n) » en gris
+  neutre. Un plafond silencieux fait passer une sélection pour respectée alors qu'elle ne
+  l'est pas.
+- **L'URL de `/analyse` est un reflet de l'état local, pas sa source.** Écrire l'URL
+  depuis le `setState` met un effet de bord dans un updater (React peut l'appeler deux fois
+  en mode strict). `scopeIds` s'écrit **toujours**, avec la sentinelle `-` pour une
+  sélection vide : une clé absente se lit « tous les périmètres », donc l'URL d'une
+  sélection vide ramènerait l'utilisateur à la vue complète. L'écriture est suspendue
+  pendant le chargement des périmètres.
+- **Le classement de `/analyse` est une liste HTML, pas un graphique à barres.** La
+  valeur est en texte (la barre est `aria-hidden`), la barre est calée sur le pire
+  périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
+  périmètre le plus dégradé, en tête de liste, recevrait la barre la plus courte. Un
+  taux indéfini n'a aucune barre — une barre nulle se lirait comme un 0 %.
+- **La heatmap de `/analyse` porte les erreurs brutes par jour ou par semaine.** Une
+  ligne représente un périmètre, une colonne une jour ou une semaine ISO selon le
+  réglage `granularity`, et l'intensité de la cellule est proportionnelle à
+  `errors_reported`. Un `0` signifie une saisie sans erreur ; une cellule sans
+  activité affiche `—` et porte le libellé accessible « aucune saisie ». Elle suit
+  le réglage `granularity` : un regroupement forcé en semaine rendrait le sélecteur
+  « Par jour » mensonger. Le classement sous la heatmap trie sur le total d'erreurs
+  de la période. L'évolution d'une cellule compare la colonne à la
+  précédente **affichée** — en vue journalière, deux colonnes consécutives peuvent
+  être séparées par un week-end filtré — et reste indéfinie quand la base est absente
+  ou nulle.
+- **La heatmap déborde, et doit pouvoir défiler.** En vue journalière, 120 jours font
+  120 colonnes d'au moins 2 rem : un `overflow-hidden` y.clipperait des colonnes hors
+  d'atteinte, visuellement **et** au clavier, ce qui est pire qu'une barre de
+  défilement. Le conteneur est donc `overflow-x-auto`, la colonne des noms est
+  `sticky left-0`, et la région prend `tabIndex={0}` quand elle déborde réellement
+  (au-delà de 12 colonnes) — un conteneur défilant non focusable est inatteignable au
+  clavier (WCAG 2.1.1), et un `tabIndex` permanent serait un point d'arrêt sans effet.
+  Le libellé de colonne visible est abrégé au jour seul : « 21 sept. 2026 » ne tient
+  pas dans 2 rem et `truncate` n'en montrerait que le premier chiffre, ce qui
+  alignerait des jours différents sous le même nombre ; la date complète reste dans
+  le `title` et le libellé accessible de la cellule.
+- **Un test de `/analyse` ne doit pas chercher un nombre global.** En vue
+  journalière, les en-têtes de colonne portent « 11 », « 12 »… Un `getByText("11")`
+  sur la page entière peut donc tomber sur la heatmap au lieu du compteur KPI :
+  passer par `within(screen.getByRole("region", { name: /résumé/i }))`.
+- **Le classement est un doublon assumé de la heatmap.** `ErrorRanking` trie les
+  mêmes `totalErrors` que les lignes de la heatmap, sur un seul critère décroissant
+  (l'ancien tri à deux sens selon la métrique, avec taux de transformation, a été
+  supprimé avec l'aire empilée). Il est conservé pour l'ordre, la navigation vers
+  le détail et la valeur en texte : le supprimer est possible, le « réparer » en
+  réintroduisant une métrique ne l'est pas.
+- **La première carte de `/analyse` suit la hiérarchie de décision.** `Période` et
+  `Affichage` sont regroupés en réglages secondaires ; `Périmètres comparés` est
+  un bloc pleine largeur, avec l'explication de son effet sur les graphiques, le
+  compteur `N sur M`, des actions globales explicitement nommées et désactivées
+  quand elles n'ont plus d'effet. Une sélection vide est volontairement atteignable
+  et signale la conséquence dans la carte, sans laisser un écran de graphiques vide
+  sans explication.
+- **Le filtre de codes de facturation est multi-sélectionnable.** Il inclut une
+  option `Sans code` pour les lignes historiques sans code. Il ne détruit jamais
+  `scopeIds` : il réduit seulement les périmètres analysés et les actions globales
+  s'appliquent aux périmètres visibles après filtrage. Retirer tous les codes
+  sélectionnés restaure la sélection de périmètres précédente.
+ - **La sélection des périmètres passe par un multi-select compact.** La carte n'affiche
+   jamais la liste complète en permanence : un déclencheur affiche la recherche et le
+   compteur, puis ouvre un popover desktop ou la `Modal` existante sur mobile. La liste
+   contient une recherche, de vraies cases à cocher, « Tout cocher », « Tout décocher »
+   et « Terminé ». La sélection est appliquée immédiatement, sans état intermédiaire.
+   Le conteneur de la liste peut donc être `max-h-72 overflow-y-auto` : il reste dans le
+   popover, n'augmente pas la hauteur de la carte, et reste atteignable au clavier.
+- **`PageNav` n'est monté que dans le pied de page.** Il était aussi dans l'en-tête, où
+  « Périmètres » faisait doublon avec le logo : on a retiré l'instance de `Navbar`, pas ses
+  entrées, ce qui laisse `PageNav` complet pour le mobile. **Le pied de page est le seul chemin
+  vers Analyse et Journal sur téléphone**, là où Ctrl+Alt n'existe pas : le supprimer de `App.tsx`
+  les rendrait inatteignables sur mobile. `NavLink` a besoin de `end` sur `SCOPE_LIST_PATH` :
+  sans lui, `/` est active sur toutes les pages et « Périmètres » serait marqué courant partout.
+  `aria-current` porte l'information d'état actif, pas la couleur.
+- **Les deux vues hors en-tête passent par `PageShortcuts`** (`Ctrl+Alt+G`, `Ctrl+Alt+L`), un seul
+  `keydown` pour les deux liaisons — deux composants dupliqueraient la même garde. La touche est
+  comparée en minuscules, et `shiftKey` est explicitement refusé pour ne pas capter une mainlevée
+  que le bureau envoie pour autre chose. Le raccourci navigue **modale ouverte comprise**, ce qui
+  démonte une saisie en cours : il est global, il ne consulte donc pas l'état des modales qui vit
+  dans `AppContent`, et c'est un choix assumé.
+- **`/analyse` n'a pas de location nginx.** Le `try_files $uri $uri/ /index.html` de la SPA
+  sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
+  illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
+  entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
+ - Tests : `npm test` (vitest, 227 tests) et `npm run lint` (`tsc --noEmit`). Le
+  `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
+  **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
+  et tous les scénarios décalent d'un jour. `setup.ts` allonge
+  `asyncUtilTimeout` : le délai d'une seconde par défaut ne suffit pas quand la suite
+  lance un jsdom par fichier en parallèle, et l'échec qui en résulte est une
+  panne de machine, pas une régression. Même origine pour `pool: "threads"` dans
+  `vite.config.ts` : en `forks`, un processus node par cœur × un jsdom par fichier
+  se fait tuer par l'OOM sur une machine chargée, et l'échec affiché est un worker
+  mort, non un test rouge.
+- **Le filtre recherche de la page principale classe par où la requête a porté, pas par ordre
+  alphabétique.** Un quadrigramme apparu en `official_main` (responsable) doit remonter avant ceux où il
+  n'est qu'en `official_backup` (suppléant), eux-mêmes avant les hits nom / KB / code de facturation.
+  Le prédicat de filtre et le calcul du rang sont **le même** (`utils/search.ts` : `matchesSearchQuery`,
+  `officialMatchRank`, `sortByOfficialRelevance`) : deux règles séparées classeraient différemment de ce
+  qui a filtré, et afficheraient « sans correspondance » un périmètre retenu à l'écran. La comparaison
+  porte sur la chaîne entière, sans split sur `/`, pour cette même raison. L'ordre d'arrivée est conservé
+  à rang égal (index d'origine en second critère, pas de confiance implicite en la stabilité de `sort`) ;
+  l'API renvoyant `ORDER BY name`, chaque groupe reste alphabétique. Requête vide ⇒ tous les rangs égaux
+  ⇒ liste du serveur intacte.
+
+## 28.7 Références FEAI : une graphie stockée, une saisie tolérante
+
+- **La forme canonique est `[PREFIXE-]INC\d{9}`, préfixe facultatif de 2 à 5 lettres**
+  (`FE-INC000000001`). `FEAI` et `FEAI-` désignent la même famille : le préfixe est
+  générique et non unique, comme `billing_code` (§28.1). Aucun préfixe n'est
+  enregistré à part, donc rien à migrer : `INC000000001` reste valide tel quel.
+- **Une seule graphie est stockée, donc la canonicalisation est un invariant du domaine.**
+  `canonical_feai()` (`daily_activity.py`) réduit les séparateurs (espace, tiret, slash) à un
+  tiret unique et insère le tiret d'un préfixe collé au code ; `_validate()` **retourne** la
+  liste canonique, consommée par `__post_init__` comme par `update()`. La canonique se juge donc
+  au double endroit qui compte : le doublon et le stockage. Sans elle, `FE INC000000001` et
+  `FE-INC000000001` seraient deux références distinctes dans la même journée, et le compteur
+  d'erreurs par FEAI ne serait pas recomptable.
+- **Le doublon se juge sur la forme canonique**, jamais sur la chaîne saisie — même raison.
+  `validateActivityForm` normalise avant de valider, et `FeaiTagInput.addCode` compare au
+  `values.includes(code)` déjà canonique.
+- **`normalizeFeai()` ne touche pas à la casse** : les deux Points d'entrée mettaient déjà tout en
+  majuscules, et `isValidFeai('inc000000001') === false` reste le contrat testé. Élargir
+  `isValidFeai` aux minuscules aurait supprimé cette garantie sans rien demander à personne.
+- **Une longueur de référence est une constante, jamais un `12` littéral.** Trois copies du
+  nombre existaient (`FeaiTagInput`, `maxLength`, `code.length === 12`, `maxLength`) et le
+  préfixe les rendait toutes fausses — le modal refusait une référence valide *et* son indicateur
+  vert ne s'allumait jamais. `FEAI_MAX_LENGTH = 18` (5 + 1 + 12) est la seule déclaration ; côté
+  Python, `_FEAI_PATTERN` borne déjà la longueur, donc rien à déclarer de plus.
+- **Le `trim()` à la frappe est interdit dans un champ dont le contenu comporte une séparatrice.**
+  `handleFeaiChange` faisait `val.trim().toUpperCase()` : taper `FE ` renvoyait `FE`, la forme
+  avec espace — la forme naturelle de la saisie — était littéralement impossible à saisir. La
+  normalisation se fait à l'enregistrement (`cleanedFeai`), pas à la frappe ; seul
+  `aria-label` du bouton de suppression garde son `trim()`.
+- **Le brouillon reste brut, la persistance est canonique.** Dans `ActivityFormModal`, une
+  référence en cours porte ce que l'utilisateur a tapé ; après enregistrement elle est relue
+  `FE-INC000000001`. C'est assumé : retransformer la frappe ferait sauter le curseur, et c'est
+  la forme stockée qui fait foi.
+- **Les deux implémentations de saisie ne partagent que les règles.** `FeaiTagInput` (pustes,
+  annulation par rafale) et `ActivityFormModal` (brouillon) ont chacune leur UI, mais
+  `normalizeFeai`/`isValidFeai` sont le seul juge — d'où l'intérêt de `normalizeFeai` dans
+  `utils/validation.ts` : toute divergence de message ou de doublon se paie deux fois.
+  Verrouillé par `ActivityFormModal.test.tsx`, créé pour ce point : la modale n'avait
+  **aucun** test.
+- **Un `aria-label` par champ, pas un `placeholder` comme nom accessible.** Le `placeholder`
+  disparaît dès la première frappe ; `Référence FEAI ${idx + 1}` reste et donne un nom au champ
+  dans les deux implémentations.
 
 
 ## graphify

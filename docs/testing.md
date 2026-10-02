@@ -17,23 +17,25 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 120 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 126 tests, dont **80 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 193 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 150 tests, dont **90 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 116 tests (vitest) |
+| Typage Python | `src/protab` | `make typecheck` | `mypy`, `disallow_untyped_defs` |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 227 tests (vitest) |
 
-Deux exécutions, donc :
+Trois exécutions, donc :
 
 ```bash
 make test          # rapide, sans base de données
 make test-db       # tout, y compris PostgreSQL
+make typecheck     # annotations du cœur applicatif
 ```
 
 **Reality check, chiffres mesurés sur ce dépôt :** `make test` sans
-`PROTAB_TEST_DATABASE_URL` affiche `167 passed, 80 skipped`. C'est le piège
-principal : **un tiers de la suite n'a pas tourné**, et un « tout est vert »
+`PROTAB_TEST_DATABASE_URL` affiche `254 passed, 90 skipped`. C'est le piège
+principal : **un quart de la suite n'a pas tourné**, et un « tout est vert »
 local n'est pas une preuve de non-régression des adaptateurs. Seuls
-`make test-db` et le compte `247 tests collected` distinguent les deux cas.
+`make test-db` et le compte `344 tests collected` distinguent les deux cas.
 
 ---
 
@@ -46,9 +48,10 @@ helpers explicites. Chaque module déclare ses propres doublures.
 
 | Fichier | Objet |
 | --- | --- |
-| `daily_activity_test.py` (16) | Mise à jour, clôture, contraintes de `feai` |
+| `daily_activity_test.py` (31) | Mise à jour, clôture, contraintes et canonicalisation de `feai` |
 | `official_code_test.py` (14) | Forme scalaire du quadrigramme : longueur, `/` refusé |
-| `scope_monitoring_test.py` (11) | Accès à une activité par jour, agrégat |
+| `non_working_days_test.py` (19) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
+| `scope_monitoring_test.py` (28) | Accès à une activité par jour, agrégat, note libre (`set_note`, borne, relecture) |
 | `audit_event_test.py` (5) | `build_changes` ne conserve que les champs modifiés |
 | `exceptions_test.py` (1) | Hiérarchie des exceptions métier |
 
@@ -57,11 +60,15 @@ plus solide du dépôt, et la seule qui reste valable si l'infrastructure change
 
 ### Application — `tests/unit/application/`
 
-Cinq fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
+Six fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
 `create_daily_activity_test.py`, `update_daily_activity_test.py`,
-`complete_daily_activity_test.py`, `queries_test.py`) plus
-`audit_trail_test.py`. Ils utilisent
+`complete_daily_activity_test.py`, `update_scope_note_test.py`,
+`queries_test.py`) plus `audit_trail_test.py`. Ils utilisent
 `InMemoryScopeMonitoringRepository` et un adaptateur d'audit mémoire.
+
+`update_scope_note_test.py` verrouille deux points qu'un adaptateur mémoire ne
+peut pas montrer seul : l'écriture **ciblée** (`update_note`, pas `save` — d'où
+le décorateur ci-dessous) et l'absence d'audit quand la note est inchangée.
 
 **`tests/unit/application/recording_repository.py` n'est pas un test** : c'est
 un décorateur qui enregistre les appels reçus au port, et il mérite qu'on
@@ -74,14 +81,39 @@ de prouver qu'une mise à jour d'activité ne réécrit pas un périmètre entie
 ### Adaptateurs — `tests/unit/adapters/`
 
 Six modules qui testent de la logique d'adaptateur **sans base** :
-`api_config_test.py` (résolution hôte/port, `Secure`), `official_codes_test.py`
-(parseur de la liste séparée par `/`), `postgres_auth_bootstrap_test.py`
-(résolution fail-closed des secrets d'amorçage), `postgres_pool_test.py`,
-`project_context_guard_test.py` (2 tests : le contexte projet ne doit jamais
-être un repli), et `tests/unit/project_admin_cli_test.py` (7 tests : validation
-d'arguments de la CLI, pas d'accès base).
+`api_config_test.py` (14 : résolution hôte/port, `Secure`), `official_codes_test.py`
+(5 : parseur de la liste séparée par `/`), `postgres_auth_bootstrap_test.py`
+(8 : résolution fail-closed des secrets d'amorçage), `postgres_pool_test.py` (1),
+`project_context_guard_test.py` (2 : le contexte projet ne doit jamais être un
+repli) et `scope_monitoring_repository_save_test.py` (4 : l'adapter mémoire doit
+refuser ce que le SQL refuse, avec les mêmes exceptions).
+
+Un septième module de logique d'adaptateur vit à côté, sans base lui non plus :
+`tests/unit/project_admin_cli_test.py` (9 : validation d'arguments de la CLI,
+pas d'accès base).
 
 Ces tests sont trompeurs s'ils sont lus comme des tests d'intégration : voir §5.
+
+### Ports — `tests/unit/ports/`
+
+Un module, `scope_monitoring_repository_contract_test.py` (7 tests), qui compare
+par réflexion les méthodes publiques du `Protocol` `ScopeMonitoringRepository`
+à celles de ses **trois** implémentations — les deux adapters et le décorateur
+`recording_repository.py` — puis l'ordre de leurs paramètres. Les classes sont
+introspectées sans être instanciées : le pool PostgreSQL exigerait un DSN et la
+garantie n'a rien à voir avec des données.
+
+L'assertion est une **inclusion**, jamais une égalité : l'adapter PostgreSQL
+possède `connect`/`close` qui n'appartiennent à aucun port.
+
+Ce test est le filet que `mypy` ne peut pas être. `mypy` vérifie l'adapter de
+production au point d'injection (`create_app(repository=...)`), mais ses
+`files` ne couvrent que `src/protab` : l'adapter in-memory et le décorateur de
+test lui sont invisibles. Un port qui gagne une méthode, oubliée dans l'un de ces
+deux, ne serait rouge nulle part.
+
+**Le vérifier en le cassant** : renommer une méthode d'un adapter doit faire
+passer le test au rouge, sinon il ne prouve rien.
 
 ---
 
@@ -94,8 +126,8 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `postgres_scope_monitoring_repository_test.py` | 26 | Persistance de l'agrégat, écritures ciblées, traduction des violations de contrainte, isolation par projet |
-| `postgres_auth_repository_test.py` | 31 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
+| `postgres_scope_monitoring_repository_test.py` | 34 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`), traduction des violations de contrainte, isolation par projet |
+| `postgres_auth_repository_test.py` | 33 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
 | `postgres_audit_trail_repository_test.py` | 4 | Écriture et lecture du journal d'audit |
 
@@ -114,10 +146,10 @@ Deux détails qui font gagner du temps :
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `api_test.py` | 26 | Routes métier avec un adaptateur en mémoire injecté |
-| `auth_api_test.py` | 8 | Login, session, cookie `Secure` (`auth_api_test.py:169`) |
+| `api_test.py` | 36 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI, note du périmètre |
+| `auth_api_test.py` | 11 | Login, session, cookie `Secure`, expiration du cookie alignée sur la session |
 | `audit_log_api_test.py` | 4 | Journal d'audit et sa pagination |
-| `scope_monitoring_csv_reader_test.py` | 5 | Lecture et rejet de CSV |
+| `scope_monitoring_csv_reader_test.py` | 6 | Lecture et rejet de CSV |
 | `route_authorization_test.py` | 3 | **Polarité inversée** sur l'authentification |
 
 `route_authorization_test.py` mérite une attention particulière : il liste les
@@ -161,10 +193,13 @@ correcte d'une fuite inter-tenant (`AGENTS.md` §28.1).
 **Un port ajouté n'est souvent couvert que par un seul adaptateur.** Le dépôt
 n'a pas de CI
 et les tests unitaires utilisent l'adaptateur en mémoire : ajouter une méthode au
-port et ne l'implémenter que dans `InMemoryScopeMonitoringRepository` laisse
-l'échec invisible jusqu'à l'exécution en production. **Les deux adaptateurs
-doivent être vérifiés à la main** à chaque ajout de méthode de port
-(`AGENTS.md` §11, Liskov).
+port et ne l'implémenter que dans `InMemoryScopeMonitoringRepository` laisserait
+l'échec invisible jusqu'à l'exécution en production. Ce risque est maintenant
+couvert par deux filets : `mypy` (`make typecheck`) vérifie l'adapter de
+production au point d'injection, et `tests/unit/ports/scope_monitoring_repository_contract_test.py`
+compare les trois implémentations par réflexion. **Aucun des deux ne remplace
+l'autre** : mypy ne voit pas le code de test, le test de contrat ne vérifie pas
+les types. Voir §2 Ports.
 
 **Un test « passe » n'est pas un test « exécuté ».** Voir §1.
 
@@ -178,16 +213,35 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Dix-huit fichiers dans `src/FrontEnd/src/test/`. Le setup est minimal :
-`src/test/setup.ts` ne fait qu'importer `@testing-library/jest-dom/vitest` —
-ni `ResizeObserver`, ni dimensions ne sont mockés.
+Vingt-sept fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
+qui n'en est pas un. `src/test/setup.ts` importe
+`@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
+le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et
+attend deux réponses d'API. En revanche ni `ResizeObserver` ni dimensions ne sont
+mockés.
+
+**Une seule fabrique de données de test.** `makeScope`, `makeActivity` et
+`makeScopes` (`src/test/factories.ts`) portent la forme d'une réponse de l'API ;
+les helpers locaux restants (`scope(id, name, days)` dans `kpi.test.ts`,
+`analytics.test.ts`, `export.test.ts`, `DashboardCharts.test.tsx`,
+`ExportModal.test.tsx`, `AnalyticsFilterBar.test.tsx`, `search.test.ts`)
+délèguent à `makeScope` et ne redéclarent aucun défaut. La mesure qui justifie
+le découpage : ajouter `note` au contrat TypeScript avait produit **40 erreurs**
+de `tsc`, dont 35 dans `ScopeListPage.test.tsx` — une par littéral. Rendre le
+champ optionnel aurait supprimé les erreurs au prix d'un `undefined` que l'API
+n'a jamais renvoyé. Les défauts de la factory sont donc réalistes
+(`billing_code: 'FACT-2026-PAI'`, `note: null`) : une fixture ne doit pas pouvoir
+mentir sur la forme d'une réponse, et un test qui asserte sur un officiel doit
+surcharger le champ explicitement.
 
 Les tests se répartissent entre logique pure (`kpi.test.ts`, `export.test.ts`,
-`validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`) et rendu
-de composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
-`FeaiTagInput`, `ExportModal`, `DateNavigator`, `LoginBackground`,
-`AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`,
-`AuditActivityHeatmap`, `AuditShortcut`, `apiUnauthorized`).
+`validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`,
+`analytics.test.ts`, `nonWorkingDays.test.ts`, `search.test.ts`) et rendu de
+composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
+`FeaiTagInput`, `ActivityFormModal`, `ScopeNoteCard`, `ExportModal`, `DateNavigator`, `LoginBackground`,
+`AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`, `AuditActivityHeatmap`,
+`AuditShortcut`, `apiUnauthorized`, `AnalyticsPage`, `AnalyticsFilterBar`,
+`AnalyticsScopePicker`, `PageNav`, `PageShortcuts`).
 
 ### Pièges propres à cette suite
 
@@ -214,6 +268,9 @@ de composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
 | Une règle métier pure | `tests/unit/domain/` | rien d'infrastructure |
 | L'enchaînement d'un cas d'usage | `tests/unit/application/` | un port doublé, et `RecordingScopeMonitoringRepository` si l'écriture compte |
 | Une règle d'adaptateur sans base | `tests/unit/adapters/` | une fonction dont on veut la règle |
+| L'égalité entre un port et ses implémentations | `tests/unit/ports/` | `scope_monitoring_repository_contract_test.py`, ou une méthode de plus |
+| Une annotation du cœur applicatif | le code lui-même | `make typecheck` : un paramètre ou un retour manquant échoue |
+| Une donnée de test front | `src/FrontEnd/src/test/` | `makeScope` / `makeActivity`, jamais un littéral complet |
 | Du SQL, des contraintes, du multi-tenant | `tests/integration/adapters/postgres_*` | `PROTAB_TEST_DATABASE_URL` |
 | Un code HTTP, un schéma | `tests/integration/adapters/api_test.py` | un adaptateur injecté |
 | Une route et son authentification | `route_authorization_test.py` | mettre à jour `PUBLIC_ROUTES` si publique |

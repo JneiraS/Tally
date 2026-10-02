@@ -37,6 +37,17 @@ def make_command(
     )
 
 
+def test_two_rows_of_the_same_batch_sharing_a_name_are_refused():
+    # The pre-check only sees what is already stored, so a CSV carrying the
+    # same name twice reaches the adapter twice. Both adapters must refuse the
+    # second row rather than shadow the name index.
+    repo = InMemoryScopeMonitoringRepository()
+    use_case = CreateScopeMonitoringUseCase(repo)
+
+    with pytest.raises(ScopeMonitoringNameAlreadyExistsError):
+        use_case.execute([make_command(name="Scope A"), make_command(name="Scope A")])
+
+
 def test_create_multiple_scope_monitorings():
     repo = InMemoryScopeMonitoringRepository()
     use_case = CreateScopeMonitoringUseCase(repo)

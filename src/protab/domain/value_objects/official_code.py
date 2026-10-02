@@ -24,7 +24,7 @@ class OfficialCode:
 
     value: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         candidate = (self.value or "").strip().upper()
         if not candidate:
             raise InvalidOfficialCodeError("An official code cannot be blank.")

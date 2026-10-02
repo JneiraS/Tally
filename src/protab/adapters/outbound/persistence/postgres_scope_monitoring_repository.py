@@ -4,19 +4,19 @@ The aggregate ``ScopeMonitoring`` is persisted across two tables:
 ``scope_monitorings`` (one row per scope) and ``daily_activities``
 (one row per day, FK to the scope).
 
-``save`` replaces the whole aggregate inside one transaction and is reserved
-for aggregate creation. Mutating an existing scope goes through the targeted
-``insert_daily_activity`` / ``update_daily_activity`` /
-``mark_activities_completed`` methods, which touch only the rows they name: a
-full rewrite would persist every day read before the call and silently drop a
-concurrent edit to another day of the same scope.
+``save`` inserts a whole new aggregate inside one transaction and refuses an id
+that is already taken, so it cannot rewrite an existing scope. Mutating one goes
+through the targeted ``insert_daily_activity`` / ``update_daily_activity`` /
+``mark_activities_completed`` / ``update_note`` methods, which touch only the
+rows they name: a full rewrite would persist every day read before the call and
+silently drop a concurrent edit to another day of the same scope.
 
 ``daily_activities`` carries no ``project_id`` of its own, so every targeted
 write joins ``scope_monitorings`` and filters on the current project without
 condition, as the multi-tenant invariant requires.
 """
 
-from contextvars import ContextVar
+from contextvars import ContextVar, Token
 from datetime import date
 
 import psycopg
@@ -35,6 +35,7 @@ from protab.domain.entities.scope_monitoring import (
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DuplicateDailyActivityError,
+    ScopeMonitoringAlreadyExistsError,
     ScopeMonitoringNameAlreadyExistsError,
     ScopeMonitoringNotFoundError,
 )
@@ -58,7 +59,8 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         knowledge_base_id TEXT NOT NULL,
         official_main TEXT NOT NULL,
         official_backup TEXT NOT NULL,
-        billing_code TEXT
+        billing_code TEXT,
+        note TEXT
     )
     """,
     """
@@ -80,11 +82,11 @@ _CURRENT_PROJECT_ID: ContextVar[str | None] = ContextVar(
 )
 
 
-def set_current_project(project_id: str | None):
+def set_current_project(project_id: str | None) -> Token[str | None]:
     return _CURRENT_PROJECT_ID.set(project_id)
 
 
-def reset_current_project(token) -> None:
+def reset_current_project(token: Token[str | None]) -> None:
     _CURRENT_PROJECT_ID.reset(token)
 
 
@@ -114,7 +116,7 @@ def require_current_project() -> str:
 
 _SCOPE_SELECT = (
     "SELECT id, name, knowledge_base_id, official_main, official_backup, "
-    "billing_code "
+    "billing_code, note "
     "FROM scope_monitorings"
 )
 
@@ -197,6 +199,13 @@ class PostgresScopeMonitoringRepository:
         conn.execute(
             "ALTER TABLE scope_monitorings ADD COLUMN IF NOT EXISTS billing_code TEXT"
         )
+        # La note libre est nullable et sans contrainte de format : une ligne
+        # antérieure à son introduction vaut « pas de note ». Même raison que
+        # ``billing_code``, un NOT NULL ferait échouer cet ALTER sur une table
+        # déjà peuplée.
+        conn.execute(
+            "ALTER TABLE scope_monitorings ADD COLUMN IF NOT EXISTS note TEXT"
+        )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_scope_monitorings_project_name "
             "ON scope_monitorings (project_id, name)"
@@ -207,13 +216,14 @@ class PostgresScopeMonitoringRepository:
         row: tuple,
         activities: dict[date, DailyActivity],
     ) -> ScopeMonitoring:
-        scope_id, name, kb_id, main, backup, billing_code = row[:6]
+        scope_id, name, kb_id, main, backup, billing_code, note = row[:7]
         scope = ScopeMonitoring(
             id=scope_id,
             name=name,
             knowledge=KnowledgeBase(id=kb_id),
             officials=Officials(main=main, backup=backup),
             billing_code=billing_code,
+            note=note,
         )
         scope.daily_activities = activities
         return scope
@@ -247,7 +257,9 @@ class PostgresScopeMonitoringRepository:
             f"{_ACTIVITIES_BATCH_SELECT} WHERE scope_id = ANY(%s) ORDER BY day",
             (scope_ids,),
         ).fetchall()
-        activities_by_scope = {scope_id: {} for scope_id in scope_ids}
+        activities_by_scope: dict[str, dict[date, DailyActivity]] = {
+            scope_id: {} for scope_id in scope_ids
+        }
         for (
             scope_id,
             day,
@@ -272,17 +284,17 @@ class PostgresScopeMonitoringRepository:
         with self._pool.connection() as conn:
             try:
                 with conn.transaction():
-                    conn.execute(
+                    # Insertion only. The clause absorbs a taken id instead of
+                    # merging into the stored row: a second save would otherwise
+                    # rewrite the fields it re-reads and reinsert every
+                    # activity, silently dropping a concurrent edit. The name is
+                    # a separate constraint, so it still raises and is
+                    # translated below.
+                    cursor = conn.execute(
                         f"""
-                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup, billing_code"})
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id) DO UPDATE SET
-                            project_id = EXCLUDED.project_id,
-                            name = EXCLUDED.name,
-                            knowledge_base_id = EXCLUDED.knowledge_base_id,
-                            official_main = EXCLUDED.official_main,
-                            official_backup = EXCLUDED.official_backup,
-                            billing_code = EXCLUDED.billing_code
+                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup, billing_code, note"})
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO NOTHING
                         """,
                         (
                             scope.id,
@@ -292,12 +304,13 @@ class PostgresScopeMonitoringRepository:
                             scope.officials.main,
                             scope.officials.backup,
                             scope.billing_code,
+                            scope.note,
                         ),
                     )
-                    conn.execute(
-                        "DELETE FROM daily_activities WHERE scope_id = %s",
-                        (scope.id,),
-                    )
+                    if cursor.rowcount == 0:
+                        raise ScopeMonitoringAlreadyExistsError(
+                            f"ScopeMonitoring {scope.id!r} already exists."
+                        )
                     for activity in scope.daily_activities.values():
                         conn.execute(
                             f"""
@@ -414,6 +427,22 @@ class PostgresScopeMonitoringRepository:
             if cursor.rowcount != len(set(days)):
                 raise DailyActivityNotFoundError(
                     f"No DailyActivity for every requested day on scope {scope_id!r}."
+                )
+
+    def update_note(self, scope_id: str, note: str | None) -> None:
+        project_id = require_current_project()
+        with self._pool.connection() as conn, conn.transaction():
+            cursor = conn.execute(
+                """
+                UPDATE scope_monitorings
+                SET note = %s
+                WHERE id = %s AND project_id = %s
+                """,
+                (note, scope_id, project_id),
+            )
+            if cursor.rowcount == 0:
+                raise ScopeMonitoringNotFoundError(
+                    f"ScopeMonitoring {scope_id!r} not found."
                 )
 
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:

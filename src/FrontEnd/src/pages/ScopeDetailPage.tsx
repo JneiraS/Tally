@@ -19,11 +19,13 @@ import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
 import { BillingCodeBadge } from '../components/BillingCodeBadge';
+import { CHECKBOX_CLASS } from '../constants/ui';
 import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } from '../utils/date';
 import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
 import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
 import { TodayActivityEditor } from '../components/TodayActivityEditor';
+import { ScopeNoteCard } from '../components/ScopeNoteCard';
 import { DateNavigator } from '../components/DateNavigator';
 import { useToast } from '../hooks/useToast';
 
@@ -68,6 +70,12 @@ export function ScopeDetailPage() {
       const others = prev.daily_activities.filter((a) => a.day !== activity.day);
       return { ...prev, daily_activities: [...others, activity] };
     });
+  };
+
+  const handleNoteSaved = (note: string | null) => {
+    // La carte renvoie la note enregistrée : la page se met à jour sans
+    // recharger le détail, sinon le changement de jour en cours serait perdu.
+    setScope((prev) => (prev ? { ...prev, note } : prev));
   };
 
   const fetchScopeDetail = async () => {
@@ -342,6 +350,13 @@ export function ScopeDetailPage() {
         </div>
       </div>
 
+      {/* Note libre du périmètre — brouillon, enregistré explicitement */}
+      <ScopeNoteCard
+        scopeId={scope.id}
+        note={scope.note}
+        onSaved={handleNoteSaved}
+      />
+
       {/* Activité du jour — édition en ligne  */}
       <div className="bg-white dark:bg-nord-1 rounded-2xl border border-slate-200 dark:border-nord-2 p-5 sm:p-6 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -519,7 +534,7 @@ export function ScopeDetailPage() {
                               checked={isSelected}
                               onChange={() => handleToggleSelectDay(activity.day)}
                               aria-label={`Sélectionner le jour ${activity.day}`}
-                              className="w-4 h-4 text-blue-600 rounded border-slate-300 dark:border-nord-2 dark:bg-nord-0 focus:ring-blue-500 cursor-pointer"
+                              className={CHECKBOX_CLASS}
                             />
                           ) : (
                             <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-nord-14 mx-auto" />

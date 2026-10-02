@@ -5,14 +5,11 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ScopeDetailCharts } from '../components/ScopeDetailCharts';
+import { makeScope } from './factories';
 
-const scope = {
-  id: 'scope-1',
-  name: 'Périmètre Alpha',
-  knowledge_base_id: 'KB-ALPHA-0001',
+const scope = makeScope({
   official_main: 'Alice',
   official_backup: 'Bob',
-  billing_code: 'FACT-2026-PAI',
   daily_activities: [
     {
       day: '2026-09-19',
@@ -31,7 +28,7 @@ const scope = {
       completed: false,
     },
   ],
-};
+});
 
 describe('ScopeDetailCharts', () => {
   it('affiche la tendance des erreurs et incidents du périmètre', () => {
@@ -39,11 +36,21 @@ describe('ScopeDetailCharts', () => {
 
     expect(screen.getByRole('heading', { name: /Tendance des erreurs et incidents/i })).toBeInTheDocument();
     expect(screen.getByText('2 journées enregistrées')).toBeInTheDocument();
+  });
+
+  it("ne porte plus de graphique cumulé erreurs / incidents", () => {
+    render(<ScopeDetailCharts scope={scope} />);
+
+    // Un cumul croît par construction et ne peut que monter : il répond
+    // « combien depuis le début ? », pas « quel jour poser un incident ? ».
+    // Son arriéré est par ailleurs la même quantité que le haut de son propre
+    // empilement, donc le graphique encodait deux fois le même total.
+    // Le RMSE et l'arriéré restent lisibles comme valeurs, sans courbe.
     expect(
-      screen.getByRole('heading', {
+      screen.queryByRole('heading', {
         name: /Cumul : erreurs \/ incidents — arriéré non transformées/i,
       }),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
   it("retire l'outline par défaut des <svg> des graphiques et le remplace au focus-visible", () => {
@@ -53,7 +60,7 @@ describe('ScopeDetailCharts', () => {
     // n'est pas rendu, le conteneur est donc le seul point d'ancrage vérifiable.
     const charts = container.querySelectorAll('div.h-64');
 
-    expect(charts).toHaveLength(2);
+    expect(charts).toHaveLength(1);
     charts.forEach((chart) => {
       expect(chart.className).toContain('[&_.recharts-surface]:outline-none');
       expect(chart.className).toContain('[&_.recharts-surface]:focus-visible:outline-2');

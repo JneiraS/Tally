@@ -6,20 +6,13 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { DashboardCharts } from '../components/DashboardCharts';
 import { ScopeMonitoring } from '../types';
+import { makeScope } from './factories';
 
 const scope = (
   id: string,
   name: string,
   daily_activities: ScopeMonitoring['daily_activities'],
-): ScopeMonitoring => ({
-  id,
-  name,
-  knowledge_base_id: 'KB-ALPHA-0001',
-  official_main: 'MAIN',
-  official_backup: 'BACK',
-  billing_code: 'FACT-2026-PAI',
-  daily_activities,
-});
+): ScopeMonitoring => makeScope({ id, name, daily_activities });
 
 describe('DashboardCharts', () => {
   it('affiche l\'activité des 7 derniers jours et l\'état des périmètres', () => {

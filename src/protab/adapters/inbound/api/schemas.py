@@ -2,6 +2,13 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from protab.domain.entities.scope_monitoring import NOTE_MAX_LENGTH
+from protab.domain.value_objects.non_working_days import (
+    ISO_WEEKDAY_COUNT,
+    MAX_ISO_WEEKDAY,
+    MIN_ISO_WEEKDAY,
+)
+
 
 class CreateScopeItem(BaseModel):
     name: str
@@ -9,6 +16,13 @@ class CreateScopeItem(BaseModel):
     official_main: str
     official_backup: str
     billing_code: str = Field(min_length=1)
+
+
+class UpdateScopeNoteRequest(BaseModel):
+    # The bound is the domain's own constant: re-declaring 2000 here would let
+    # the two drift, and the request schema is the only entry point where an
+    # oversized note is refused before it reaches the entity.
+    note: str | None = Field(default=None, max_length=NOTE_MAX_LENGTH)
 
 
 class CompleteRequest(BaseModel):
@@ -45,9 +59,22 @@ class NonWorkingDaysRequest(BaseModel):
     @field_validator("excluded_weekdays")
     @classmethod
     def validate_weekdays(cls, values: list[int]) -> list[int]:
-        if any(day < 1 or day > 7 for day in values):
-            raise ValueError("Les jours doivent être compris entre 1 et 7.")
-        return sorted(set(values))
+        if any(day < MIN_ISO_WEEKDAY or day > MAX_ISO_WEEKDAY for day in values):
+            raise ValueError(
+                f"Les jours doivent être compris entre {MIN_ISO_WEEKDAY} "
+                f"et {MAX_ISO_WEEKDAY}."
+            )
+        unique = sorted(set(values))
+        # Un calendrier sans jour ouvré n'a rien à afficher : la vue mono-jour
+        # chercherait un jour ouvré jusqu'à ne plus trouver de date. La modale ne
+        # peut pas produire ce réglage — décocher tout donne une liste vide — mais
+        # un appel HTTP direct si.
+        if len(unique) == ISO_WEEKDAY_COUNT:
+            raise ValueError(
+                f"Au moins un jour doit rester ouvré : les sept jours de la "
+                f"semaine ne peuvent pas tous être écartés."
+            )
+        return unique
 
 
 class LoginRequest(BaseModel):
@@ -82,6 +109,7 @@ class ScopeResponse(BaseModel):
     official_main: str
     official_backup: str
     billing_code: str | None
+    note: str | None
     daily_activities: list[ActivityResponse]
 
 

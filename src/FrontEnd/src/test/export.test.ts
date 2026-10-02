@@ -10,6 +10,7 @@ import {
   downloadFile,
 } from '../utils/export';
 import { ScopeMonitoring, DailyActivity } from '../types';
+import { makeScope } from './factories';
 
 const activity = (
   day: string,
@@ -31,15 +32,15 @@ const scope = (
   name: string,
   kb: string,
   daily_activities: DailyActivity[],
-): ScopeMonitoring => ({
-  id: `id-${kb}`,
-  name,
-  knowledge_base_id: kb,
-  official_main: 'Alice',
-  official_backup: 'Bob',
-  billing_code: 'FACT-2026-PAI',
-  daily_activities,
-});
+): ScopeMonitoring =>
+  makeScope({
+    id: `id-${kb}`,
+    name,
+    knowledge_base_id: kb,
+    official_main: 'Alice',
+    official_backup: 'Bob',
+    daily_activities,
+  });
 
 describe('buildExportRows', () => {
   it('ne conserve que les activités comprises dans la plage de dates', () => {

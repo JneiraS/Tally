@@ -2,16 +2,10 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import path from "path";
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
   server: {
     port: 5173,
     // Configuration du proxy dev pour éviter tout problème CORS avec le backend FastAPI (port 8000)
@@ -38,5 +32,10 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
+    // Chaque fichier ouvre son propre jsdom. En `forks` (le défaut), cela
+    // signifiait jusqu'à un processus node par cœur, et la suite se faisait tuer
+    // par l'OOM sur une machine déjà chargée : l'échaillement venait d'un worker
+    // mort, pas d'une régression. Les threads partagent un seul processus.
+    pool: "threads",
   },
 });

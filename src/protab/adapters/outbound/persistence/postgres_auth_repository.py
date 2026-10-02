@@ -15,40 +15,15 @@ from protab.adapters.outbound.persistence.postgres_pool import (
     POOL_MIN_SIZE,
     build_connection_pool,
 )
+from protab.domain.value_objects.non_working_days import NonWorkingDays
 from protab.domain.value_objects.official_code import OfficialCode
-
-DEFAULT_NON_WORKING_DAYS = {
-    "excluded_weekdays": [6, 7],
-    "excluded_dates": [],
-}
-
-
-def _normalize_non_working_days(value: object) -> dict[str, list]:
-    if not isinstance(value, dict):
-        return {
-            "excluded_weekdays": [6, 7],
-            "excluded_dates": [],
-        }
-    weekdays = sorted({
-        int(day) for day in value.get("excluded_weekdays", [])
-        if str(day).isdigit() and 1 <= int(day) <= 7
-    })
-    dates = sorted({
-        str(day) for day in value.get("excluded_dates", []) if str(day)
-    })
-    return {"excluded_weekdays": weekdays, "excluded_dates": dates}
 
 
 @dataclass(frozen=True)
 class Project:
     id: str
     name: str
-    non_working_days: dict[str, list] = field(
-        default_factory=lambda: {
-            "excluded_weekdays": [6, 7],
-            "excluded_dates": [],
-        }
-    )
+    non_working_days: NonWorkingDays = field(default_factory=NonWorkingDays.default)
 
 
 @dataclass(frozen=True)
@@ -59,9 +34,27 @@ class AuthSession:
     expires_at: datetime
 
 
+# Durée de vie d'une session, source unique : la ligne ``auth_sessions`` et le
+# ``Max-Age`` du cookie en découlent tous les deux. Les déclarer séparément
+# laisserait un cookie survivre à sa session — invisible, et reproduit au
+# moindre redémarrage.
+SESSION_DURATION = timedelta(hours=12)
+
+SALT_BYTES = 16
+TOKEN_BYTES = 32
+# Déclaration puis vérification doivent hacher avec les mêmes paramètres : un
+# écart entre les deux listes ferait échouer tout mot de passe existant sans
+# lever la moindre erreur.
+SCRYPT_N = 2**14
+SCRYPT_R = 8
+SCRYPT_P = 1
+
+
 def _hash_password(password: str, salt: bytes | None = None) -> str:
-    salt = salt or secrets.token_bytes(16)
-    digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1)
+    salt = salt or secrets.token_bytes(SALT_BYTES)
+    digest = hashlib.scrypt(
+        password.encode(), salt=salt, n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P
+    )
     return f"scrypt${salt.hex()}${digest.hex()}"
 
 
@@ -72,7 +65,11 @@ def _check_password(password: str, encoded: str) -> bool:
             return False
         expected = bytes.fromhex(digest_hex)
         actual = hashlib.scrypt(
-            password.encode(), salt=bytes.fromhex(salt_hex), n=2**14, r=8, p=1
+            password.encode(),
+            salt=bytes.fromhex(salt_hex),
+            n=SCRYPT_N,
+            r=SCRYPT_R,
+            p=SCRYPT_P,
         )
         return hmac.compare_digest(actual, expected)
     except (ValueError, TypeError):
@@ -240,7 +237,11 @@ class PostgresAuthRepository:
                 "WHERE active = TRUE ORDER BY name"
             ).fetchall()
         return [
-            Project(id=row[0], name=row[1], non_working_days=_normalize_non_working_days(row[2]))
+            Project(
+                id=row[0],
+                name=row[1],
+                non_working_days=NonWorkingDays.from_raw(row[2]),
+            )
             for row in rows
         ]
 
@@ -263,7 +264,7 @@ class PostgresAuthRepository:
                     "Choisissez un autre code, ou utilisez set-password pour "
                     "changer son mot de passe."
                 ) from exc
-        return Project(project_id, name, _normalize_non_working_days(None))
+        return Project(project_id, name, NonWorkingDays.default())
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:
         with self._pool.connection() as conn:
@@ -367,7 +368,11 @@ class PostgresAuthRepository:
                 (project_id,),
             ).fetchone()
         return (
-            Project(id=row[0], name=row[1], non_working_days=_normalize_non_working_days(row[2]))
+            Project(
+                id=row[0],
+                name=row[1],
+                non_working_days=NonWorkingDays.from_raw(row[2]),
+            )
             if row
             else None
         )
@@ -378,7 +383,7 @@ class PostgresAuthRepository:
         excluded_weekdays: list[int],
         excluded_dates: list[str],
     ) -> Project | None:
-        config = _normalize_non_working_days(
+        config = NonWorkingDays.from_raw(
             {
                 "excluded_weekdays": excluded_weekdays,
                 "excluded_dates": excluded_dates,
@@ -388,7 +393,7 @@ class PostgresAuthRepository:
             conn.execute(
                 "UPDATE projects SET non_working_days = %s "
                 "WHERE id = %s AND active = TRUE",
-                (Jsonb(config), project_id),
+                (Jsonb(config.to_dict()), project_id),
             )
         return self.get_project(project_id)
 
@@ -400,9 +405,7 @@ class PostgresAuthRepository:
         """
         project_id = project_id.strip()
         if not project_id or not password:
-            raise ValueError(
-                "Le code du projet et le mot de passe sont obligatoires."
-            )
+            raise ValueError("Le code du projet et le mot de passe sont obligatoires.")
         with self._pool.connection() as conn:
             conn.execute(
                 "UPDATE projects SET password_hash = %s WHERE id = %s",
@@ -413,8 +416,8 @@ class PostgresAuthRepository:
             )
 
     def create_session(self, project_id: str, quadrigramme: str) -> AuthSession:
-        token = secrets.token_urlsafe(32)
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        expires_at = datetime.now(timezone.utc) + SESSION_DURATION
         token_hash = hashlib.sha256(token.encode()).hexdigest()
         with self._pool.connection() as conn:
             conn.execute(

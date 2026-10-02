@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ShieldCheck, CheckSquare, Square, AlertCircle } from 'lucide-react';
 import { Modal } from './Modal';
+import { CHECKBOX_CLASS } from '../constants/ui';
 import { DailyActivity } from '../types';
 import { formatDateFr } from '../utils/date';
 import { protabApi, ApiError } from '../services/api';
@@ -138,7 +139,7 @@ export function CompleteActivitiesModal({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleDay(act.day)}
-                        className="w-4 h-4 text-blue-600 rounded border-slate-300 dark:border-nord-2 dark:bg-nord-0 focus:ring-blue-500"
+                        className={CHECKBOX_CLASS}
                       />
                       <div>
                         <p className="text-sm font-semibold">{formatDateFr(act.day)}</p>

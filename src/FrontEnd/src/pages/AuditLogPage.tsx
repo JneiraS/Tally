@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   UploadCloud,
+  StickyNote,
 } from "lucide-react";
 import { AuditAction, AuditEvent } from "../types";
 import { protabApi, ApiError } from "../services/api";
@@ -24,6 +25,7 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   activity_created: "Saisie d'activité",
   activity_updated: "Modification d'activité",
   activity_completed: "Validation d'activité",
+  scope_note_updated: "Note du périmètre",
 };
 
 const ACTION_ICONS: Record<AuditAction, typeof Plus> = {
@@ -32,6 +34,7 @@ const ACTION_ICONS: Record<AuditAction, typeof Plus> = {
   activity_created: FileText,
   activity_updated: Pencil,
   activity_completed: CheckCircle2,
+  scope_note_updated: StickyNote,
 };
 
 function formatCreatedAt(iso: string): string {
@@ -300,13 +303,13 @@ export function AuditLogPage() {
                                   <span className="font-mono font-semibold text-slate-700 dark:text-nord-5">
                                     {field}
                                   </span>
-                                  <span className="line-through text-rose-600 dark:text-nord-11">
+                                  <span className="line-through text-rose-600 dark:text-nord-11 break-words whitespace-pre-wrap">
                                     {formatValue(diff.old)}
                                   </span>
                                   <span className="hidden sm:inline text-slate-400 dark:text-nord-3">
                                     →
                                   </span>
-                                  <span className="text-emerald-700 dark:text-nord-14">
+                                  <span className="text-emerald-700 dark:text-nord-14 break-words whitespace-pre-wrap">
                                     {formatValue(diff.new)}
                                   </span>
                                 </div>

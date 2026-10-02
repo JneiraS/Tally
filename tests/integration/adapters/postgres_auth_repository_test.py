@@ -19,6 +19,7 @@ from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository i
     set_current_project,
 )
 from protab.domain.entities.scope_monitoring import KnowledgeBase, Officials, ScopeMonitoring
+from protab.domain.value_objects.non_working_days import NonWorkingDays
 
 TEST_DATABASE_URL = os.getenv("PROTAB_TEST_DATABASE_URL")
 
@@ -275,19 +276,46 @@ def test_backup_placeholder_is_not_a_login_code(auth, scopes):
 def test_project_non_working_days_default_and_update(auth):
     project = auth.get_project(PROJECT_ID)
     assert project is not None
-    assert project.non_working_days == {
-        "excluded_weekdays": [6, 7],
-        "excluded_dates": [],
-    }
+    assert project.non_working_days == NonWorkingDays.default()
 
     updated = auth.update_non_working_days(
         PROJECT_ID, [7, 6, 6], ["2026-12-25", "2026-12-25"]
     )
     assert updated is not None
-    assert updated.non_working_days == {
-        "excluded_weekdays": [6, 7],
-        "excluded_dates": ["2026-12-25"],
+    assert updated.non_working_days == NonWorkingDays(
+        excluded_weekdays=(6, 7), excluded_dates=("2026-12-25",)
+    )
+
+
+def test_non_working_days_survive_the_column_round_trip(auth):
+    """La colonne est du JSONB non typé : ce qui est écrit doit être relu à
+    l'identique, sans quoi un réglage enregistrerait autre chose que le
+    calendrier affiché."""
+    auth.update_non_working_days(PROJECT_ID, [5, 6], ["2026-12-25", "2027-01-01"])
+
+    reloaded = auth.get_project(PROJECT_ID)
+
+    assert reloaded is not None
+    assert reloaded.non_working_days.to_dict() == {
+        "excluded_weekdays": [5, 6],
+        "excluded_dates": ["2026-12-25", "2027-01-01"],
     }
+
+
+def test_an_unreadable_column_reads_as_the_default_calendar(auth):
+    """Une ligne historique illisible ne doit pas vider le calendrier : elle est
+    ramenée au défaut, week-end exclu."""
+    with psycopg.connect(TEST_DATABASE_URL) as conn:
+        conn.execute(
+            "UPDATE projects SET non_working_days = %s WHERE id = %s",
+            ('{"excluded_weekdays": ["nope"], "excluded_dates": null}', PROJECT_ID),
+        )
+        conn.commit()
+
+    project = auth.get_project(PROJECT_ID)
+
+    assert project is not None
+    assert project.non_working_days == NonWorkingDays.default()
 
 
 # --- Project administrators ------------------------------------------------

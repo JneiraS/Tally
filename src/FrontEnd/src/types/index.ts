@@ -3,11 +3,15 @@
  * Dérivés des contrats de l'API REST FastAPI.
  */
 
+import type { IsoWeekday } from "../constants/nonWorkingDays";
+
+export type { IsoWeekday };
+
 export interface DailyActivity {
   day: string; // Format strict "YYYY-MM-DD"
   errors_reported: number; // Entier >= 0
   incidents_created: number; // Entier >= 0, <= errors_reported
-  feai: string[]; // Liste de références au format "INC" + 9 chiffres (ex: INC000000001), sans doublon
+  feai: string[]; // Références canoniques "[PREFIXE-]INC" + 9 chiffres (ex: FE-INC000000001), sans doublon
   handled: boolean; // Statut traité
   completed: boolean; // Statut complété (completed => handled)
 }
@@ -21,12 +25,16 @@ export interface ScopeMonitoring {
   // Obligatoire à la création, mais null sur les périmètres enregistrés avant
   // son introduction : le backend ne réécrit pas l'historique.
   billing_code: string | null;
+  // Note libre, éditable depuis la page de détail uniquement. `null` est le
+  // seul état absent : une note vidée est enregistrée comme `null`, jamais "".
+  note: string | null;
   daily_activities: DailyActivity[];
 }
 
 export interface NonWorkingDays {
-  excluded_weekdays: number[];
-  excluded_dates: string[];
+  /** Jours ISO (1 = lundi … 7 = dimanche), pas des index JS. */
+  excluded_weekdays: IsoWeekday[];
+  excluded_dates: string[]; // Dates ISO strictes "YYYY-MM-DD"
 }
 
 export interface CreateScopeInput {
@@ -62,12 +70,17 @@ export interface CompleteActivitiesInput {
   days: string[];
 }
 
+export interface UpdateScopeNoteInput {
+  note: string | null;
+}
+
 export type AuditAction =
   | "scope_created"
   | "scope_imported"
   | "activity_created"
   | "activity_updated"
-  | "activity_completed";
+  | "activity_completed"
+  | "scope_note_updated";
 
 export interface AuditEvent {
   id: string; // UUID v4

@@ -7,12 +7,15 @@ from protab.domain.entities.scope_monitoring import ScopeMonitoring
 
 class ScopeMonitoringRepository(Protocol):
     def save(self, scope: ScopeMonitoring) -> None:
-        """Persist the given ScopeMonitoring.
+        """Create the given ScopeMonitoring and its activities.
 
-        Replaces the whole aggregate: the scope row and every one of its
-        activities. Reserved for aggregate creation (scope import); a use case
-        that mutates an existing scope must use the targeted methods below, or
-        it will rewrite days it never read after a concurrent edit.
+        Creation only: an already stored scope is never merged into, because the
+        aggregate was read before someone else may have edited it. A use case
+        that mutates an existing scope must use the targeted methods below.
+
+        Raises:
+            ScopeMonitoringAlreadyExistsError: the id is already taken.
+            ScopeMonitoringNameAlreadyExistsError: the name is already taken.
         """
         ...
 
@@ -45,6 +48,17 @@ class ScopeMonitoringRepository(Protocol):
         Raises:
             DailyActivityNotFoundError: the scope has no activity for one of
                 the given days.
+        """
+        ...
+
+    def update_note(self, scope_id: str, note: str | None) -> None:
+        """Overwrite the free-text note of one scope, leaving everything else alone.
+
+        ``None`` means "no note"; the repository stores it as SQL ``NULL``.
+
+        Raises:
+            ScopeMonitoringNotFoundError: the scope does not exist in the
+                current project.
         """
         ...
 

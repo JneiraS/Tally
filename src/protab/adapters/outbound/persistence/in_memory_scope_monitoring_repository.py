@@ -4,6 +4,8 @@ from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
+    ScopeMonitoringAlreadyExistsError,
+    ScopeMonitoringNameAlreadyExistsError,
     ScopeMonitoringNotFoundError,
 )
 
@@ -14,6 +16,16 @@ class InMemoryScopeMonitoringRepository:
         self._by_name: dict[str, ScopeMonitoring] = {}
 
     def save(self, scope: ScopeMonitoring) -> None:
+        # Creation only, exactly like the SQL adapter: an existing row must not
+        # be merged into, and a taken name must not be shadowed in the index.
+        if scope.id in self._by_id:
+            raise ScopeMonitoringAlreadyExistsError(
+                f"ScopeMonitoring {scope.id!r} already exists."
+            )
+        if scope.name in self._by_name:
+            raise ScopeMonitoringNameAlreadyExistsError(
+                f"ScopeMonitoring with name {scope.name!r} already exists."
+            )
         self._by_id[scope.id] = scope
         self._by_name[scope.name] = scope
 
@@ -36,6 +48,9 @@ class InMemoryScopeMonitoringRepository:
         resolved = [self._activity_for(scope_id, day) for day in days]
         for activity in resolved:
             activity.mark_completed()
+
+    def update_note(self, scope_id: str, note: str | None) -> None:
+        self._require(scope_id).set_note(note)
 
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         return self._by_id.get(scope_id)

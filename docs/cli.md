@@ -228,8 +228,9 @@ verrouillé et vous perdez les sessions encore ouvertes.
 Le code de facturation (`scope_monitorings.billing_code`) est **obligatoire à la
 création** d'un périmètre, mais la colonne est nullable : les périmètres
 enregistrés avant son introduction l'ont vide, et l'interface l'affiche « — ».
-Il n'existe aucune route de mise à jour d'un périmètre, la reprise passe donc par
-SQL.
+Il n'existe aucune route de mise à jour du code de facturation — `PATCH
+/scope-monitorings/{id}` ne modifie que la note du périmètre, depuis l'interface —
+donc la reprise passe par SQL.
 
 ```bash
 # Périmètres sans code, tous projets confondus

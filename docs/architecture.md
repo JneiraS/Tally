@@ -118,6 +118,7 @@ table SQL. C'est la partie la plus facile à tester et la moins volatile.
 | `DailyActivity` | `entities/daily_activity.py` | Valeurs d'une journée, mutable, avec `update()` et `mark_completed()` |
 | `AuditEvent`, `build_changes()` | `entities/audit_event.py` | Événement immuable ; `build_changes` ne retient que les champs réellement modifiés |
 | `OfficialCode` | `value_objects/official_code.py` | Forme scalaire d'un quadrigramme administrateur (2–20 caractères, refuse `/`) |
+| `NonWorkingDays`, `IsoWeekday` | `value_objects/non_working_days.py` | Calendrier ouvré d'un projet ; l'échelle ISO (1 = lundi) et le défaut « week-end exclu » y sont déclarés, `from_raw()` reconstruit la colonne JSONB de façon lenient |
 | Exceptions métier | `exceptions/` | `DomainError` et ses spécialisations, toutes traduites en codes HTTP par `adapters/inbound/api/errors.py` |
 
 `domain/repositories/` et `domain/services/` ne contiennent qu'un
@@ -130,15 +131,23 @@ n'a été nécessaire pour l'heure.
 
 ### Port de périmètre — `ports/outbound/scope_monitoring_repository.py`
 
-`Protocol` synchrone de huit méthodes (`scope_monitoring_repository.py:8-65`) :
+`Protocol` synchrone de neuf méthodes :
 
-- `save(scope)` — **réservé à la création d'agrégat** ;
+- `save(scope)` — **création seule**, refuse un id déjà pris ;
 - `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
   écritures ciblées d'une journée ;
+- `update_note(scope_id, note)` — écriture ciblée de la note du périmètre ;
 - `find_by_id`, `find_by_name`, `find_all`, `find_all_scope_names` — lectures.
 
 La distinction entre `save` et les écritures ciblées est une décision
 d'architecture, pas un détail : ses raisons sont dans `AGENTS.md` §28.1.
+
+Les deux adapters implémentent ce port, et `mypy` vérifie la compatibilité de
+l'adapter PostgreSQL au point d'injection (`create_app(repository=...)`). Le
+test de contrat
+`tests/unit/ports/scope_monitoring_repository_contract_test.py` couvre les trois
+implémentations — les deux adapters et le décorateur d'enregistrement des tests —
+par réflexion, puisque `mypy` ne voit pas le code de test.
 
 ### Port d'audit — `ports/outbound/audit_trail_repository.py`
 
@@ -152,6 +161,11 @@ Deux méthodes : `record(event)` et une requête de consultation acceptant un
 l'utilisent directement. C'est cohérent avec le fait que l'authentification est
 une préoccupation d'infrastructure, mais cela lie l'adaptateur entrant
 (`app.py`, `auth.py`) au module `psycopg` — voir §8.
+
+Ce lien reste réel, donc aucune **règle** ne doit y être importée depuis
+l'adapter : les bornes ISO de `NonWorkingDaysRequest` viennent du value object du
+domaine, comme la durée de session (`SESSION_DURATION`), dont le cookie dérive son
+`Max-Age` au lieu de la redéclarer.
 
 ---
 
@@ -177,8 +191,12 @@ Deux comportements méritent d'être connus avant de modifier un cas d'usage :
 - `CompleteDailyActivityUseCase` résout **tous** les jours avant d'en muter
   aucun (`complete_daily_activity.py:31-43`) : la commande est tout ou rien.
 - `UpdateDailyActivityUseCase` n'écrit un événement d'audit que si
-  `build_changes` est non vide (`update_daily_activity.py:54-55`) : un `PATCH`
-  sans changement réel ne pollue pas le journal.
+  `build_changes` est non vide : un `PATCH` sans changement réel ne pollue pas
+  le journal.
+- `UpdateScopeNoteUseCase` suit la même règle, avec une comparaison directe :
+  réenregistrer une note identique n'ajoute aucun événement. Il compare la note
+  **avant et après** `set_note()`, jamais la commande reçue, car le domaine
+  normalise (une note blanche devient `None`).
 
 ---
 
@@ -205,6 +223,7 @@ Table des routes :
 | POST | `/scope-monitorings` | oui | Création (unitaire ou en lot) |
 | POST | `/scope-monitorings/import-csv` | oui | Import CSV |
 | GET | `/scope-monitorings/{scope_id}` | oui | Détail d'un périmètre |
+| PATCH | `/scope-monitorings/{scope_id}` | oui | Note libre — **seule** route qui modifie un périmètre |
 | GET | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Compteurs d'un jour |
 | POST | `/scope-monitorings/{scope_id}/activities` | oui | Création d'une activité |
 | PATCH | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Mise à jour des compteurs |
@@ -260,9 +279,13 @@ Tous vivent sous `adapters/outbound/persistence/` et utilisent `psycopg` en
 mode **synchrone**, avec un pool partagé construit par `postgres_pool.py`.
 
 - `PostgresScopeMonitoringRepository` — schéma de `projects`,
-  `scope_monitorings` et `daily_activities` (`postgres_scope_monitoring_repository.py:42-75`).
+  `scope_monitorings` et `daily_activities`. `scope_monitorings.note` est
+  `TEXT` nullable, ajoutée par `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` au
+  démarrage, comme `billing_code`.
 - `PostgresAuthRepository` — `projects`, `auth_sessions`, `project_admins`
-  (`postgres_auth_repository.py:171-208`), plus l'amorçage du projet initial.
+  (`postgres_auth_repository.py`), plus l'amorçage du projet initial. Il ne
+  valide plus les jours non travaillés : il persiste `NonWorkingDays.to_dict()`
+  et relit par `NonWorkingDays.from_raw()`.
 - `PostgresAuditTrailRepository` — table `audit_log`
   (`postgres_audit_trail_repository.py:25`).
 

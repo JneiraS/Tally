@@ -11,7 +11,7 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ├── id: str                                            ├── day: date            ← datetime.date (pas de classe Day)
 ├── name: str                                         ├── errors_reported: int ← >= 0
 ├── knowledge: KnowledgeBase                          ├── incidents_created: int ← >= 0 et <= errors_reported
-├── officials: Officials                              ├── feai: list[str]      ← format INC\d{9}, sans doublon
+├── officials: Officials                              ├── feai: list[str]      ← format (PREFIXE-)?INC\d{9}, sans doublon
 ├── billing_code: str | None                          ├── handled: bool
 └── daily_activities: dict[date, DailyActivity]       └── completed: bool      ← completed ⇒ handled
      └── clé = jour → une seule activité par jour
@@ -29,13 +29,18 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ### Invariants
 
 - `errors_reported >= 0`, `incidents_created >= 0`, `incidents_created <= errors_reported`.
-- Références FEAI : format `INC` suivi d'exactement 9 chiffres (`^INC\d{9}$`), aucune doublon.
+- Références FEAI : code `INC` suivi d'exactement 9 chiffres, précédé d'un préfixe facultatif de 2 à 5
+  lettres (`^(?:[A-Z]{2,5}-)?INC\d{9}$`, ex. `INC000000001` ou `FE-INC000000001`), aucun doublon. La saisie
+  tolère une espace, un slash ou un préfixe collé au code ; la forme stockée porte toujours le tiret.
 - Une seule `DailyActivity` par `ScopeMonitoring` et par jour.
 - `mark_completed()` force `handled = True` (`completed` ⇒ `handled`).
 - Un `ScopeMonitoring` **créé** porte un `billing_code` non vide, de format libre : c'est
   `ScopeMonitoring.create()` qui l'exige, via `EmptyBillingCodeError`. Le constructeur direct, que les
   repositories utilisent pour réhydrater, accepte l'absence : le champ a été introduit après les
-  premiers périmètres enregistrés, et il n'existe aucune route de mise à jour d'un périmètre.
+  premiers périmètres enregistrés.
+- Une `note` libre et nullable, au plus `NOTE_MAX_LENGTH` (2000) caractères à l'écriture. `set_note()`
+  normalise une note blanche en `None` ; la route `PATCH /scope-monitorings/{id}` est la seule qui modifie
+  un périmètre existant, et elle ne touche qu'à elle.
 
 ## Use cases (couche application)
 
@@ -48,6 +53,7 @@ Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
 | `CreateDailyActivityUseCase`   | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`.                                               |
 | `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)`                                          | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
 | `UpdateDailyActivityUseCase`   | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués.                                               |
+| `UpdateScopeNoteUseCase`       | `UpdateScopeNoteCommand(scope_id, note)`                                                 | Remplace la note libre du périmètre (texte blanc ⇒ `None`) ; écriture ciblée, sans toucher aux activités.                            |
 
 Lectures (`application/queries/`) : `ListScopesUseCase`, `GetScopeUseCase`, `GetDailyActivityUseCase`,
 `ListAuditEventsUseCase` — retournent les entités ; les erreurs `*NotFoundError` sont levées côté application.
@@ -188,6 +194,7 @@ make project-admin ARGS="list-admins protab"             # dans le conteneur api
 | `POST /scope-monitorings/{id}/activities/complete`                                                          | `{days: ["YYYY-MM-DD"]}`                                                                    | `204`                                                                      | `404` périmètre ou jour inconnu                                            |
 | `PATCH /scope-monitorings/{id}/activities/{day}`                                                            | `{errors_reported, incidents_created, feai}`                                                | `204`                                                                      | `404` périmètre ou jour inconnu, `400` invariant violé                     |
 | `GET /scope-monitorings`                                                                                    | —                                                                                           | `200` liste des périmètres (id, name, knowledge, officials, activities)    | —                                                                          |
+| `PATCH /scope-monitorings/{id}`                                                                              | `{note}` (2000 caractères max)                                                              | `204`                                                                      | `404` périmètre inconnu, `422` note trop longue                           |
 | `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
 | `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
 | `GET /audit-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
@@ -227,9 +234,10 @@ L'index couvre le filtrage par projet et l'ordre par nom des listes de périmèt
 
 L'écriture d'une activité est **ciblée** : `insert_daily_activity`, `update_daily_activity` et
 `mark_activities_completed` ne touchent que les lignes nommées, et `rowcount == 0` devient
-`DailyActivityNotFoundError`. `save()` est réservé à la création d'agrégat — il remplace tout
-(`DELETE` + réinsertion) dans une **transaction**, donc un cas d'usage qui mute un périmètre existant
-réécrirait des jours qu'il n'a pas relus et écraserait une édition concurrente. Comme
+`DailyActivityNotFoundError`. `save()` **crée** et ne réécrit rien : son insertion est en
+`ON CONFLICT (id) DO NOTHING`, donc un id déjà pris lève `ScopeMonitoringAlreadyExistsError` (`409`)
+avant toute écriture. Les deux adapters sont d'ailleurs interchangeables, pas seulement compatibles :
+l'in-memory refuse les mêmes collisions avec les mêmes exceptions. Comme
 `daily_activities` ne porte pas de `project_id`, chaque écriture ciblée joint `scope_monitorings` et
 filtre le projet courant sans condition.
 
@@ -240,6 +248,16 @@ une table déjà peuplée. Ces lignes sont donc lues avec un code absent, affich
 en SQL direct (`docs/cli.md`).
 Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
 avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
+
+## Frontend
+
+Trois vues : la liste des périmètres (saisie du jour, `/`), l'analyse (`/analyse`, agrégats et heatmap de
+supervision sur une période) et le journal d'audit (`/audit-log`). L'analyse est **en lecture seule** et dérive
+entièrement de `GET /scope-monitorings` — aucun appel supplémentaire. Toute sa logique de calcul est pure et
+vit dans `src/FrontEnd/src/utils/analytics.ts`, ce qui la rend testable sans rendu.
+
+Le détail du frontend — arborescence, routage, pièges recharts, tests — est dans
+**[`docs/frontend.md`](docs/frontend.md)**.
 
 ## Docker
 

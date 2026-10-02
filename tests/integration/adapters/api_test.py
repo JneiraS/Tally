@@ -9,6 +9,7 @@ from protab.adapters.outbound.persistence.in_memory_scope_monitoring_repository 
 )
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
+    NOTE_MAX_LENGTH,
     KnowledgeBase,
     Officials,
     ScopeMonitoring,
@@ -333,6 +334,45 @@ def test_create_daily_activity_returns_201(client):
     assert scope.daily_activity_for(date(2026, 9, 19)) is not None
 
 
+def test_create_daily_activity_canonicalises_a_prefixed_feai(client):
+    http, repo = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.post(
+        f"/scope-monitorings/{scope_id}/activities",
+        json={
+            "day": "2026-09-19",
+            "errors_reported": 2,
+            "incidents_created": 1,
+            "feai": ["FE INC000000001", "FEAIINC000000002"],
+        },
+    )
+
+    assert response.status_code == 201
+    scope = repo.find_by_id(scope_id)
+    assert scope.daily_activity_for(date(2026, 9, 19)).feai == [
+        "FE-INC000000001",
+        "FEAI-INC000000002",
+    ]
+
+
+def test_create_daily_activity_rejects_a_duplicate_written_with_another_separator(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.post(
+        f"/scope-monitorings/{scope_id}/activities",
+        json={
+            "day": "2026-09-19",
+            "errors_reported": 2,
+            "incidents_created": 1,
+            "feai": ["FE INC000000001", "FE/INC000000001"],
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_create_daily_activity_unknown_scope_returns_404(client):
     http, _ = client
 
@@ -433,6 +473,96 @@ def test_get_scope_returns_detail(client):
     assert body["official_main"] == "Main"
     assert body["official_backup"] == "Backup"
     assert body["billing_code"] == "FACT-2026-PAI"
+    assert body["note"] is None
+
+
+# --- Note du périmètre ------------------------------------------------------
+
+
+def test_patch_scope_note_is_stored_and_read_back(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}",
+        json={"note": "  Incident de facturation à suivre.  "},
+    )
+
+    assert response.status_code == 204
+    assert http.get(f"/scope-monitorings/{scope_id}").json()["note"] == (
+        "Incident de facturation à suivre."
+    )
+
+
+def test_patch_scope_note_clears_the_note_when_emptied(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+    http.patch(f"/scope-monitorings/{scope_id}", json={"note": "à supprimer"})
+
+    response = http.patch(f"/scope-monitorings/{scope_id}", json={"note": "   "})
+
+    assert response.status_code == 204
+    assert http.get(f"/scope-monitorings/{scope_id}").json()["note"] is None
+
+
+def test_patch_scope_note_too_long_returns_422(client):
+    """422, not 400: the bound is refused by the request schema itself.
+
+    The domain's ``NoteTooLongError`` stays the invariant for every other
+    caller, but over HTTP the note never reaches the entity.
+    """
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}",
+        json={"note": "n" * (NOTE_MAX_LENGTH + 1)},
+    )
+
+    assert response.status_code == 422
+    assert http.get(f"/scope-monitorings/{scope_id}").json()["note"] is None
+
+
+def test_patch_scope_note_unknown_scope_returns_404(client):
+    http, _ = client
+
+    response = http.patch("/scope-monitorings/unknown", json={"note": "Note"})
+
+    assert response.status_code == 404
+
+
+def test_patch_scope_note_leaves_the_daily_activities_intact(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+    http.post(
+        f"/scope-monitorings/{scope_id}/activities",
+        json={
+            "day": "2026-09-19",
+            "errors_reported": 4,
+            "incidents_created": 2,
+            "feai": ["INC000000004"],
+        },
+    )
+
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}", json={"note": "suivre la facturation"}
+    )
+
+    assert response.status_code == 204
+    body = http.get(f"/scope-monitorings/{scope_id}").json()
+    assert body["note"] == "suivre la facturation"
+    assert body["daily_activities"][0]["errors_reported"] == 4
+    assert body["daily_activities"][0]["feai"] == ["INC000000004"]
+
+
+def test_patch_scope_note_is_listed_with_the_scopes(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+    http.patch(f"/scope-monitorings/{scope_id}", json={"note": "visible partout"})
+
+    body = http.get("/scope-monitorings").json()
+
+    assert body[0]["note"] == "visible partout"
 
 
 def test_get_scope_unknown_returns_404(client):

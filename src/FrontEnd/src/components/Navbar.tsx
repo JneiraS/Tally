@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { SCOPE_LIST_PATH } from "../constants/routes";
 import {
   Activity,
   Plus,
@@ -87,7 +88,7 @@ export function Navbar({
           {/* Logo & Titre */}
           <div className="flex items-center gap-3">
             <Link
-              to="/"
+              to={SCOPE_LIST_PATH}
               className="flex items-center gap-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 rounded-lg p-1 -m-1"
             >
               <div className="w-9 h-9 rounded-xl bg-blue-600 dark:bg-nord-9 text-white flex items-center justify-center shadow-xs">
@@ -106,6 +107,10 @@ export function Navbar({
               </div>
             </Link>
           </div>
+
+          {/* Pas de PageNav ici : « Périmètres » y ferait doublon avec le logo.
+              Analyse et Journal passent par Ctrl+Alt+G / Ctrl+Alt+L, et le pied
+              de page garde les trois liens pour le mobile, sans clavier. */}
 
           {/* Actions & Menu utilisateur */}
           <div className="flex items-center gap-2 sm:gap-3">

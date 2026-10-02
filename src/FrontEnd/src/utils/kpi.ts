@@ -1,9 +1,16 @@
-import { NonWorkingDays, ScopeMonitoring } from "../types";
+import type { NonWorkingDays, ScopeMonitoring } from "../types";
+import {
+  DEFAULT_NON_WORKING_DAYS,
+  ISO_WEEKDAY_COUNT,
+  toIsoWeekday,
+} from "../constants/nonWorkingDays";
 
-export const DEFAULT_NON_WORKING_DAYS: NonWorkingDays = {
-  excluded_weekdays: [6, 7],
-  excluded_dates: [],
-};
+/**
+ * Profondeur des deux séries fondées sur les jours ouvrés : la tendance du
+ * graphique et la baseline du delta. Unité en jours *ouvrés*, pas calendaires,
+ * d'où le nom.
+ */
+const WORKING_DAYS_WINDOW = 7;
 
 export interface BaselineDelta {
   deltaPct: number | null;
@@ -16,13 +23,6 @@ export interface DailyTrendPoint {
   day: string;
   erreurs: number;
   incidents: number;
-}
-
-export interface CumulativeTrendPoint {
-  day: string;
-  erreurs: number;
-  incidents: number;
-  gap: number;
 }
 
 export function lastNDays(today: string, n: number): string[] {
@@ -40,14 +40,22 @@ export function isWorkingDay(
   config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): boolean {
   const date = new Date(`${isoDate}T00:00:00Z`);
-  const sundayBasedDay = date.getUTCDay();
-  const isoWeekday = sundayBasedDay === 0 ? 7 : sundayBasedDay;
+  const isoWeekday = toIsoWeekday(date.getUTCDay());
   return (
     !config.excluded_weekdays.includes(isoWeekday) &&
     !config.excluded_dates.includes(isoDate)
   );
 }
 
+/**
+ * Jours ouvrés les plus récents, du plus récent au plus ancien.
+ *
+ * La recherche est bornée, et la borne est déduite du calendrier : il faut une
+ * semaine par jour cherché, plus une semaine par date ponctuelle exclue, car une
+ * date exclue qui tombe sur le seul jour ouvrable coûte sept jours de recherche.
+ * Sans cette borne, un calendrier sans aucun jour ouvré ferait tourner la
+ * boucle jusqu'à la limite de `Date` : un gel du rendu, pas un écran vide.
+ */
 export function lastWorkingDays(
   today: string,
   n: number,
@@ -55,8 +63,14 @@ export function lastWorkingDays(
 ): string[] {
   const days: string[] = [];
   const date = new Date(`${today}T00:00:00Z`);
-  while (days.length < n) {
-    const isoDate = date.toISOString().split("T")[0];
+  const maxLookbackDays =
+    ISO_WEEKDAY_COUNT * (n + config.excluded_dates.length);
+  for (
+    let back = 0;
+    back < maxLookbackDays && days.length < n;
+    back += 1
+  ) {
+    const isoDate = date.toISOString().split('T')[0];
     if (isWorkingDay(isoDate, config)) days.push(isoDate);
     date.setUTCDate(date.getUTCDate() - 1);
   }
@@ -109,7 +123,7 @@ export function buildDailyTrend(
   day: string,
   config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): DailyTrendPoint[] {
-  const days = lastWorkingDays(day, 7, config).reverse();
+  const days = lastWorkingDays(day, WORKING_DAYS_WINDOW, config).reverse();
   const dailyMap = new Map<string, DailyTrendPoint>(
     days.map((date) => [date, { day: date, erreurs: 0, incidents: 0 }]),
   );
@@ -125,26 +139,6 @@ export function buildDailyTrend(
   });
 
   return days.map((date) => dailyMap.get(date)!);
-}
-
-export function buildCumulativeTrend(
-  activities: ScopeMonitoring["daily_activities"],
-): CumulativeTrendPoint[] {
-  let erreurs = 0;
-  let incidents = 0;
-
-  return [...activities]
-    .sort((a, b) => a.day.localeCompare(b.day))
-    .map((activity) => {
-      erreurs += activity.errors_reported;
-      incidents += activity.incidents_created;
-      return {
-        day: activity.day,
-        erreurs,
-        incidents,
-        gap: Math.max(erreurs - incidents, 0),
-      };
-    });
 }
 
 export function sumFeai(scopes: ScopeMonitoring[], day: string): number {
@@ -171,7 +165,7 @@ export function baselineDelta(
   today: string,
   config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): BaselineDelta {
-  const days = [today, ...previousWorkingDays(today, 7, config)];
+  const days = [today, ...previousWorkingDays(today, WORKING_DAYS_WINDOW, config)];
   const daily = new Map<string, { errors: number; incidents: number }>(
     days.map((d) => [d, { errors: 0, incidents: 0 }]),
   );

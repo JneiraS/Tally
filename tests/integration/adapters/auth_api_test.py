@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
@@ -7,16 +7,18 @@ from protab.adapters.outbound.persistence.in_memory_scope_monitoring_repository 
     InMemoryScopeMonitoringRepository,
 )
 from protab.adapters.outbound.persistence.postgres_auth_repository import (
+    SESSION_DURATION,
     AuthSession,
     Project,
 )
+from protab.domain.value_objects.non_working_days import NonWorkingDays
 
 
 class FakeAuthRepository:
     def __init__(self, known_codes: set[str] | None = None) -> None:
         self.sessions: dict[str, AuthSession] = {}
         self.known_codes = known_codes or set()
-        self.settings = {"excluded_weekdays": [6, 7], "excluded_dates": []}
+        self.settings = NonWorkingDays.default()
 
     def list_projects(self) -> list[Project]:
         return [Project("alpha", "Projet Alpha")]
@@ -29,10 +31,12 @@ class FakeAuthRepository:
     def update_non_working_days(
         self, project_id: str, excluded_weekdays: list[int], excluded_dates: list[str]
     ) -> Project | None:
-        self.settings = {
-            "excluded_weekdays": excluded_weekdays,
-            "excluded_dates": excluded_dates,
-        }
+        self.settings = NonWorkingDays.from_raw(
+            {
+                "excluded_weekdays": excluded_weekdays,
+                "excluded_dates": excluded_dates,
+            }
+        )
         return self.get_project(project_id)
 
     def authenticate(self, project_id: str, quadrigramme: str, password: str) -> bool:
@@ -45,7 +49,7 @@ class FakeAuthRepository:
             "test-token",
             project_id,
             quadrigramme.upper(),
-            datetime.now(timezone.utc) + timedelta(hours=1),
+            datetime.now(timezone.utc) + SESSION_DURATION,
         )
         self.sessions[session.token] = session
         return session
@@ -140,6 +144,43 @@ def test_project_settings_reject_invalid_weekday():
     assert response.status_code == 422
 
 
+def test_project_settings_reject_a_calendar_without_any_working_day():
+    """Un calendrier sans jour ouvré n'a rien à afficher : la page principale
+    chercherait un jour ouvré jusqu'à geler. Un client HTTP peut demander ce que
+    la modale ne peut pas produire, donc la porte est ici."""
+    auth = FakeAuthRepository()
+    client = TestClient(create_app(InMemoryScopeMonitoringRepository(), auth))
+    client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+
+    response = client.put(
+        "/project/settings",
+        json={"excluded_weekdays": [1, 2, 3, 4, 5, 6, 7], "excluded_dates": []},
+    )
+
+    assert response.status_code == 422
+    assert auth.settings == NonWorkingDays.default()
+
+
+def test_project_settings_still_accept_a_calendar_without_a_weekday():
+    """Le refus porte sur la semaine entière, pas sur le week-end : un projet qui
+    travaille le samedi reste saisissable."""
+    client = TestClient(create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository()))
+    client.post(
+        "/auth/login",
+        json={"project_id": "alpha", "quadrigramme": "jn01", "password": "secret"},
+    )
+
+    response = client.put(
+        "/project/settings",
+        json={"excluded_weekdays": [6, 7], "excluded_dates": []},
+    )
+
+    assert response.status_code == 200
+
+
 def login_and_read_session_cookie() -> str:
     client = TestClient(
         create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository())
@@ -157,6 +198,15 @@ def test_session_cookie_is_httponly_and_samesite_lax():
 
     assert "httponly" in cookie.lower()
     assert "samesite=lax" in cookie.lower()
+
+
+def test_session_cookie_expires_with_the_session_it_carries():
+    """Le cookie et la ligne ``auth_sessions`` doivent tomber ensemble : un
+    cookie plus long laisserait un Max-Age qui promet une session morte, et la
+    dérive serait invisible jusqu'au premier redémarrage du navigateur."""
+    cookie = login_and_read_session_cookie()
+
+    assert f"max-age={int(SESSION_DURATION.total_seconds())}" in cookie.lower()
 
 
 def test_session_cookie_omits_secure_over_plain_http(monkeypatch):

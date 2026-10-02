@@ -17,6 +17,7 @@ import {
   NonWorkingDays,
   ScopeMonitoring,
   UpdateActivityInput,
+  UpdateScopeNoteInput,
 } from "../types";
 import { AUDIT_LOG_PATH } from "../constants/routes";
 
@@ -362,6 +363,21 @@ export const protabApi = {
   ): Promise<void> {
     await request<void>(`/scope-monitorings/${scopeId}/activities/complete`, {
       method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * PATCH /scope-monitorings/{id}
+   * Remplace la note libre du périmètre. `null` efface la note.
+   * Réponse 204
+   *
+   * La note est le seul champ que cette route modifie : le détail est renvoyé
+   * par le même GET que la liste, donc le parent ne recharge rien.
+   */
+  async updateScopeNote(scopeId: string, payload: UpdateScopeNoteInput): Promise<void> {
+    await request<void>(`/scope-monitorings/${scopeId}`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },

@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect } from 'vitest';
-import { ScopeMonitoring, DailyActivity } from '../types';
+import { NonWorkingDays, ScopeMonitoring, DailyActivity } from '../types';
 import {
   baselineDelta,
-  buildCumulativeTrend,
+  
   buildDailyTrend,
   coverageRate,
   defaultDisplayDay,
@@ -17,6 +17,7 @@ import {
   trailingErrors,
   transformationRate,
 } from '../utils/kpi';
+import { makeScope } from './factories';
 
 const TODAY = '2026-09-18';
 
@@ -34,15 +35,7 @@ function scope(
   name: string,
   daily_activities: DailyActivity[],
 ): ScopeMonitoring {
-  return {
-    id,
-    name,
-    knowledge_base_id: 'KB-00000001',
-    official_main: 'MAIN',
-    official_backup: 'BACK',
-    billing_code: 'FACT-2026-PAI',
-    daily_activities,
-  };
+  return makeScope({ id, name, daily_activities });
 }
 
 describe('lastNDays', () => {
@@ -71,6 +64,52 @@ describe('jours ouvrés', () => {
       '2026-09-18',
       '2026-09-17',
       '2026-09-16',
+    ]);
+  });
+
+  it('abandonne la recherche si aucun jour ne peut être ouvré', () => {
+    // Un calendrier couvrant toute la semaine n'a rien à afficher. Sans borne,
+    // cette recherche tournerait jusqu'à la limite de `Date` — un gel du rendu
+    // — donc elle ne rendrait jamais la main. Le test ne peut pas se falsifier
+    // tout seul : une boucle non bornée ne produit pas `[]`, elle ne termine pas.
+    expect(
+      lastWorkingDays('2026-09-18', 3, {
+        excluded_weekdays: [1, 2, 3, 4, 5, 6, 7],
+        excluded_dates: [],
+      }),
+    ).toEqual([]);
+  });
+
+  it('ouvre sur le jour courant quand aucun jour ouvré n’existe', () => {
+    // La branche de repli doit rester atteignable : c'est elle qui évite un
+    // écran vide quand la recherche ne renvoie rien.
+    expect(
+      defaultDisplayDay('2026-09-19', {
+        excluded_weekdays: [1, 2, 3, 4, 5, 6, 7],
+        excluded_dates: [],
+      }),
+    ).toBe('2026-09-19');
+  });
+
+  it('trouve les jours ouvrés malgré des dates ponctuelles défavorables', () => {
+    // La borne doit valoir sept jours par jour cherché **plus** sept jours par
+    // date ponctuelle : une date exclue qui tombe sur le seul jour ouvrable
+    // coûte une semaine entière de recherche, pas un jour. Avec un calendrier
+    // ne travaillant que le dimanche, quatre dimanches exclus repoussent la
+    // troisième occurrence bien au-delà de `n * 7 + dates`.
+    const calendar: NonWorkingDays = {
+      excluded_weekdays: [1, 2, 3, 4, 5, 6],
+      excluded_dates: [
+        '2026-10-04',
+        '2026-09-27',
+        '2026-09-20',
+        '2026-09-13',
+      ],
+    };
+    expect(lastWorkingDays('2026-10-11', 3, calendar)).toEqual([
+      '2026-10-11',
+      '2026-09-06',
+      '2026-08-30',
     ]);
   });
 });
@@ -189,26 +228,6 @@ describe('coverageRate', () => {
   });
 });
 
-describe('buildCumulativeTrend', () => {
-  it('trie les activités et calcule les cumuls ainsi que l’arriéré', () => {
-    const activities = [
-      activity('2026-09-19', 2, 2),
-      activity('2026-09-17', 5, 1),
-      activity('2026-09-18', 3, 2),
-    ];
-
-    expect(buildCumulativeTrend(activities)).toEqual([
-      { day: '2026-09-17', erreurs: 5, incidents: 1, gap: 4 },
-      { day: '2026-09-18', erreurs: 8, incidents: 3, gap: 5 },
-      { day: '2026-09-19', erreurs: 10, incidents: 5, gap: 5 },
-    ]);
-  });
-
-  it('renvoie une série vide sans activité', () => {
-    expect(buildCumulativeTrend([])).toEqual([]);
-  });
-});
-
 describe('defaultDisplayDay', () => {
   it('conserve le jour courant quand il est ouvré', () => {
     expect(defaultDisplayDay('2026-09-18')).toBe('2026-09-18');
@@ -221,7 +240,10 @@ describe('defaultDisplayDay', () => {
   });
 
   it('respecte les jours non ouvrés configurés par le projet', () => {
-    const config = { excluded_weekdays: [6, 7], excluded_dates: ['2026-09-25'] };
+    const config: NonWorkingDays = {
+      excluded_weekdays: [6, 7],
+      excluded_dates: ['2026-09-25'],
+    };
     expect(defaultDisplayDay('2026-09-25', config)).toBe('2026-09-24');
     expect(
       defaultDisplayDay('2026-09-27', {
