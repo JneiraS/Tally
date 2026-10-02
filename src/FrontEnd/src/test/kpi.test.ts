@@ -17,6 +17,7 @@ import {
   trailingErrors,
   transformationRate,
 } from '../utils/kpi';
+import { makeScope } from './factories';
 
 const TODAY = '2026-09-18';
 
@@ -34,16 +35,7 @@ function scope(
   name: string,
   daily_activities: DailyActivity[],
 ): ScopeMonitoring {
-  return {
-    id,
-    name,
-    knowledge_base_id: 'KB-00000001',
-    official_main: 'MAIN',
-    official_backup: 'BACK',
-    billing_code: 'FACT-2026-PAI',
-    note: null,
-    daily_activities,
-  };
+  return makeScope({ id, name, daily_activities });
 }
 
 describe('lastNDays', () => {

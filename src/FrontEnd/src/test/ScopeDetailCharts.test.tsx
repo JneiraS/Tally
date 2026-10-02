@@ -5,15 +5,11 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ScopeDetailCharts } from '../components/ScopeDetailCharts';
+import { makeScope } from './factories';
 
-const scope = {
-  id: 'scope-1',
-  name: 'Périmètre Alpha',
-  knowledge_base_id: 'KB-ALPHA-0001',
+const scope = makeScope({
   official_main: 'Alice',
   official_backup: 'Bob',
-  billing_code: 'FACT-2026-PAI',
-  note: null,
   daily_activities: [
     {
       day: '2026-09-19',
@@ -32,7 +28,7 @@ const scope = {
       completed: false,
     },
   ],
-};
+});
 
 describe('ScopeDetailCharts', () => {
   it('affiche la tendance des erreurs et incidents du périmètre', () => {

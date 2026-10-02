@@ -7,12 +7,15 @@ from protab.domain.entities.scope_monitoring import ScopeMonitoring
 
 class ScopeMonitoringRepository(Protocol):
     def save(self, scope: ScopeMonitoring) -> None:
-        """Persist the given ScopeMonitoring.
+        """Create the given ScopeMonitoring and its activities.
 
-        Replaces the whole aggregate: the scope row and every one of its
-        activities. Reserved for aggregate creation (scope import); a use case
-        that mutates an existing scope must use the targeted methods below, or
-        it will rewrite days it never read after a concurrent edit.
+        Creation only: an already stored scope is never merged into, because the
+        aggregate was read before someone else may have edited it. A use case
+        that mutates an existing scope must use the targeted methods below.
+
+        Raises:
+            ScopeMonitoringAlreadyExistsError: the id is already taken.
+            ScopeMonitoringNameAlreadyExistsError: the name is already taken.
         """
         ...
 

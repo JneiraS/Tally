@@ -26,6 +26,7 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "httpx2>=2.13.0",
+    "mypy>=1.19.0",
     "pytest>=9.1.1",
 ]
 
@@ -34,3 +35,21 @@ filterwarnings = [
     # Starlette 1.6.0 accesses this deprecated anyio alias while importing TestClient.
     "ignore:The anyio.abc.BlockingPortal alias is deprecated.*:DeprecationWarning",
 ]
+
+[tool.mypy]
+# The application core only: tests are untyped by design and the CLI entry
+# points are covered by integration tests against the real database.
+files = ["src/protab"]
+python_version = "3.13"
+# ``protab`` is installed in editable mode, so without this mypy would resolve
+# its own imports through site-packages and report every intra-package import
+# as untyped third-party code.
+mypy_path = "src"
+explicit_package_bases = true
+# A port that an adapter no longer honours is invisible without a checker —
+# nothing in pytest compares the two, and the adapters only drift apart.
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unreachable = true

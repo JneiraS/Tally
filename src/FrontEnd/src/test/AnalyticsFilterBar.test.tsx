@@ -6,9 +6,10 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { AnalyticsFilterBar, type AnalyticsFilters } from "../components/AnalyticsFilterBar";
 import { CHECKBOX_CLASS } from "../constants/ui";
 import type { ScopeMonitoring } from "../types";
+import { makeScope } from "./factories";
 
 function scope(id: string, name: string, billing_code: string | null = null): ScopeMonitoring {
-  return { id, name, knowledge_base_id: `KB-${id}`, official_main: "MAIN", official_backup: "BACK", billing_code, note: null, daily_activities: [] };
+  return makeScope({ id, name, knowledge_base_id: `KB-${id}`, billing_code });
 }
 
 const MANY = Array.from({ length: 20 }, (_, i) => scope(`s${i}`, `Périmètre ${i + 1}`));

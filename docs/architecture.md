@@ -133,7 +133,7 @@ n'a été nécessaire pour l'heure.
 
 `Protocol` synchrone de neuf méthodes :
 
-- `save(scope)` — **réservé à la création d'agrégat** ;
+- `save(scope)` — **création seule**, refuse un id déjà pris ;
 - `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
   écritures ciblées d'une journée ;
 - `update_note(scope_id, note)` — écriture ciblée de la note du périmètre ;
@@ -141,6 +141,13 @@ n'a été nécessaire pour l'heure.
 
 La distinction entre `save` et les écritures ciblées est une décision
 d'architecture, pas un détail : ses raisons sont dans `AGENTS.md` §28.1.
+
+Les deux adapters implémentent ce port, et `mypy` vérifie la compatibilité de
+l'adapter PostgreSQL au point d'injection (`create_app(repository=...)`). Le
+test de contrat
+`tests/unit/ports/scope_monitoring_repository_contract_test.py` couvre les trois
+implémentations — les deux adapters et le décorateur d'enregistrement des tests —
+par réflexion, puisque `mypy` ne voit pas le code de test.
 
 ### Port d'audit — `ports/outbound/audit_trail_repository.py`
 

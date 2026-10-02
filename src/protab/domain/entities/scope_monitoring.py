@@ -20,7 +20,7 @@ NOTE_MAX_LENGTH = 2000
 class KnowledgeBase:
     id: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if len(self.id) < 9:
             raise InvalidKnowledgeBaseIdError(
                 "KnowledgeBase id must be at least 9 characters long."
@@ -32,7 +32,7 @@ class Officials:
     main: str
     backup: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.main.strip() or not self.backup.strip():
             raise EmptyOfficialsError(
                 "Both main and backup officials must be provided."
@@ -51,7 +51,7 @@ class ScopeMonitoring:
     note: str | None = None
     daily_activities: dict[date, DailyActivity] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.id = self.id.strip()
         if not self.id:
             raise InvalidScopeMonitoringIdError("ScopeMonitoring id must not be empty.")

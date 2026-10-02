@@ -33,5 +33,13 @@ class ScopeMonitoringNameAlreadyExistsError(DomainError):
     """Raised when a ScopeMonitoring with the same name already exists."""
 
 
+class ScopeMonitoringAlreadyExistsError(DomainError):
+    """Raised when a creation targets a ScopeMonitoring id that is already taken.
+
+    Distinct from the name clash: the id is the identity of the row, so a
+    creation must refuse it rather than merge into what is stored under it.
+    """
+
+
 class NoteTooLongError(DomainError):
     """Raised when a scope note exceeds the maximum accepted length."""

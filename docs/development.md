@@ -140,9 +140,14 @@ make test          # uv run pytest
 make test-v        # -vv -s (montre les print)
 make test-failed   # --lf
 make test-db       # tests d'intégration PostgreSQL inclus
+make typecheck     # uv run mypy sur src/protab
 cd src/FrontEnd && npm test    # vitest run
 cd src/FrontEnd && npm run lint  # tsc --noEmit
 ```
+
+`make typecheck` applique `disallow_untyped_defs` : une fonction sans annotation
+de retour ou sans types de paramètres échoue. Les tests sont hors périmètre
+(`files = ["src/protab"]`) et restent non typés par conception.
 
 La stratégie, l'inventaire des suites et les tests conditionnés à une base sont
 détaillés dans [`docs/testing.md`](testing.md).
@@ -201,8 +206,8 @@ doit savoir ce qu'il **ne** sera pas rattrapé automatiquement.
 | Tests front | ✅ `vitest` | 227 tests. |
 | Typage front | ✅ `npm run lint` | `tsc --noEmit` — vérifie les types, pas le style. |
 | Build front | ✅ `npm run build` | `tsc -b && vite build`. |
-| Linter Python | ❌ **absent** | Aucun `ruff`, `flake8` ou `pylint` ; le groupe `dev` ne contient que `pytest` et `httpx2` (`pyproject.toml:26-30`). |
-| Typage Python | ❌ **absent** | Aucun `mypy`/`pyright` ; le code est annoté mais non vérifié automatiquement. |
+| Linter Python | ❌ **absent** | Aucun `ruff`, `flake8` ou `pylint` ; le groupe `dev` ne contient que `pytest`, `httpx2` et `mypy` (`pyproject.toml`). |
+| Typage Python | ✅ `make typecheck` | `mypy` sur `src/protab`, avec `disallow_untyped_defs`. Couvre le câblage de production ; l'adapter in-memory et le décorateur de test sont couverts par le test de contrat (voir `docs/testing.md`). |
 | Formatage auto | ❌ **absent** | Ni `black` ni `ruff format`. Le style est appliqué à la main. |
 | Linter front | ❌ **absent** | Ni ESLint ni Prettier. `npm run lint` est un contrôle de types. |
 | Intégration continue | ❌ **absent** | Aucun workflow CI dans le dépôt. |

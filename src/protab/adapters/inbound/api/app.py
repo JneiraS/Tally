@@ -1,4 +1,5 @@
 import csv
+from collections.abc import AsyncIterator
 from datetime import date
 
 from fastapi import Depends, FastAPI, Request, Response, UploadFile
@@ -8,6 +9,7 @@ from protab.adapters.inbound.api.auth import (
     current_user,
     set_session_cookie,
 )
+from protab.adapters.outbound.persistence.postgres_auth_repository import Project
 from protab.adapters.inbound.api.config import database_url_from_env
 from protab.adapters.inbound.api.errors import register_exception_handlers
 from protab.adapters.inbound.api.schemas import (
@@ -116,7 +118,7 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
     )
 
 
-def _project_to_response(project) -> ProjectResponse:
+def _project_to_response(project: Project) -> ProjectResponse:
     return ProjectResponse(
         id=project.id,
         name=project.name,
@@ -211,7 +213,7 @@ def create_app(
 
     app.router.on_shutdown.append(close_persistence)
 
-    async def project_context(request: Request):
+    async def project_context(request: Request) -> AsyncIterator[None]:
         if auth is None:
             yield
             return

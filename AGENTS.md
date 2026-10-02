@@ -672,6 +672,28 @@ Use where appropriate:
 
 Avoid `Any` unless there is a justified technical reason.
 
+## 14.1 Type checking is enforced, not merely requested
+
+Type hints that nothing checks are documentation. `mypy` runs over `src/protab`
+via `make typecheck`, with `disallow_untyped_defs` on: an unannotated function
+fails the check, so the convention above is a command and not an intention.
+Tests stay out of scope (`files` covers the application core only) — they are
+untyped by design and their behaviour is pinned by assertions.
+
+Two settings are load-bearing and should not be dropped casually:
+
+- `mypy_path = "src"` + `explicit_package_bases`. `protab` is installed in
+  editable mode, so without them mypy resolves the project's own imports
+  through `site-packages` and reports 107 `[import-untyped]` errors that say
+  nothing about the code.
+- `disallow_untyped_defs`. This is what turned a missing method into an error
+  rather than a silent `Any`.
+
+`mypy` covers the **production wiring**: an adapter is checked against the
+Protocol at the injection site (`create_app(repository=...)`). It cannot see the
+in-memory adapter used by tests, nor the recording decorator, so those are
+covered separately by the contract test (§11).
+
 ---
 
 # 15. Error Handling
@@ -1067,16 +1089,18 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
     `psycopg` (sync) + `psycopg_pool`. Le schéma est créé **idempotemment au démarrage**
     (`CREATE TABLE IF NOT EXISTS`, pas d'outil de migration). Les contraintes DB (nom unique, unique
     `(scope_id, day)`) sont traduites en exceptions de domaine par l'adapter.
-- **`save()` est réservé à la création d'agrégat.** Il remplace tout (`DELETE` + réinsertion des
-  activités dans une transaction) : un cas d'usage qui mute un périmètre existant l'interdit, sinon il
-  réécrit des jours qu'il n'a pas relus après une édition concurrente et écrase silencieusement la
-  modification d'un autre utilisateur. Les mutations passent donc par des écritures ciblées du port —
-  `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed`, `update_note` — chacune ne
-  touchant que les lignes nommées, avec `rowcount == 0` traduit en `DailyActivityNotFoundError` ou
-  `ScopeMonitoringNotFoundError`. C'est aussi pourquoi `save()` **insère** `note` mais ne la réécrit pas
-  dans son `ON CONFLICT DO UPDATE` : l'agrégat qu'il reçoit a été lu avant qu'une note ne change, et le
-  réécrire effacerait cette modification sans qu'aucune trace n'en reste. Verrouillé par
-  `test_save_does_not_erase_a_note_written_concurrently`.
+- **`save()` crée, il ne réécrit rien.** L'insertion est en `ON CONFLICT (id) DO NOTHING` : un `save`
+  sur un id déjà pris lève `ScopeMonitoringAlreadyExistsError` (`409`) **avant** toute écriture, au lieu
+  de fusionner. L'ancien `ON CONFLICT DO UPDATE` + `DELETE` des activités attendait là un cas
+  d'usage qui mute un périmètre existant : cet usage est interdit, car il réécrit des jours qu'il
+  n'a pas relus après une édition concurrente. Les mutations passent donc par des écritures ciblées du
+  port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed`, `update_note` —
+  chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
+  `DailyActivityNotFoundError` ou `ScopeMonitoringNotFoundError`. Le refus a supprimé le cas
+  particulier de la note (§28.1) : il n'y a plus de `DO UPDATE` auquel il faille l'exclure, donc plus
+  d'asymétrie à documenter. Verrouillé par `test_save_refuses_an_existing_scope`,
+  `test_a_refused_save_leaves_a_concurrent_note_intact` et
+  `tests/unit/adapters/scope_monitoring_repository_save_test.py`.
 - **`scope_monitorings.note` est un texte libre nullable, et la première route qui modifie un périmètre.**
   `PATCH /scope-monitorings/{id}` avec `{note}` ne touche qu'à elle — ni `name`, ni `billing_code`, ni les
   activités. La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
@@ -1095,8 +1119,19 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   prouver qu'un cas d'usage écrit de façon ciblée : `tests/unit/application/recording_repository.py`
   enregistre les appels au port pour cela, et la garantie « les autres jours sont intacts » se vérifie
   dans `postgres_scope_monitoring_repository_test.py`. Un nouveau port doit être implémenté par les
-  **deux** adapters (Liskov, AGENTS.md §11) : le dépôt n'a pas de CI, c'est donc à vérifier à la main
-  quand on ajoute une méthode.
+  **deux** adapters (Liskov, AGENTS.md §11) — et plus par le décorateur d'enregistrement, qui est une
+  troisième implémentation. **Ce n'est plus à vérifier à la main** :
+  `tests/unit/ports/scope_monitoring_repository_contract_test.py` compare, par réflexion, les méthodes
+  publiques du `Protocol` à celles des trois implémentations, et compare aussi l'ordre des paramètres.
+  L'assertion est une **inclusion**, jamais une égalité : `PostgresScopeMonitoringRepository` possède
+  `connect`/`close` qui n'appartiennent à aucun port. Vérifier que ce test échoue en retirant une
+  méthode d'un adapter, sinon il ne prouve rien.
+- **Les deux adapters sont interchangeables, pas seulement compatibles.** L'in-memory doit donc refuser
+  ce que le SQL refuse, avec les mêmes exceptions : un `save()` sur un id déjà pris y lève
+  `ScopeMonitoringAlreadyExistsError`, sur un nom déjà pris
+  `ScopeMonitoringNameAlreadyExistsError`. Sans cela, un cas d'usage passerait sous test et
+  échouerait en production sur la même ligne de code. Verrouillé par
+  `tests/unit/adapters/scope_monitoring_repository_save_test.py`.
 - Le core (domaine + application) ne doit **jamais** importer `psycopg`/`psycopg_pool` ni référencer
   les tables SQL : ils ne vivent que sous `adapters/outbound/persistence/`.
 - **`scope_monitorings.billing_code` est obligatoire à la création mais nullable en base.** Les deux
@@ -1108,8 +1143,12 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   (`ScopeMonitoring.billing_code` : `string | null`) ; les lignes sans code s'affichent « — ». Format
   **libre**, `strip`é, **non unique** : deux périmètres peuvent partager un code. Aucun `UNIQUE` en base.
   Il n'existe **aucune route de mise à jour du code de facturation** : `PATCH /scope-monitorings/{id}`
-  ne modifie que la note (§28.1). La reprise d'un code manquant se fait donc en SQL, procédure dans
-  `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log` ne voit que les use cases.
+  ne modifie que la note (§28.1). C'est un choix assumé, pas une dette : la reprise d'un code manquant
+  se fait en SQL, procédure dans `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log` ne voit
+  que les use cases. Ouvrir cette route pour un champ unique y ajouterait un troisième format
+  d'écriture (`name` est `UNIQUE` **mondial**, les officiels sont des listes délimitées par `/`) sans
+  résoudre un besoin exprimé ; si la demande revient, la forme attendue est une écriture ciblée du
+  port plus un use case et un événement d'audit, pas un `save()`.
 - **Le CSV d'import a gagné une 5e colonne** (`name, knowledge_base_id, official_main, official_backup,
   billing_code`), donc `REQUIRED_HEADERS` la rend obligatoire : un fichier préparé avant l'évolution est
   rejeté en `400 « Invalid headers » ». C'est la conséquence directe de l'obligation, pas un durcissement
@@ -1306,6 +1345,24 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   embarque. Un artefact absent du `.gitignore` racine peut malgré tout entrer dans l'image.
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
+
+- **Une seule fabrique de fixtures : `src/test/factories.ts`** (`makeScope`,
+  `makeActivity`, `makeScopes`). Même arbitrage que `CHECKBOX_CLASS` et
+  `routes.ts`, avec la mesure qui le justifie : ajouter `note` au contrat
+  TypeScript avait produit **40 erreurs** de `tsc`, dont 35 dans
+  `ScopeListPage.test.tsx`, une par littéral. Le remède « rendre le champ
+  optionnel » aurait été le mauvais : il réintroduirait `undefined` là où
+  l'  API n'a qu'un état absent (`note` et `billing_code` sont `string | null`),
+  donc deux erreurs pour un seul cas. **La factory garde donc les
+  défauts réalistes et le champ reste requis** ; un fichier de test ne doit pas
+  pouvoir mentir sur la forme d'une réponse.
+- **Un helper local qui délègue est acceptable, un helper qui redéclare les
+  défauts ne l'est pas.** Les helpers positionnels (`scope(id, name, days)`)
+  restent pour la lisibilité des assertions, mais délèguent à `makeScope` :
+  `knowledge_base_id`, `billing_code`, `note` et `daily_activities` ne sont
+  écrits qu'une fois dans le dépôt. Si un test asserte sur un officiel
+  (`export.test.ts`), la valeur doit rester explicite — la délégation l'a
+  d'ailleurs fait échouer, ce qui prouve que le test observait bien la donnée.
 
 - **Une seule classe pour toutes les cases à cocher : `CHECKBOX_CLASS`**
   (`src/constants/ui.ts`). Le même arbitrage que `constants/routes.ts` : une valeur

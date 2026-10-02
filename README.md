@@ -234,9 +234,10 @@ L'index couvre le filtrage par projet et l'ordre par nom des listes de périmèt
 
 L'écriture d'une activité est **ciblée** : `insert_daily_activity`, `update_daily_activity` et
 `mark_activities_completed` ne touchent que les lignes nommées, et `rowcount == 0` devient
-`DailyActivityNotFoundError`. `save()` est réservé à la création d'agrégat — il remplace tout
-(`DELETE` + réinsertion) dans une **transaction**, donc un cas d'usage qui mute un périmètre existant
-réécrirait des jours qu'il n'a pas relus et écraserait une édition concurrente. Comme
+`DailyActivityNotFoundError`. `save()` **crée** et ne réécrit rien : son insertion est en
+`ON CONFLICT (id) DO NOTHING`, donc un id déjà pris lève `ScopeMonitoringAlreadyExistsError` (`409`)
+avant toute écriture. Les deux adapters sont d'ailleurs interchangeables, pas seulement compatibles :
+l'in-memory refuse les mêmes collisions avec les mêmes exceptions. Comme
 `daily_activities` ne porte pas de `project_id`, chaque écriture ciblée joint `scope_monitorings` et
 filtre le projet courant sans condition.
 

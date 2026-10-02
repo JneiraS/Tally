@@ -15,6 +15,7 @@ import {
   weekLabel,
 } from "../utils/analytics";
 import { DailyActivity, NonWorkingDays, ScopeMonitoring } from "../types";
+import { makeScope } from "./factories";
 
 const CONFIG: NonWorkingDays = {
   excluded_weekdays: [6, 7],
@@ -43,16 +44,13 @@ function scope(
   name: string,
   daily_activities: DailyActivity[],
 ): ScopeMonitoring {
-  return {
+  return makeScope({
     id,
     name,
     knowledge_base_id: `KB-${id}`,
-    official_main: "MAIN",
-    official_backup: "BACK",
     billing_code: null,
-    note: null,
     daily_activities,
-  };
+  });
 }
 
 /** 2026-09-21 est un lundi : toute la semaine d'exemple est ouvrée sauf S38. */

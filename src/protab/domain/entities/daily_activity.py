@@ -36,7 +36,7 @@ class DailyActivity:
     handled: bool = False
     completed: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.feai = self._validate(
             self.errors_reported, self.incidents_created, self.feai
         )

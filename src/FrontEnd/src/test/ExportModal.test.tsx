@@ -9,6 +9,7 @@ import { ToastProvider } from '../hooks/useToast';
 import { ScopeMonitoring } from '../types';
 import { addDaysIso, getTodayIsoDate } from '../utils/date';
 import * as exportUtils from '../utils/export';
+import { makeScope } from './factories';
 
 vi.mock('../utils/export', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../utils/export')>();
@@ -18,25 +19,24 @@ vi.mock('../utils/export', async (importOriginal) => {
   };
 });
 
-const scope = (name: string, kb: string): ScopeMonitoring => ({
-  id: `id-${kb}`,
-  name,
-  knowledge_base_id: kb,
-  official_main: 'Alice',
-  official_backup: 'Bob',
-  billing_code: 'FACT-2026-PAI',
-  note: null,
-  daily_activities: [
-    {
-      day: '2026-09-15',
-      errors_reported: 2,
-      incidents_created: 1,
-      feai: ['INC000000001'],
-      handled: false,
-      completed: false,
-    },
-  ],
-});
+const scope = (name: string, kb: string): ScopeMonitoring =>
+  makeScope({
+    id: `id-${kb}`,
+    name,
+    knowledge_base_id: kb,
+    official_main: 'Alice',
+    official_backup: 'Bob',
+    daily_activities: [
+      {
+        day: '2026-09-15',
+        errors_reported: 2,
+        incidents_created: 1,
+        feai: ['INC000000001'],
+        handled: false,
+        completed: false,
+      },
+    ],
+  });
 
 const today = getTodayIsoDate();
 const defaultFrom = addDaysIso(today, -29);

@@ -173,17 +173,15 @@ def test_update_activity_records_audit_event_with_diff():
 
 def test_complete_activity_records_audit_event_per_day():
     repo = make_scope_with_activity()
-    scope = repo.find_by_id("scope-001")
-    assert scope is not None
-    scope.add_daily_activity(
+    repo.insert_daily_activity(
+        "scope-001",
         DailyActivity(
             day=date(2026, 9, 20),
             errors_reported=1,
             incidents_created=0,
             feai=[],
-        )
+        ),
     )
-    repo.save(scope)
     audit = InMemoryAuditTrailRepository()
 
     CompleteDailyActivityUseCase(repo, audit).execute(
