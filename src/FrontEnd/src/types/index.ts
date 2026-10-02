@@ -11,7 +11,7 @@ export interface DailyActivity {
   day: string; // Format strict "YYYY-MM-DD"
   errors_reported: number; // Entier >= 0
   incidents_created: number; // Entier >= 0, <= errors_reported
-  feai: string[]; // Liste de références au format "INC" + 9 chiffres (ex: INC000000001), sans doublon
+  feai: string[]; // Références canoniques "[PREFIXE-]INC" + 9 chiffres (ex: FE-INC000000001), sans doublon
   handled: boolean; // Statut traité
   completed: boolean; // Statut complété (completed => handled)
 }

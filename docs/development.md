@@ -198,7 +198,7 @@ doit savoir ce qu'il **ne** sera pas rattrapé automatiquement.
 | Vérification | État | Commentaire |
 | --- | --- | --- |
 | Tests Python | ✅ `pytest` | Voir `docs/testing.md`. |
-| Tests front | ✅ `vitest` | 182 tests. |
+| Tests front | ✅ `vitest` | 218 tests. |
 | Typage front | ✅ `npm run lint` | `tsc --noEmit` — vérifie les types, pas le style. |
 | Build front | ✅ `npm run build` | `tsc -b && vite build`. |
 | Linter Python | ❌ **absent** | Aucun `ruff`, `flake8` ou `pylint` ; le groupe `dev` ne contient que `pytest` et `httpx2` (`pyproject.toml:26-30`). |

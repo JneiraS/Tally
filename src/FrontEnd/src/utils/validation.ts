@@ -2,7 +2,15 @@
  * Règles métier et validations UI pour ProTab
  */
 
-export const FEAI_REGEX = /^INC\d{9}$/;
+/**
+ * Une référence FEAI est un code `INC` suivi de 9 chiffres, précédé d'un
+ * préfixe facultatif de 2 à 5 lettres : `FE-INC000000001`. Le préfixe est
+ * générique et non unique — `FE`, `FEAI` ou `FEP` désignent la même famille.
+ */
+export const FEAI_REGEX = /^(?:[A-Z]{2,5}-)?INC\d{9}$/;
+
+/** Longueur de la forme canonique la plus longue : `FEAI-` (5) + `INC` + 9 chiffres. */
+export const FEAI_MAX_LENGTH = 18;
 
 export interface ActivityValidationErrors {
   day?: string;
@@ -23,10 +31,22 @@ export interface ScopeValidationErrors {
 }
 
 /**
- * Valide le format d'un identifiant FEAI (ex: "INC000000001")
+ * Ramène une référence à sa forme canonique : séparateurs (espace, tiret,
+ * slash) réduits à un tiret unique, et tiret ajouté à un préfixe collé au
+ * code. La casse n'est pas touchée : elle est déjà normalisée à la saisie.
+ */
+export function normalizeFeai(value: string): string {
+  return value
+    .trim()
+    .replace(/[\s\-/]+/g, '-')
+    .replace(/^([A-Z]{2,5})-?(INC)/, '$1-$2');
+}
+
+/**
+ * Valide un identifiant FEAI (ex: "INC000000001" ou "FE-INC000000001").
  */
 export function isValidFeai(value: string): boolean {
-  return FEAI_REGEX.test(value.trim());
+  return FEAI_REGEX.test(normalizeFeai(value));
 }
 
 /**
@@ -70,15 +90,17 @@ export function validateActivityForm(
     errors.incidents_created = `Le nombre d'incidents (${incidentsCreated}) ne peut pas dépasser le nombre d'erreurs (${errorsReported}).`;
   }
 
-  // Validation FEAI
-  const cleanedFeai = data.feai.map((item) => item.trim());
+  // Validation FEAI : le doublon se juge sur la forme canonique, sinon la
+  // même référence passerait deux fois selon la séparatrice tapée.
+  const cleanedFeai = data.feai.map((item) => normalizeFeai(item));
   const seenFeai = new Set<string>();
 
   cleanedFeai.forEach((code, idx) => {
     if (code === '') {
       feaiItemErrors[idx] = 'Le numéro FEAI ne peut pas être vide.';
     } else if (!isValidFeai(code)) {
-      feaiItemErrors[idx] = 'Format attendu : INC suivi de 9 chiffres (ex: INC000000001).';
+      feaiItemErrors[idx] =
+        'Format attendu : INC suivi de 9 chiffres, précédé d\'un préfixe facultatif de 2 à 5 lettres (ex: FE-INC000000001).';
     } else if (seenFeai.has(code)) {
       feaiItemErrors[idx] = `Référence en doublon : "${code}". Chaque référence doit être unique.`;
     } else {

@@ -262,6 +262,22 @@ rejoue les entrées **à l'envers**. Le debounce rend les rafales plus fréquent
 qu'on ne le croit : deux suppressions à 1,5 s s'effacent en un seul `PATCH`, donc
 en un seul écrasement.
 
+### Saisie d'une référence FEAI
+
+La forme canonique est `[PREFIXE-]INC` + 9 chiffres, préfixe facultatif de 2 à 5
+lettres (`FE-INC000000001`). La saisie est tolérante — espace, tiret, slash,
+préfixe collé au code — et `normalizeFeai` (`utils/validation.ts`) ramène tout à
+la forme stockée, au moment de l'enregistrement et non à la frappe : retransformer
+la frappe ferait sauter le curseur, et le `trim()` appliqué à chaque touche rendait
+la forme avec espace impossible à saisir.
+
+Les deux éditeurs (`FeaiTagInput` en ligne, `ActivityFormModal` en brouillon) ne
+partagent que les règles — `normalizeFeai`, `isValidFeai` et
+`FEAI_MAX_LENGTH = 18`. Le doublon se juge donc sur la forme canonique : `FE
+INC000000001` et `FE/INC000000001` sont **la même** référence. Le domaine
+applique la même canonicalisation (`canonical_feai()`), donc la garantie vaut quel
+que soit l'écrivain, `curl` compris.
+
 ---
 
 ## 8. La page d'analyse — `/analyse`
@@ -434,7 +450,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-25 fichiers dans `src/test/` (204 tests). `src/test/setup.ts` importe
+26 fichiers dans `src/test/` (218 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

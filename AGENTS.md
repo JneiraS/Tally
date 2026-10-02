@@ -1564,7 +1564,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 204 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 218 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge
@@ -1584,6 +1584,49 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   à rang égal (index d'origine en second critère, pas de confiance implicite en la stabilité de `sort`) ;
   l'API renvoyant `ORDER BY name`, chaque groupe reste alphabétique. Requête vide ⇒ tous les rangs égaux
   ⇒ liste du serveur intacte.
+
+## 28.7 Références FEAI : une graphie stockée, une saisie tolérante
+
+- **La forme canonique est `[PREFIXE-]INC\d{9}`, préfixe facultatif de 2 à 5 lettres**
+  (`FE-INC000000001`). `FEAI` et `FEAI-` désignent la même famille : le préfixe est
+  générique et non unique, comme `billing_code` (§28.1). Aucun préfixe n'est
+  enregistré à part, donc rien à migrer : `INC000000001` reste valide tel quel.
+- **Une seule graphie est stockée, donc la canonicalisation est un invariant du domaine.**
+  `canonical_feai()` (`daily_activity.py`) réduit les séparateurs (espace, tiret, slash) à un
+  tiret unique et insère le tiret d'un préfixe collé au code ; `_validate()` **retourne** la
+  liste canonique, consommée par `__post_init__` comme par `update()`. La canonique se juge donc
+  au double endroit qui compte : le doublon et le stockage. Sans elle, `FE INC000000001` et
+  `FE-INC000000001` seraient deux références distinctes dans la même journée, et le compteur
+  d'erreurs par FEAI ne serait pas recomptable.
+- **Le doublon se juge sur la forme canonique**, jamais sur la chaîne saisie — même raison.
+  `validateActivityForm` normalise avant de valider, et `FeaiTagInput.addCode` compare au
+  `values.includes(code)` déjà canonique.
+- **`normalizeFeai()` ne touche pas à la casse** : les deux Points d'entrée mettaient déjà tout en
+  majuscules, et `isValidFeai('inc000000001') === false` reste le contrat testé. Élargir
+  `isValidFeai` aux minuscules aurait supprimé cette garantie sans rien demander à personne.
+- **Une longueur de référence est une constante, jamais un `12` littéral.** Trois copies du
+  nombre existaient (`FeaiTagInput`, `maxLength`, `code.length === 12`, `maxLength`) et le
+  préfixe les rendait toutes fausses — le modal refusait une référence valide *et* son indicateur
+  vert ne s'allumait jamais. `FEAI_MAX_LENGTH = 18` (5 + 1 + 12) est la seule déclaration ; côté
+  Python, `_FEAI_PATTERN` borne déjà la longueur, donc rien à déclarer de plus.
+- **Le `trim()` à la frappe est interdit dans un champ dont le contenu comporte une séparatrice.**
+  `handleFeaiChange` faisait `val.trim().toUpperCase()` : taper `FE ` renvoyait `FE`, la forme
+  avec espace — la forme naturelle de la saisie — était littéralement impossible à saisir. La
+  normalisation se fait à l'enregistrement (`cleanedFeai`), pas à la frappe ; seul
+  `aria-label` du bouton de suppression garde son `trim()`.
+- **Le brouillon reste brut, la persistance est canonique.** Dans `ActivityFormModal`, une
+  référence en cours porte ce que l'utilisateur a tapé ; après enregistrement elle est relue
+  `FE-INC000000001`. C'est assumé : retransformer la frappe ferait sauter le curseur, et c'est
+  la forme stockée qui fait foi.
+- **Les deux implémentations de saisie ne partagent que les règles.** `FeaiTagInput` (pustes,
+  annulation par rafale) et `ActivityFormModal` (brouillon) ont chacune leur UI, mais
+  `normalizeFeai`/`isValidFeai` sont le seul juge — d'où l'intérêt de `normalizeFeai` dans
+  `utils/validation.ts` : toute divergence de message ou de doublon se paie deux fois.
+  Verrouillé par `ActivityFormModal.test.tsx`, créé pour ce point : la modale n'avait
+  **aucun** test.
+- **Un `aria-label` par champ, pas un `placeholder` comme nom accessible.** Le `placeholder`
+  disparaît dès la première frappe ; `Référence FEAI ${idx + 1}` reste et donne un nom au champ
+  dans les deux implémentations.
 
 
 ## graphify

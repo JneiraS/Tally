@@ -11,7 +11,7 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ├── id: str                                            ├── day: date            ← datetime.date (pas de classe Day)
 ├── name: str                                         ├── errors_reported: int ← >= 0
 ├── knowledge: KnowledgeBase                          ├── incidents_created: int ← >= 0 et <= errors_reported
-├── officials: Officials                              ├── feai: list[str]      ← format INC\d{9}, sans doublon
+├── officials: Officials                              ├── feai: list[str]      ← format (PREFIXE-)?INC\d{9}, sans doublon
 ├── billing_code: str | None                          ├── handled: bool
 └── daily_activities: dict[date, DailyActivity]       └── completed: bool      ← completed ⇒ handled
      └── clé = jour → une seule activité par jour
@@ -29,7 +29,9 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ### Invariants
 
 - `errors_reported >= 0`, `incidents_created >= 0`, `incidents_created <= errors_reported`.
-- Références FEAI : format `INC` suivi d'exactement 9 chiffres (`^INC\d{9}$`), aucune doublon.
+- Références FEAI : code `INC` suivi d'exactement 9 chiffres, précédé d'un préfixe facultatif de 2 à 5
+  lettres (`^(?:[A-Z]{2,5}-)?INC\d{9}$`, ex. `INC000000001` ou `FE-INC000000001`), aucun doublon. La saisie
+  tolère une espace, un slash ou un préfixe collé au code ; la forme stockée porte toujours le tiret.
 - Une seule `DailyActivity` par `ScopeMonitoring` et par jour.
 - `mark_completed()` force `handled = True` (`completed` ⇒ `handled`).
 - Un `ScopeMonitoring` **créé** porte un `billing_code` non vide, de format libre : c'est

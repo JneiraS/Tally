@@ -87,6 +87,62 @@ def test_daily_activity_duplicate_feai_rejected():
         )
 
 
+@pytest.mark.parametrize(
+    ("raw", "canonical"),
+    [
+        ("FE INC000000001", "FE-INC000000001"),
+        ("FE-INC000000001", "FE-INC000000001"),
+        ("FEAI-INC000000001", "FEAI-INC000000001"),
+        ("FEAIINC000000001", "FEAI-INC000000001"),
+        ("FE/INC000000001", "FE-INC000000001"),
+        ("  FE - INC000000001  ", "FE-INC000000001"),
+        ("INC000000001", "INC000000001"),
+    ],
+)
+def test_daily_activity_canonicalises_a_prefixed_feai(raw, canonical):
+    # Le domaine est le dernier rempart : une référence doit être stockée dans
+    # une graphie unique quel que soit l'écrivain (front, curl, import), sinon
+    # FE-INC… et FE INC… comptent pour deux références distinctes.
+    activity = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=1,
+        incidents_created=0,
+        feai=[raw],
+    )
+    assert activity.feai == [canonical]
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "FEAI000000001",  # préfixe sans code INC
+        "X-INC000000001",  # préfixe d'une seule lettre
+        "ABCDEF-INC000000001",  # préfixe de six lettres
+        "FE-INC123",  # pas assez de chiffres
+        "FE-INC1234567890",  # trop de chiffres
+        "FE-INC00000000A",  # lettres au lieu de chiffres
+    ],
+)
+def test_daily_activity_rejects_a_malformed_prefixed_feai(ref):
+    with pytest.raises(InvalidFeaiReferenceError):
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=1,
+            incidents_created=0,
+            feai=[ref],
+        )
+
+
+def test_daily_activity_rejects_a_duplicate_written_with_another_separator():
+    with pytest.raises(DuplicateFeaiReferenceError):
+        DailyActivity(
+            day=date(2026, 9, 19),
+            errors_reported=1,
+            incidents_created=0,
+            feai=["FE INC000000001", "FE-INC000000001"],
+        )
+
+
 def test_daily_activity_mark_handled():
     activity = DailyActivity(
         day=date(2026, 9, 19),
@@ -207,3 +263,18 @@ def test_daily_activity_update_duplicate_feai():
             incidents_created=1,
             feai=["INC000000001", "INC000000001"],
         )
+
+
+def test_daily_activity_update_canonicalises_a_prefixed_feai():
+    activity = DailyActivity(
+        day=date(2026, 9, 19),
+        errors_reported=2,
+        incidents_created=1,
+        feai=["INC000000001"],
+    )
+    activity.update(
+        errors_reported=2,
+        incidents_created=1,
+        feai=["FEAI INC000000002"],
+    )
+    assert activity.feai == ["FEAI-INC000000002"]

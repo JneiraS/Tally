@@ -171,4 +171,32 @@ describe('FeaiTagInput', () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Annuler' })).toBeNull();
   });
+
+  it('accepte un préfixe et enregistre la forme canonique', () => {
+    const { onChange } = renderInput([]);
+
+    fireEvent.change(screen.getByLabelText('Ajouter une référence FEAI'), {
+      target: { value: 'FE INC000000123' },
+    });
+    fireEvent.keyDown(screen.getByLabelText('Ajouter une référence FEAI'), {
+      key: 'Enter',
+    });
+
+    expect(onChange).toHaveBeenCalledWith(['FE-INC000000123']);
+    expect(screen.queryByText(/Format attendu/)).toBeNull();
+  });
+
+  it('refuse une seconde écriture de la même référence avec un autre séparateur', () => {
+    const { onChange } = renderInput(['FE-INC000000123']);
+
+    fireEvent.change(screen.getByLabelText('Ajouter une référence FEAI'), {
+      target: { value: 'FE/INC000000123' },
+    });
+    fireEvent.keyDown(screen.getByLabelText('Ajouter une référence FEAI'), {
+      key: 'Enter',
+    });
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByText(/Référence en doublon/)).toBeInTheDocument();
+  });
 });

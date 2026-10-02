@@ -1,17 +1,31 @@
 import { describe, it, expect } from 'vitest';
 import {
   isValidFeai,
+  normalizeFeai,
   validateActivityForm,
   validateScopeForm,
 } from '../utils/validation';
 import { isValidIsoDate, formatDateFr } from '../utils/date';
 
 describe('Validation des invariants métier ProTab', () => {
-  describe('Format FEAI (^INC\\d{9}$)', () => {
+  describe('Format FEAI (préfixe facultatif + INC\\d{9})', () => {
     it('valide les codes conformes', () => {
       expect(isValidFeai('INC000000001')).toBe(true);
       expect(isValidFeai('INC123456789')).toBe(true);
       expect(isValidFeai('INC999999999')).toBe(true);
+    });
+
+    it('valide un préfixe de 2 à 5 lettres devant le code INC', () => {
+      expect(isValidFeai('FE-INC000000001')).toBe(true);
+      expect(isValidFeai('FEAI-INC000000001')).toBe(true);
+    });
+
+    it('accepte une espace, un slash ou rien comme séparateur', () => {
+      // La saisie libre est tolérée : c'est normalizeFeai qui ramène la
+      // référence à la forme canonique avant validation.
+      expect(isValidFeai('FE INC000000001')).toBe(true);
+      expect(isValidFeai('FE/INC000000001')).toBe(true);
+      expect(isValidFeai('FEAIINC000000001')).toBe(true);
     });
 
     it('rejette les formats non conformes', () => {
@@ -19,8 +33,39 @@ describe('Validation des invariants métier ProTab', () => {
       expect(isValidFeai('INC1234567')).toBe(false); // trop court (7 chiffres)
       expect(isValidFeai('INC1234567890')).toBe(false); // trop long (10 chiffres)
       expect(isValidFeai('inc000000001')).toBe(false); // minuscules
-      expect(isValidFeai('FEAI000000001')).toBe(false); // mauvais préfixe
+      expect(isValidFeai('FEAI000000001')).toBe(false); // pas de code INC
+      expect(isValidFeai('X-INC000000001')).toBe(false); // préfixe d'une lettre
+      expect(isValidFeai('ABCDEF-INC000000001')).toBe(false); // préfixe de six lettres
       expect(isValidFeai('INC00000000A')).toBe(false); // lettres au lieu de chiffres
+    });
+  });
+
+  describe('normalizeFeai', () => {
+    it('ramène tout séparateur à un tiret unique', () => {
+      expect(normalizeFeai('FE INC000000001')).toBe('FE-INC000000001');
+      expect(normalizeFeai('FE-INC000000001')).toBe('FE-INC000000001');
+      expect(normalizeFeai('FE/INC000000001')).toBe('FE-INC000000001');
+      expect(normalizeFeai('  FE - INC000000001  ')).toBe('FE-INC000000001');
+    });
+
+    it('insère le tiret d\'un préfixe collé au code', () => {
+      expect(normalizeFeai('FEAIINC000000001')).toBe('FEAI-INC000000001');
+    });
+
+    it('laisse une référence sans préfixe inchangée', () => {
+      expect(normalizeFeai('INC000000001')).toBe('INC000000001');
+    });
+
+    it('est idempotente : une forme canonique ne bouge plus', () => {
+      expect(normalizeFeai(normalizeFeai('FEAI INC000000001'))).toBe(
+        'FEAI-INC000000001'
+      );
+    });
+
+    it('ne fabrique pas de tiret dans un code INC', () => {
+      // Le tiret ne se place que devant un préfixe : INC-000000001 reste
+      // invalide, faute de code INC derrière.
+      expect(isValidFeai('INC-000000001')).toBe(false);
     });
   });
 
@@ -74,6 +119,21 @@ describe('Validation des invariants métier ProTab', () => {
 
       expect(result.isValid).toBe(false);
       expect(result.errors.feai_items?.[1]).toContain('doublon');
+    });
+
+    it('rejette un doublon écrit avec un autre séparateur', () => {
+      // Le doublon se juge sur la forme canonique : sans cela la même
+      // référence passerait deux fois dans la même journée.
+      const result = validateActivityForm({
+        day: '2026-09-19',
+        errors_reported: 5,
+        incidents_created: 2,
+        feai: ['FE INC000000001', 'FE-INC000000001'],
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errors.feai_items?.[1]).toContain('doublon');
+      expect(result.errors.feai_items?.[1]).toContain('FE-INC000000001');
     });
 
     it('interdit la création si le jour est déjà présent pour ce périmètre', () => {

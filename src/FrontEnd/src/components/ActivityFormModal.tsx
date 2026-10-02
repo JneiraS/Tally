@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Trash2, Calendar, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { Modal } from './Modal';
 import { DailyActivity } from '../types';
-import { validateActivityForm, isValidFeai } from '../utils/validation';
+import { FEAI_MAX_LENGTH, isValidFeai, normalizeFeai, validateActivityForm } from '../utils/validation';
 import { getTodayIsoDate, formatDateFr } from '../utils/date';
 import { protabApi, ApiError } from '../services/api';
 import { useToast } from '../hooks/useToast';
@@ -75,8 +75,10 @@ export function ActivityFormModal({
   };
 
   const handleFeaiChange = (index: number, val: string) => {
-    // Nettoyer automatiquement et mettre en majuscules
-    const upperVal = val.trim().toUpperCase();
+    // Majuscules seulement : le trim à la frappe effaçait la séparatrice que
+    // l'utilisateur tape entre le préfixe et le code (« FE INC… »). La forme
+    // canonique est obtenue à l'enregistrement, pas pendant la saisie.
+    const upperVal = val.toUpperCase();
     setFeaiList((prev) => {
       const next = [...prev];
       next[index] = upperVal;
@@ -130,7 +132,7 @@ export function ActivityFormModal({
     try {
       const numErrors = Number(errorsReported);
       const numIncidents = Number(incidentsCreated);
-      const cleanedFeai = feaiList.map((f) => f.trim().toUpperCase());
+      const cleanedFeai = feaiList.map((f) => normalizeFeai(f));
 
       if (isEditMode) {
         // PATCH /scope-monitorings/{id}/activities/{day}
@@ -318,7 +320,7 @@ export function ActivityFormModal({
                 Références FEAI ({feaiList.length})
               </span>
               <p className="text-[11px] text-slate-500 dark:text-nord-4">
-                Format obligatoire : <code className="text-blue-700 dark:text-nord-8">INC + 9 chiffres</code> (ex: INC000000001), sans doublon.
+                Format obligatoire : <code className="text-blue-700 dark:text-nord-8">INC + 9 chiffres</code>, précédé d'un préfixe facultatif de 2 à 5 lettres (ex: FE-INC000000001), sans doublon.
               </p>
             </div>
             <button
@@ -341,7 +343,7 @@ export function ActivityFormModal({
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {feaiList.map((code, idx) => {
                 const itemError = feaiItemErrors[idx];
-                const valid = code.length === 12 && isValidFeai(code);
+                const valid = isValidFeai(code);
 
                 return (
                   <div key={idx} className="space-y-1">
@@ -351,8 +353,9 @@ export function ActivityFormModal({
                           type="text"
                           value={code}
                           onChange={(e) => handleFeaiChange(idx, e.target.value)}
-                          placeholder="INC000000001"
-                          maxLength={12}
+                          placeholder="FE-INC000000001"
+                          maxLength={FEAI_MAX_LENGTH}
+                          aria-label={`Référence FEAI ${idx + 1}`}
                           className={`w-full px-3 py-1.5 text-xs font-mono tracking-wider bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                             itemError
                               ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10'

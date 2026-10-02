@@ -17,10 +17,10 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 147 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 134 tests, dont **84 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 164 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 138 tests, dont **84 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 204 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 218 tests (vitest) |
 
 Deux exécutions, donc :
 
@@ -30,10 +30,10 @@ make test-db       # tout, y compris PostgreSQL
 ```
 
 **Reality check, chiffres mesurés sur ce dépôt :** `make test` sans
-`PROTAB_TEST_DATABASE_URL` affiche `167 passed, 80 skipped`. C'est le piège
+`PROTAB_TEST_DATABASE_URL` affiche `219 passed, 84 skipped`. C'est le piège
 principal : **un tiers de la suite n'a pas tourné**, et un « tout est vert »
 local n'est pas une preuve de non-régression des adaptateurs. Seuls
-`make test-db` et le compte `247 tests collected` distinguent les deux cas.
+`make test-db` et le compte `303 tests collected` distinguent les deux cas.
 
 ---
 
@@ -46,7 +46,7 @@ helpers explicites. Chaque module déclare ses propres doublures.
 
 | Fichier | Objet |
 | --- | --- |
-| `daily_activity_test.py` (16) | Mise à jour, clôture, contraintes de `feai` |
+| `daily_activity_test.py` (31) | Mise à jour, clôture, contraintes et canonicalisation de `feai` |
 | `official_code_test.py` (14) | Forme scalaire du quadrigramme : longueur, `/` refusé |
 | `non_working_days_test.py` (17) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
 | `scope_monitoring_test.py` (11) | Accès à une activité par jour, agrégat |
@@ -115,7 +115,7 @@ Deux détails qui font gagner du temps :
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `api_test.py` | 28 | Routes métier avec un adaptateur en mémoire injecté |
+| `api_test.py` | 30 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI |
 | `auth_api_test.py` | 9 | Login, session, cookie `Secure`, expiration du cookie alignée sur la session |
 | `audit_log_api_test.py` | 4 | Journal d'audit et sa pagination |
 | `scope_monitoring_csv_reader_test.py` | 6 | Lecture et rejet de CSV |
@@ -179,7 +179,7 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Vingt-cinq fichiers dans `src/FrontEnd/src/test/`. `src/test/setup.ts` importe
+Vingt-six fichiers dans `src/FrontEnd/src/test/`. `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
 le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et
 attend deux réponses d'API. En revanche ni `ResizeObserver` ni dimensions ne sont
@@ -189,7 +189,7 @@ Les tests se répartissent entre logique pure (`kpi.test.ts`, `export.test.ts`,
 `validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`,
 `analytics.test.ts`, `nonWorkingDays.test.ts`, `search.test.ts`) et rendu de
 composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
-`FeaiTagInput`, `ExportModal`, `DateNavigator`, `LoginBackground`,
+`FeaiTagInput`, `ActivityFormModal`, `ExportModal`, `DateNavigator`, `LoginBackground`,
 `AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`, `AuditActivityHeatmap`,
 `AuditShortcut`, `apiUnauthorized`, `AnalyticsPage`, `AnalyticsFilterBar`,
 `AnalyticsScopePicker`, `PageNav`, `PageShortcuts`).
