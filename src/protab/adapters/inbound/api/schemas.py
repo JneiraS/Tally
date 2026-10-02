@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from protab.domain.entities.scope_monitoring import NOTE_MAX_LENGTH
 from protab.domain.value_objects.non_working_days import (
     ISO_WEEKDAY_COUNT,
     MAX_ISO_WEEKDAY,
@@ -15,6 +16,13 @@ class CreateScopeItem(BaseModel):
     official_main: str
     official_backup: str
     billing_code: str = Field(min_length=1)
+
+
+class UpdateScopeNoteRequest(BaseModel):
+    # The bound is the domain's own constant: re-declaring 2000 here would let
+    # the two drift, and the request schema is the only entry point where an
+    # oversized note is refused before it reaches the entity.
+    note: str | None = Field(default=None, max_length=NOTE_MAX_LENGTH)
 
 
 class CompleteRequest(BaseModel):
@@ -101,6 +109,7 @@ class ScopeResponse(BaseModel):
     official_main: str
     official_backup: str
     billing_code: str | None
+    note: str | None
     daily_activities: list[ActivityResponse]
 
 

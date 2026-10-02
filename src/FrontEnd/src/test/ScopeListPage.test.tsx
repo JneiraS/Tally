@@ -11,6 +11,7 @@ import { ToastContainer } from '../components/Toast';
 import { KNOWLEDGE_BASE_URL } from '../utils/knowledgeBase';
 import { protabApi } from '../services/api';
 import { getTodayIsoDate } from '../utils/date';
+import { makeScope } from './factories';
 
 vi.mock('../services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/api')>();
@@ -43,7 +44,7 @@ describe('ScopeListPage Component', () => {
 
   it('signale les périmètres non traités du dernier jour ouvré', async () => {
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'scope-untreated',
         name: 'Scope non traité',
         knowledge_base_id: 'KB-UNTREATED',
@@ -51,8 +52,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: 'scope-handled',
         name: 'Scope traité',
         knowledge_base_id: 'KB-HANDLED',
@@ -69,7 +70,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ]);
 
     render(
@@ -93,7 +94,7 @@ describe('ScopeListPage Component', () => {
 
   it('masque le bandeau lorsqu’on consulte le dernier jour ouvré', async () => {
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'scope-untreated',
         name: 'Scope non traité',
         knowledge_base_id: 'KB-UNTREATED',
@@ -101,7 +102,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
+      }),
     ]);
 
     render(
@@ -130,7 +131,7 @@ describe('ScopeListPage Component', () => {
   it('remonte au vendredi depuis un lundi pour le dernier jour ouvré', async () => {
     vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-21');
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'scope-untreated',
         name: 'Scope non traité',
         knowledge_base_id: 'KB-UNTREATED',
@@ -138,7 +139,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
+      }),
     ]);
 
     render(
@@ -161,7 +162,7 @@ describe('ScopeListPage Component', () => {
     // Le code est obligatoire à la création mais reste absent des périmètres
     // enregistrés avant son introduction : l'API ne réécrit pas l'historique.
     const mockScopes = [
-      {
+      makeScope({
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Facturé',
         knowledge_base_id: 'KB-FACT-0001',
@@ -169,8 +170,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: '223e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Ancien',
         knowledge_base_id: 'KB-FACT-0002',
@@ -178,7 +179,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: null,
         daily_activities: [],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -223,7 +224,7 @@ describe('ScopeListPage Component', () => {
 
   it('filtre les périmètres par code de facturation', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Facturé',
         knowledge_base_id: 'KB-FACT-0001',
@@ -231,8 +232,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: 'FACT-2026-REC',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: '223e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Infrastructure',
         knowledge_base_id: 'KB-FACT-0002',
@@ -240,7 +241,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Bob',
         billing_code: 'FACT-2026-INF',
         daily_activities: [],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValue(mockScopes);
@@ -275,7 +276,7 @@ describe('ScopeListPage Component', () => {
     // L'ordre d'arrivée est volontairement l'inverse du résultat attendu :
     // seul un réordonnancement peut produire cette liste.
     const mockScopes = [
-      {
+      makeScope({
         id: 'aaaa1111-e21b-23c4-a456-426614174000',
         name: 'Périmètre Suppléant',
         knowledge_base_id: 'KB-SUPP-0001',
@@ -283,8 +284,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'MAMA',
         billing_code: 'FACT-2026-SUP',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: 'bbbb2222-e21b-23c4-a456-426614174000',
         name: 'MAMA Prod',
         knowledge_base_id: 'KB-NOM-0001',
@@ -292,8 +293,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'LOTO',
         billing_code: 'FACT-2026-NOM',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: 'cccc3333-e21b-23c4-a456-426614174000',
         name: 'Périmètre Responsable',
         knowledge_base_id: 'KB-RESP-0001',
@@ -301,7 +302,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'LOTO',
         billing_code: 'FACT-2026-RES',
         daily_activities: [],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -351,7 +352,7 @@ describe('ScopeListPage Component', () => {
 
   it('affiche le chargement puis la liste des périmètres', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Alpha Test',
         knowledge_base_id: 'KB-TEST-0001',
@@ -368,7 +369,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -408,7 +409,7 @@ describe('ScopeListPage Component', () => {
 
   it('affiche les KPI action-first (à traiter, terminés, erreurs, incidents)', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Alpha Test',
         knowledge_base_id: 'KB-TEST-0001',
@@ -425,7 +426,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -479,7 +480,7 @@ describe('ScopeListPage Component', () => {
 
   it('le filtre "À traiter" conserve "En cours" et "Non saisi" mais masque "Terminé"', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '111e4567-e89b-12d3-a456-426614174001',
         name: 'Scope En Cours Filtre',
         knowledge_base_id: 'KB-FILTRE-01',
@@ -496,8 +497,8 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
-      {
+      }),
+      makeScope({
         id: '222e4567-e89b-12d3-a456-426614174002',
         name: 'Scope Non Saisi Filtre',
         knowledge_base_id: 'KB-FILTRE-02',
@@ -505,8 +506,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Dave',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: '333e4567-e89b-12d3-a456-426614174003',
         name: 'Scope Terminé Filtre',
         knowledge_base_id: 'KB-FILTRE-03',
@@ -523,7 +524,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -556,7 +557,7 @@ describe('ScopeListPage Component', () => {
 
   it('le filtre "Erreurs" n\'affiche que les périmètres avec erreurs signalées', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '111e4567-e89b-12d3-a456-426614174001',
         name: 'Scope Avec Erreurs',
         knowledge_base_id: 'KB-FILTRE-01',
@@ -573,8 +574,8 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
-      {
+      }),
+      makeScope({
         id: '222e4567-e89b-12d3-a456-426614174002',
         name: 'Scope Non Saisi Filtre',
         knowledge_base_id: 'KB-FILTRE-02',
@@ -582,8 +583,8 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Dave',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
-      {
+      }),
+      makeScope({
         id: '333e4567-e89b-12d3-a456-426614174003',
         name: 'Scope Terminé Filtre',
         knowledge_base_id: 'KB-FILTRE-03',
@@ -600,7 +601,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -633,7 +634,7 @@ describe('ScopeListPage Component', () => {
 
   it('le filtre "Terminés" n\'affiche que les périmètres complétés', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '111e4567-e89b-12d3-a456-426614174001',
         name: 'Scope En Cours Filtre',
         knowledge_base_id: 'KB-FILTRE-01',
@@ -650,8 +651,8 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
-      {
+      }),
+      makeScope({
         id: '333e4567-e89b-12d3-a456-426614174003',
         name: 'Scope Terminé Filtre',
         knowledge_base_id: 'KB-FILTRE-03',
@@ -668,7 +669,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -699,7 +700,7 @@ describe('ScopeListPage Component', () => {
 
   it('marque le périmètre "En cours" comme terminé via le bouton', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Scope En Cours',
         knowledge_base_id: 'KB-EN-COURS-01',
@@ -716,7 +717,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -758,7 +759,7 @@ describe('ScopeListPage Component', () => {
 
   it('crée une activité vide puis complète un périmètre "Non saisi"', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '987e6543-e21b-23c4-a456-426614174000',
         name: 'Scope Non Saisi',
         knowledge_base_id: 'KB-NON-SAISI-01',
@@ -766,7 +767,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Dana',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -809,7 +810,7 @@ describe('ScopeListPage Component', () => {
 
   it('affiche un toast d\'erreur si la complétion échoue', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '123e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Erreur',
         knowledge_base_id: 'KB-ERREUR-01',
@@ -826,7 +827,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -868,7 +869,7 @@ describe('ScopeListPage Component', () => {
 
   it('saisit des erreurs/incidents sur une ligne "Non saisi" et crée l\'activité en autosave', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '987e6543-e21b-23c4-a456-426614174000',
         name: 'Scope Nouvelle Saisie',
         knowledge_base_id: 'KB-SAISIE-01',
@@ -876,7 +877,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Dana',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -925,7 +926,7 @@ describe('ScopeListPage Component', () => {
 
   it('modifie les erreurs d\'un jour existant via updateActivity en autosave', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: 'acbd1234-e21b-23c4-a456-426614174000',
         name: 'Scope Existant',
         knowledge_base_id: 'KB-EXISTANT-01',
@@ -942,7 +943,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -986,7 +987,7 @@ describe('ScopeListPage Component', () => {
 
   it('ouvre la modale d\'export depuis le bouton Exporter de l\'en-tête', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '9922e4567-e89b-12d3-a456-426614174000',
         name: 'Scope Export',
         knowledge_base_id: 'KB-EXPORT-01',
@@ -1003,7 +1004,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -1039,7 +1040,7 @@ describe('ScopeListPage Component', () => {
 
   it('ajoute une référence FEAI sur un jour existant via updateActivity en autosave', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '55551234-e21b-23c4-a456-426614174000',
         name: 'Scope FEAI Existant',
         knowledge_base_id: 'KB-FEAI-01',
@@ -1056,7 +1057,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -1104,7 +1105,7 @@ describe('ScopeListPage Component', () => {
 
   it('ajoute une référence FEAI sur un jour non saisi via createActivity en autosave', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '66664321-e21b-23c4-a456-426614174000',
         name: 'Scope FEAI Nouveau',
         knowledge_base_id: 'KB-FEAI-02',
@@ -1112,7 +1113,7 @@ describe('ScopeListPage Component', () => {
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
         daily_activities: [],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -1155,7 +1156,7 @@ describe('ScopeListPage Component', () => {
 
   it('supprime une référence FEAI via la croix et sauvegarde via updateActivity', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '77774321-e21b-23c4-a456-426614174000',
         name: 'Scope FEAI Suppression',
         knowledge_base_id: 'KB-FEAI-03',
@@ -1172,7 +1173,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -1216,7 +1217,7 @@ describe('ScopeListPage Component', () => {
 
   it('restaure une référence FEAI annihilée par le bouton Annuler', async () => {
     const mockScopes = [
-      {
+      makeScope({
         id: '88884321-e21b-23c4-a456-426614174000',
         name: 'Scope FEAI Annulation',
         knowledge_base_id: 'KB-FEAI-04',
@@ -1233,7 +1234,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
@@ -1289,7 +1290,7 @@ describe('ScopeListPage Component', () => {
   it('ouvre sur le dernier jour ouvré quand la date du jour n\'est pas ouvrée', async () => {
     vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-27');
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'aaaa1111-e21b-23c4-a456-426614174000',
         name: 'Scope Historique',
         knowledge_base_id: 'KB-HISTOR-01',
@@ -1306,7 +1307,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ]);
 
     render(
@@ -1333,7 +1334,7 @@ describe('ScopeListPage Component', () => {
   it('affiche les compteurs du jour sélectionné après un changement de jour', async () => {
     vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-25');
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'bbbb2222-e21b-23c4-a456-426614174000',
         name: 'Scope Deux Jours',
         knowledge_base_id: 'KB-DEUXJOURS-1',
@@ -1358,7 +1359,7 @@ describe('ScopeListPage Component', () => {
             completed: false,
           },
         ],
-      },
+      }),
     ]);
 
     render(
@@ -1393,7 +1394,7 @@ describe('ScopeListPage Component', () => {
   it('signale la dernière saisie et permet d\'afficher cette journée', async () => {
     vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-28');
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'cccc3333-e21b-23c4-a456-426614174000',
         name: 'Scope Retard',
         knowledge_base_id: 'KB-RETARD-001',
@@ -1410,7 +1411,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ]);
 
     render(
@@ -1446,7 +1447,7 @@ describe('ScopeListPage Component', () => {
   it('n\'affiche pas le bandeau « dernière saisie » quand le jour affiché contient des données', async () => {
     vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-25');
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
-      {
+      makeScope({
         id: 'dddd4444-e21b-23c4-a456-426614174000',
         name: 'Scope A Jour',
         knowledge_base_id: 'KB-AJOUR-0001',
@@ -1471,7 +1472,7 @@ describe('ScopeListPage Component', () => {
             completed: true,
           },
         ],
-      },
+      }),
     ]);
 
     render(

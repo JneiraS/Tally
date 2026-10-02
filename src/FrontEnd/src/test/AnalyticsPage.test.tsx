@@ -8,6 +8,7 @@ import { AnalyticsPage } from "../pages/AnalyticsPage";
 import { protabApi } from "../services/api";
 import { getTodayIsoDate } from "../utils/date";
 import type { NonWorkingDays } from "../types";
+import { makeScope } from './factories';
 
 vi.mock("../services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/api")>();
@@ -29,7 +30,7 @@ vi.mock("../utils/date", async (importOriginal) => {
 });
 
 const SCOPES = [
-  {
+  makeScope({
     id: "s1",
     name: "Alpha",
     knowledge_base_id: "KB-ANALYSE-1",
@@ -46,8 +47,8 @@ const SCOPES = [
         completed: true,
       },
     ],
-  },
-  {
+  }),
+  makeScope({
     id: "s2",
     name: "Beta",
     knowledge_base_id: "KB-ANALYSE-2",
@@ -64,7 +65,7 @@ const SCOPES = [
         completed: false,
       },
     ],
-  },
+  }),
 ];
 
 const NON_WORKING_DAYS: NonWorkingDays = {

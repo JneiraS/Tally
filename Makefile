@@ -1,4 +1,4 @@
-.PHONY: help install test test-v test-failed run frontend db-up db-down db-shell docker-up docker-down project-admin test-db clean
+.PHONY: help install test test-v test-failed typecheck run frontend db-up db-down db-shell docker-up docker-down project-admin test-db clean
 
 # URL de la base dédiée aux tests d'intégration PostgreSQL
 TEST_DATABASE_URL ?= postgresql://protab:protab@localhost:5432/protab_test
@@ -31,6 +31,10 @@ test-v:
 ## test-failed: Rejoue uniquement les derniers tests en échec
 test-failed:
 	uv run pytest --lf
+
+## typecheck: Vérifie les annotations du cœur applicatif (src/protab) avec mypy
+typecheck:
+	uv run mypy
 
 ## db-up: Démarre PostgreSQL (docker compose) pour le développement local
 db-up:

@@ -61,7 +61,7 @@ src/FrontEnd/src/
 ├── hooks/                useTheme, useToast
 ├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
 │                         AuditLogPage, LoginPage, NotFoundPage
-├── components/           25 composants (modales, éditeurs, graphiques, toasts)
+├── components/           26 composants (modales, éditeurs, graphiques, toasts)
 └── utils/                kpi, date, export, validation, knowledgeBase,
                           auditStats, analytics, search
 ```
@@ -261,6 +261,26 @@ qu'ils tombent dans `UNDO_DURATION_MS` (6000 ms, `useToast.tsx:49`), et l'action
 rejoue les entrées **à l'envers**. Le debounce rend les rafales plus fréquentes
 qu'on ne le croit : deux suppressions à 1,5 s s'effacent en un seul `PATCH`, donc
 en un seul écrasement.
+
+### La note du périmètre — un brouillon, pas un autosave
+
+`ScopeNoteCard` est le seul champ éditable de la page de détail qui ne soit pas
+un compteur d'activité, et il ne se comporte pas comme eux : c'est un
+**brouillon** avec « Enregistrer » / « Annuler ». Un autosave y enverrait un
+`PATCH` par frappe au clavier, donc **un événement d'audit par caractère tapé**.
+
+Deux détails qu'il ne faut pas « simplifier » :
+
+- le bouton compare la valeur **nettoyée** à la valeur enregistrée, donc
+  « note » et «  note  » ne sont pas considérés comme un brouillon modifié ;
+- la carte renvoie la note enregistrée via `onSaved(note)` et la page ne
+  recharge rien : un `fetchScopeDetail()` au retour du `PATCH` remettrait
+  `isLoading` à vrai et effacerait la journée sélectionnée.
+
+La note est éditable **depuis la page de détail uniquement** : ni la liste, ni la
+recherche, ni l'export CSV n'en tiennent compte. Elle est au plus
+`NOTE_MAX_LENGTH` (2000) caractères — le serveur refuse au-delà, le champ n'a pas
+de `maxLength` pour ne pas tronquer la frappe.
 
 ### Saisie d'une référence FEAI
 

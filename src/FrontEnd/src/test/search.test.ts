@@ -8,17 +8,16 @@ import {
   officialMatchRank,
   sortByOfficialRelevance,
 } from '../utils/search';
+import { makeScope } from './factories';
 
 function scope(overrides: Partial<ScopeMonitoring> & { id: string }): ScopeMonitoring {
-  return {
+  return makeScope({
     name: `Scope ${overrides.id}`,
     knowledge_base_id: 'KB-00000001',
     official_main: 'MAMA',
     official_backup: 'LOTO',
-    billing_code: 'FACT-2026-PAI',
-    daily_activities: [],
     ...overrides,
-  };
+  });
 }
 
 describe('matchesSearchQuery', () => {

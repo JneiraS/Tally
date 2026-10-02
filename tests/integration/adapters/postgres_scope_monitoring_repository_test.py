@@ -28,7 +28,9 @@ from protab.domain.entities.scope_monitoring import (
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DuplicateDailyActivityError,
+    ScopeMonitoringAlreadyExistsError,
     ScopeMonitoringNameAlreadyExistsError,
+    ScopeMonitoringNotFoundError,
 )
 
 TEST_DATABASE_URL = os.getenv("PROTAB_TEST_DATABASE_URL")
@@ -54,6 +56,7 @@ def make_scope(
     name: str = "Scope A",
     day: date | None = None,
     billing_code: str | None = "FACT-2026-PAI",
+    note: str | None = None,
 ) -> ScopeMonitoring:
     scope = ScopeMonitoring(
         id=scope_id,
@@ -61,6 +64,7 @@ def make_scope(
         knowledge=KnowledgeBase(id="KB-00000001"),
         officials=Officials(main="Main", backup="Backup"),
         billing_code=billing_code,
+        note=note,
     )
     if day is not None:
         scope.add_daily_activity(
@@ -178,7 +182,14 @@ def test_billing_code_column_is_nullable(repo):
     assert loaded.billing_code is None
 
 
-def test_save_replaces_aggregate_on_second_save(repo):
+def test_save_refuses_an_existing_scope(repo):
+    """``save`` creates a row; it never rewrites one.
+
+    A second ``save`` used to overwrite the scope and reinsert every activity,
+    which silently dropped whatever another user had written in between. The
+    adapter refuses instead, and the caller has to name the rows it means to
+    change.
+    """
     scope = make_scope(day=date(2026, 9, 19))
     repo.save(scope)
 
@@ -191,10 +202,12 @@ def test_save_replaces_aggregate_on_second_save(repo):
             feai=[],
         )
     )
-    repo.save(scope)
+
+    with pytest.raises(ScopeMonitoringAlreadyExistsError):
+        repo.save(scope)
 
     loaded = repo.find_by_id("scope-001")
-    assert set(loaded.daily_activities.keys()) == {date(2026, 9, 20)}
+    assert set(loaded.daily_activities.keys()) == {date(2026, 9, 19)}
 
 
 # --- Targeted activity writes ---------------------------------------------
@@ -499,6 +512,9 @@ def test_find_by_id_returns_none_when_absent(repo):
 
 
 def test_save_duplicate_name_raises_domain_error(repo):
+    # The name is a separate constraint from the id: the insert still raises,
+    # which the adapter translates. Only the id is absorbed by the insert
+    # clause, so the two refusals take different SQL paths on purpose.
     repo.save(make_scope())
 
     duplicate = make_scope(scope_id="scope-other", name="Scope A")
@@ -607,6 +623,8 @@ def test_adapters_refuse_to_read_or_write_without_project_context(repo):
         repo.find_by_name("Scope A")
     with pytest.raises(MissingProjectContextError):
         repo.save(make_scope())
+    with pytest.raises(MissingProjectContextError):
+        repo.update_note("scope-001", "Note")
 
 
 def test_find_all_returns_only_the_requesting_project_scopes(repo):
@@ -617,3 +635,74 @@ def test_find_all_returns_only_the_requesting_project_scopes(repo):
     assert repo.find_by_id("scope-alpha") is None
     assert repo.find_by_name("Scope Alpha") is None
     assert repo.find_all_scope_names() == {}
+
+
+# --- Targeted scope write (note) --------------------------------------------
+
+
+def test_update_note_touches_its_own_row_only(repo):
+    """The write must name the rows it changes, like the activity writes.
+
+    A full rewrite would delete and reinsert every activity of the scope, so a
+    concurrent edit to another day would be silently dropped.
+    """
+    scope = make_scope(day=date(2026, 9, 19))
+    scope.daily_activities[date(2026, 9, 18)] = DailyActivity(
+        day=date(2026, 9, 18),
+        errors_reported=7,
+        incidents_created=3,
+        feai=["INC000000009"],
+    )
+    repo.save(scope)
+
+    repo.update_note("scope-001", "Incident de facturation à suivre.")
+
+    reloaded = repo.find_by_id("scope-001")
+    assert reloaded.note == "Incident de facturation à suivre."
+    assert reloaded.daily_activity_for(date(2026, 9, 19)).errors_reported == 2
+    assert reloaded.daily_activity_for(date(2026, 9, 18)).errors_reported == 7
+    assert reloaded.daily_activity_for(date(2026, 9, 18)).feai == ["INC000000009"]
+
+
+def test_update_note_can_clear_the_note(repo):
+    repo.save(make_scope(note="à supprimer"))
+    repo.update_note("scope-001", None)
+
+    assert repo.find_by_id("scope-001").note is None
+
+
+def test_update_note_unknown_scope_raises(repo):
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_note("inconnu", "Note")
+
+
+def test_update_note_refuses_another_project(repo):
+    repo.save(make_scope())
+    set_current_project("other-project")
+
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_note("scope-001", "Ne doit pas écrire")
+
+
+def test_save_carries_a_note_on_creation(repo):
+    repo.save(make_scope(note="contexte importé"))
+
+    assert repo.find_by_id("scope-001").note == "contexte importé"
+
+
+def test_a_refused_save_leaves_a_concurrent_note_intact(repo):
+    """The refusal happens before any write, not after a partial merge.
+
+    ``save`` used to insert the note on creation but leave the stored one alone
+    on conflict, so an edit made between the read and the write survived while
+    every other value it had not re-read was lost. Refusing the insert removes
+    that asymmetry instead of documenting it.
+    """
+    scope = make_scope(day=date(2026, 9, 19))
+    repo.save(scope)
+    repo.update_note("scope-001", "écrite entre-temps")
+
+    with pytest.raises(ScopeMonitoringAlreadyExistsError):
+        repo.save(scope)
+
+    assert repo.find_by_id("scope-001").note == "écrite entre-temps"

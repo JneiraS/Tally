@@ -8,6 +8,7 @@ from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DomainError,
     DuplicateDailyActivityError,
+    ScopeMonitoringAlreadyExistsError,
     ScopeMonitoringNameAlreadyExistsError,
     ScopeMonitoringNotFoundError,
 )
@@ -17,6 +18,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ScopeMonitoringNotFoundError, not_found)
     app.add_exception_handler(DailyActivityNotFoundError, not_found)
     app.add_exception_handler(ScopeMonitoringNameAlreadyExistsError, conflict)
+    app.add_exception_handler(ScopeMonitoringAlreadyExistsError, conflict)
     app.add_exception_handler(DuplicateDailyActivityError, conflict)
     app.add_exception_handler(ScopeMonitoringCsvError, bad_request)
     app.add_exception_handler(DomainError, bad_request)
