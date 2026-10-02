@@ -13,6 +13,7 @@ const scope = {
   official_main: 'Alice',
   official_backup: 'Bob',
   billing_code: 'FACT-2026-PAI',
+  note: null,
   daily_activities: [
     {
       day: '2026-09-19',

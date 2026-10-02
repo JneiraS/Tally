@@ -29,6 +29,7 @@ from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DuplicateDailyActivityError,
     ScopeMonitoringNameAlreadyExistsError,
+    ScopeMonitoringNotFoundError,
 )
 
 TEST_DATABASE_URL = os.getenv("PROTAB_TEST_DATABASE_URL")
@@ -54,6 +55,7 @@ def make_scope(
     name: str = "Scope A",
     day: date | None = None,
     billing_code: str | None = "FACT-2026-PAI",
+    note: str | None = None,
 ) -> ScopeMonitoring:
     scope = ScopeMonitoring(
         id=scope_id,
@@ -61,6 +63,7 @@ def make_scope(
         knowledge=KnowledgeBase(id="KB-00000001"),
         officials=Officials(main="Main", backup="Backup"),
         billing_code=billing_code,
+        note=note,
     )
     if day is not None:
         scope.add_daily_activity(
@@ -607,6 +610,8 @@ def test_adapters_refuse_to_read_or_write_without_project_context(repo):
         repo.find_by_name("Scope A")
     with pytest.raises(MissingProjectContextError):
         repo.save(make_scope())
+    with pytest.raises(MissingProjectContextError):
+        repo.update_note("scope-001", "Note")
 
 
 def test_find_all_returns_only_the_requesting_project_scopes(repo):
@@ -617,3 +622,72 @@ def test_find_all_returns_only_the_requesting_project_scopes(repo):
     assert repo.find_by_id("scope-alpha") is None
     assert repo.find_by_name("Scope Alpha") is None
     assert repo.find_all_scope_names() == {}
+
+
+# --- Targeted scope write (note) --------------------------------------------
+
+
+def test_update_note_touches_its_own_row_only(repo):
+    """The write must name the rows it changes, like the activity writes.
+
+    A full rewrite would delete and reinsert every activity of the scope, so a
+    concurrent edit to another day would be silently dropped.
+    """
+    scope = make_scope(day=date(2026, 9, 19))
+    scope.daily_activities[date(2026, 9, 18)] = DailyActivity(
+        day=date(2026, 9, 18),
+        errors_reported=7,
+        incidents_created=3,
+        feai=["INC000000009"],
+    )
+    repo.save(scope)
+
+    repo.update_note("scope-001", "Incident de facturation à suivre.")
+
+    reloaded = repo.find_by_id("scope-001")
+    assert reloaded.note == "Incident de facturation à suivre."
+    assert reloaded.daily_activity_for(date(2026, 9, 19)).errors_reported == 2
+    assert reloaded.daily_activity_for(date(2026, 9, 18)).errors_reported == 7
+    assert reloaded.daily_activity_for(date(2026, 9, 18)).feai == ["INC000000009"]
+
+
+def test_update_note_can_clear_the_note(repo):
+    repo.save(make_scope(note="à supprimer"))
+    repo.update_note("scope-001", None)
+
+    assert repo.find_by_id("scope-001").note is None
+
+
+def test_update_note_unknown_scope_raises(repo):
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_note("inconnu", "Note")
+
+
+def test_update_note_refuses_another_project(repo):
+    repo.save(make_scope())
+    set_current_project("other-project")
+
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_note("scope-001", "Ne doit pas écrire")
+
+
+def test_save_carries_a_note_on_creation(repo):
+    repo.save(make_scope(note="contexte importé"))
+
+    assert repo.find_by_id("scope-001").note == "contexte importé"
+
+
+def test_save_does_not_erase_a_note_written_concurrently(repo):
+    """``save`` owns the aggregate, not the note.
+
+    It may create a row from an aggregate that carries a note, but it must not
+    overwrite the stored one: it re-reads nothing, and a note edited between the
+    read and the write would be lost without any trace.
+    """
+    scope = make_scope(day=date(2026, 9, 19))
+    repo.save(scope)
+    repo.update_note("scope-001", "écrite entre-temps")
+
+    repo.save(scope)
+
+    assert repo.find_by_id("scope-001").note == "écrite entre-temps"

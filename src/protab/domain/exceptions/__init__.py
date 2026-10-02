@@ -8,6 +8,7 @@ from .scope_monitoring import (
     ScopeMonitoringNotFoundError,
     DailyActivityNotFoundError,
     ScopeMonitoringNameAlreadyExistsError,
+    NoteTooLongError,
 )
 from .daily_activity import (
     NegativeErrorsCountError,
@@ -28,6 +29,7 @@ __all__ = [
     "ScopeMonitoringNotFoundError",
     "DailyActivityNotFoundError",
     "ScopeMonitoringNameAlreadyExistsError",
+    "NoteTooLongError",
     "NegativeErrorsCountError",
     "NegativeIncidentsCountError",
     "IncidentsExceedErrorsError",

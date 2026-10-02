@@ -8,9 +8,9 @@ import { CHECKBOX_CLASS } from "../constants/ui";
 import type { ScopeMonitoring } from "../types";
 
 const scopes: ScopeMonitoring[] = [
-  { id: "1", name: "AH - Daily monitoring", knowledge_base_id: "KB1", official_main: "A", official_backup: "B", billing_code: "AO1", daily_activities: [] },
-  { id: "2", name: "Airbus IDoc Extract", knowledge_base_id: "KB2", official_main: "A", official_backup: "B", billing_code: null, daily_activities: [] },
-  { id: "3", name: "API - PI - ASN Create", knowledge_base_id: "KB3", official_main: "A", official_backup: "B", billing_code: "AO2", daily_activities: [] },
+  { id: "1", name: "AH - Daily monitoring", knowledge_base_id: "KB1", official_main: "A", official_backup: "B", billing_code: "AO1", note: null, daily_activities: [] },
+  { id: "2", name: "Airbus IDoc Extract", knowledge_base_id: "KB2", official_main: "A", official_backup: "B", billing_code: null, note: null, daily_activities: [] },
+  { id: "3", name: "API - PI - ASN Create", knowledge_base_id: "KB3", official_main: "A", official_backup: "B", billing_code: "AO2", note: null, daily_activities: [] },
 ];
 
 function renderPicker(selectedIds = scopes.map((scope) => scope.id)) {

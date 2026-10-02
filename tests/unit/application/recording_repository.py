@@ -47,6 +47,10 @@ class RecordingScopeMonitoringRepository:
         self.calls.append(("mark_activities_completed", scope_id, tuple(days)))
         self._inner.mark_activities_completed(scope_id, days)
 
+    def update_note(self, scope_id: str, note: str | None) -> None:
+        self.calls.append(("update_note", scope_id, note))
+        self._inner.update_note(scope_id, note)
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         return self._inner.find_by_id(scope_id)
 

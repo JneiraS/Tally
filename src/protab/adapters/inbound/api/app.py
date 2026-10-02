@@ -24,6 +24,7 @@ from protab.adapters.inbound.api.schemas import (
     ScopeResponse,
     SessionResponse,
     UpdateRequest,
+    UpdateScopeNoteRequest,
 )
 from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
     parse_scope_monitorings_csv,
@@ -54,6 +55,9 @@ from protab.application.commands.daily_activity import (
     CreateDailyActivityCommand,
     UpdateDailyActivityCommand,
 )
+from protab.application.commands.scope_monitoring import (
+    UpdateScopeNoteCommand,
+)
 from protab.application.queries.get_daily_activity import GetDailyActivityUseCase
 from protab.application.queries.get_scope import GetScopeUseCase
 from protab.application.queries.list_audit_events import ListAuditEventsUseCase
@@ -69,6 +73,9 @@ from protab.application.use_cases.create_scope_monitoring import (
 )
 from protab.application.use_cases.update_daily_activity import (
     UpdateDailyActivityUseCase,
+)
+from protab.application.use_cases.update_scope_note import (
+    UpdateScopeNoteUseCase,
 )
 from protab.domain.entities.audit_event import AuditEvent
 from protab.domain.entities.daily_activity import DailyActivity
@@ -101,6 +108,7 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
         official_main=scope.officials.main,
         official_backup=scope.officials.backup,
         billing_code=scope.billing_code,
+        note=scope.note,
         daily_activities=[
             _activity_to_response(activity)
             for activity in scope.daily_activities.values()
@@ -186,6 +194,7 @@ def create_app(
     create_daily_activity = CreateDailyActivityUseCase(repo, audit)
     complete_daily_activity = CompleteDailyActivityUseCase(repo, audit)
     update_daily_activity = UpdateDailyActivityUseCase(repo, audit)
+    update_scope_note = UpdateScopeNoteUseCase(repo, audit)
     list_audit_events = ListAuditEventsUseCase(audit)
     list_scopes = ListScopesUseCase(repo)
     get_scope = GetScopeUseCase(repo)
@@ -383,6 +392,18 @@ def create_app(
                 incidents_created=request.incidents_created,
                 feai=request.feai,
             )
+        )
+
+    @app.patch(
+        "/scope-monitorings/{scope_id}",
+        status_code=204,
+        dependencies=[Depends(project_context)],
+    )
+    def handle_update_scope_note(
+        scope_id: str, request: UpdateScopeNoteRequest
+    ) -> None:
+        update_scope_note.execute(
+            UpdateScopeNoteCommand(scope_id=scope_id, note=request.note)
         )
 
     @app.get(

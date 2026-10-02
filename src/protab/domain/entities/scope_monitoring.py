@@ -8,7 +8,12 @@ from protab.domain.exceptions import (
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
     InvalidScopeMonitoringIdError,
+    NoteTooLongError,
 )
+
+#: Longest accepted scope note. Declared once, here, and reused by the inbound
+#: schema: a boundary that re-declared the number would silently drift.
+NOTE_MAX_LENGTH = 2000
 
 
 @dataclass
@@ -43,6 +48,7 @@ class ScopeMonitoring:
     knowledge: KnowledgeBase
     officials: Officials
     billing_code: str | None = None
+    note: str | None = None
     daily_activities: dict[date, DailyActivity] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -55,6 +61,11 @@ class ScopeMonitoring:
         # missing code is normalised, never rejected, here.
         if self.billing_code is not None:
             self.billing_code = self.billing_code.strip() or None
+        # Same rule for a free-text note, and the same reason: a blank note means
+        # "no note", and reading a row must never fail. The length bound lives in
+        # ``set_note`` — it is a write invariant, not a read one.
+        if self.note is not None:
+            self.note = self.note.strip() or None
 
     @classmethod
     def create(
@@ -77,6 +88,20 @@ class ScopeMonitoring:
             officials=officials,
             billing_code=billing_code,
         )
+
+    def set_note(self, note: str | None) -> None:
+        """Replace the free-text note of the scope.
+
+        A blank note is stored as "no note" rather than an empty string, so the
+        column has a single absent state to read back.
+        """
+        cleaned = note.strip() if note is not None else None
+        if cleaned is not None and len(cleaned) > NOTE_MAX_LENGTH:
+            raise NoteTooLongError(
+                f"ScopeMonitoring note must be at most {NOTE_MAX_LENGTH} "
+                f"characters; got {len(cleaned)}."
+            )
+        self.note = cleaned or None
 
     def add_daily_activity(self, activity: DailyActivity) -> None:
         if activity.day in self.daily_activities:

@@ -31,3 +31,7 @@ class DailyActivityNotFoundError(DomainError):
 
 class ScopeMonitoringNameAlreadyExistsError(DomainError):
     """Raised when a ScopeMonitoring with the same name already exists."""
+
+
+class NoteTooLongError(DomainError):
+    """Raised when a scope note exceeds the maximum accepted length."""

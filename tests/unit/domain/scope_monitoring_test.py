@@ -4,6 +4,7 @@ import pytest
 
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import (
+    NOTE_MAX_LENGTH,
     KnowledgeBase,
     Officials,
     ScopeMonitoring,
@@ -14,6 +15,7 @@ from protab.domain.exceptions import (
     EmptyOfficialsError,
     InvalidKnowledgeBaseIdError,
     InvalidScopeMonitoringIdError,
+    NoteTooLongError,
 )
 
 
@@ -138,6 +140,63 @@ def test_blank_billing_code_is_normalised_to_none():
         billing_code="   ",
     )
     assert scope.billing_code is None
+
+
+# --- Note libre ------------------------------------------------------------
+
+
+def test_hydration_reads_a_note():
+    scope = ScopeMonitoring(
+        id="scope-001",
+        name="Scope A",
+        knowledge=KnowledgeBase(id="Test Knowledge"),
+        officials=Officials(main="Main", backup="Backup"),
+        note="  Incident de facturation à suivre.  ",
+    )
+    assert scope.note == "Incident de facturation à suivre."
+
+
+def test_set_note_stores_the_trimmed_text(fixture_scope_monitoring):
+    fixture_scope_monitoring.set_note("  contexte utile \n")
+
+    assert fixture_scope_monitoring.note == "contexte utile"
+
+
+@pytest.mark.parametrize("blank", [None, "", "   ", "\t\n"])
+def test_set_note_normalises_a_blank_note_to_none(fixture_scope_monitoring, blank):
+    # Une note vide est « pas de note » : sans cela la colonne stocke une
+    # chaîne vide et la page doit distinguer deux absents.
+    fixture_scope_monitoring.set_note("avant")
+    fixture_scope_monitoring.set_note(blank)
+
+    assert fixture_scope_monitoring.note is None
+
+
+def test_set_note_accepts_a_note_at_the_limit(fixture_scope_monitoring):
+    fixture_scope_monitoring.set_note("n" * NOTE_MAX_LENGTH)
+
+    assert fixture_scope_monitoring.note == "n" * NOTE_MAX_LENGTH
+
+
+def test_set_note_rejects_a_note_above_the_limit(fixture_scope_monitoring):
+    with pytest.raises(NoteTooLongError):
+        fixture_scope_monitoring.set_note("n" * (NOTE_MAX_LENGTH + 1))
+
+    assert fixture_scope_monitoring.note is None
+
+
+def test_hydration_never_rejects_a_note_above_the_limit():
+    # Le constructeur est aussi le chemin de relecture : une ligne trop longue
+    # ne doit pas vider la liste des périmètres. La borne est un invariant
+    # d'écriture (set_note), pas de lecture.
+    scope = ScopeMonitoring(
+        id="scope-001",
+        name="Scope A",
+        knowledge=KnowledgeBase(id="Test Knowledge"),
+        officials=Officials(main="Main", backup="Backup"),
+        note="n" * (NOTE_MAX_LENGTH + 1),
+    )
+    assert len(scope.note) == NOTE_MAX_LENGTH + 1
 
 
 # tests pour DailyActivity et ScopeMonitoring

@@ -50,6 +50,7 @@ function scope(
     official_main: "MAIN",
     official_backup: "BACK",
     billing_code: null,
+    note: null,
     daily_activities,
   };
 }

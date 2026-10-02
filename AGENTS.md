@@ -1070,13 +1070,25 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - **`save()` est réservé à la création d'agrégat.** Il remplace tout (`DELETE` + réinsertion des
   activités dans une transaction) : un cas d'usage qui mute un périmètre existant l'interdit, sinon il
   réécrit des jours qu'il n'a pas relus après une édition concurrente et écrase silencieusement la
-  modification d'un autre utilisateur. Les trois mutations d'activité passent donc par des écritures
-  ciblées du port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
-  chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
-  `DailyActivityNotFoundError`.
-- **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les trois
-  écritures ciblées joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en plus
-  conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
+  modification d'un autre utilisateur. Les mutations passent donc par des écritures ciblées du port —
+  `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed`, `update_note` — chacune ne
+  touchant que les lignes nommées, avec `rowcount == 0` traduit en `DailyActivityNotFoundError` ou
+  `ScopeMonitoringNotFoundError`. C'est aussi pourquoi `save()` **insère** `note` mais ne la réécrit pas
+  dans son `ON CONFLICT DO UPDATE` : l'agrégat qu'il reçoit a été lu avant qu'une note ne change, et le
+  réécrire effacerait cette modification sans qu'aucune trace n'en reste. Verrouillé par
+  `test_save_does_not_erase_a_note_written_concurrently`.
+- **`scope_monitorings.note` est un texte libre nullable, et la première route qui modifie un périmètre.**
+  `PATCH /scope-monitorings/{id}` avec `{note}` ne touche qu'à elle — ni `name`, ni `billing_code`, ni les
+  activités. La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
+  Pydantic, jamais recopiée ; une requête trop longue est donc refusée en `422` à la frontière entrante,
+  tandis que `set_note()` conserve l'invariant pour les autres appelants. Deux règles distinctes, comme
+  pour `NonWorkingDaysRequest` : le constructeur hydrate **sans** refuser une note trop longue (une seule
+  ligne dégénérée viderait la liste des périmètres, cf. `billing_code` ci-dessus), la validation est un
+  invariant d'écriture. Une note blanche est normalisée en `None` partout — domaine, API et TypeScript
+  (`ScopeMonitoring.note` : `string | null`) — donc « pas de note » n'a qu'un état, pas deux.
+- **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les écritures
+  ciblées sur un périmètre joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en
+  plus conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
   accepterait un `scope_id` d'un autre tenant. Une écriture qui ne filtre pas le projet est un défaut,
   même si la ligne visée existe.
 - `InMemoryScopeMonitoringRepository` renvoie **les objets qu'elle stocke**. Elle ne peut donc pas
@@ -1095,9 +1107,9 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   toute la liste. Le champ est `str | None` côté domaine, API (`ScopeResponse`) et TypeScript
   (`ScopeMonitoring.billing_code` : `string | null`) ; les lignes sans code s'affichent « — ». Format
   **libre**, `strip`é, **non unique** : deux périmètres peuvent partager un code. Aucun `UNIQUE` en base.
-  Il n'existe **toujours aucune route de mise à jour d'un périmètre** (§28.3 bis) : la reprise d'un code
-  manquant se fait en SQL, procédure dans `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log`
-  ne voit que les use cases.
+  Il n'existe **aucune route de mise à jour du code de facturation** : `PATCH /scope-monitorings/{id}`
+  ne modifie que la note (§28.1). La reprise d'un code manquant se fait donc en SQL, procédure dans
+  `docs/cli.md` §9 — hors journal d'audit, puisque `audit_log` ne voit que les use cases.
 - **Le CSV d'import a gagné une 5e colonne** (`name, knowledge_base_id, official_main, official_backup,
   billing_code`), donc `REQUIRED_HEADERS` la rend obligatoire : un fichier préparé avant l'évolution est
   rejeté en `400 « Invalid headers » ». C'est la conséquence directe de l'obligation, pas un durcissement
@@ -1254,10 +1266,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `protab-project set-password` **ne** vous sauverait pas : il supprime les sessions, donc il verrouille.
 - **`project_admins` fait partie de `connect()`**, donc `TRUNCATE ... projects ... CASCADE` la vide avec le
   projet : les fixtures `truncate_all()` n'ont rien à ajouter.
-- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** Il reste **aucune route de
-  mise à jour** d'un périmètre : `POST /scope-monitorings` ne fait que créer, et `name` est `UNIQUE`
-  **mondial** (donc pas par projet). Déclarer un quadrigramme supplémentaire dans un périmètre existant passe
-  encore par le SQL direct ou par un nouveau périmètre.
+- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** La seule route qui modifie un
+  périmètre existant est `PATCH /scope-monitorings/{id}`, et elle ne touche que la **note** (§28.1) : ni
+  `name`, ni `billing_code`, ni les officiels. `name` reste `UNIQUE` **mondial** (donc pas par projet).
+  Déclarer un quadrigramme supplémentaire ou corriger un code dans un périmètre existant passe encore par
+  le SQL direct ou par un nouveau périmètre.
 
 
 ## 28.4 Tests d'intégration PostgreSQL
@@ -1393,6 +1406,17 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   « Annuler » (`ActivityFormModal.tsx:396`) qui **jette toute la saisie en cours**. Deux contrôles, le même
   libellé, deux sens opposés, dont un destructeur. Si la suppression dans ce modal doit devenir
   réversible, la forme correcte est un « référence retirée — restaurer » **en place** dans la liste.
+- **La note du périmètre est un brouillon, pas un autosave.** C'est le seul champ éditable de la page qui
+  ne soit pas un compteur d'activité : une note se rédige au clavier, donc un autosave enverrait un `PATCH`
+  par frappe — et donc un événement d'audit par caractère tapé. D'où le `ScopeNoteCard` dédié, avec
+  « Enregistrer » / « Annuler », sur la carte entre l'identité et l'activité du jour. Le bouton compare la
+  valeur **nettoyée** à la valeur enregistrée : « note » et «  note  » sont le même enregistrement, donc
+  « Annuler » ne doit pas s'activer pour rien. Le `2000` affiché vient d'une constante locale, alignée sur
+  le domaine sans le dupliquer dans la comparaison — seule la frontière serveur fait foi, d'où le refus
+  en `422` et non un `maxLength` qui tronquerait la saisie.
+- **La carte renvoie la note enregistrée, la page ne recharge rien.** `onSaved(note)` met à jour l'état
+  local : un `fetchScopeDetail()` au retour du `PATCH` remettrait `isLoading` à vrai et effacerait la
+  journée sélectionnée.
 - **Les images sont importées depuis `src/assets/`**, jamais référencées par une URL `public/` : l'import
   laisse Vite hasher le fichier et valide le chemin à la compilation. `tsconfig.json` déclare déjà
   `"types": ["vite/client"]`, un `import x from './x.svg'` type-check donc sans configuration ajoutée.
@@ -1564,7 +1588,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 218 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 227 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

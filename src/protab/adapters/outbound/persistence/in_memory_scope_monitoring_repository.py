@@ -37,6 +37,9 @@ class InMemoryScopeMonitoringRepository:
         for activity in resolved:
             activity.mark_completed()
 
+    def update_note(self, scope_id: str, note: str | None) -> None:
+        self._require(scope_id).set_note(note)
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         return self._by_id.get(scope_id)
 

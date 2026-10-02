@@ -25,6 +25,9 @@ export interface ScopeMonitoring {
   // Obligatoire à la création, mais null sur les périmètres enregistrés avant
   // son introduction : le backend ne réécrit pas l'historique.
   billing_code: string | null;
+  // Note libre, éditable depuis la page de détail uniquement. `null` est le
+  // seul état absent : une note vidée est enregistrée comme `null`, jamais "".
+  note: string | null;
   daily_activities: DailyActivity[];
 }
 
@@ -67,12 +70,17 @@ export interface CompleteActivitiesInput {
   days: string[];
 }
 
+export interface UpdateScopeNoteInput {
+  note: string | null;
+}
+
 export type AuditAction =
   | "scope_created"
   | "scope_imported"
   | "activity_created"
   | "activity_updated"
-  | "activity_completed";
+  | "activity_completed"
+  | "scope_note_updated";
 
 export interface AuditEvent {
   id: string; // UUID v4

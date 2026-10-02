@@ -50,6 +50,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
       {
@@ -59,6 +60,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-18',
@@ -100,6 +102,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
     ]);
@@ -137,6 +140,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
     ]);
@@ -168,6 +172,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
       {
@@ -177,6 +182,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: null,
+        note: null,
         daily_activities: [],
       },
     ];
@@ -230,6 +236,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-REC',
+        note: null,
         daily_activities: [],
       },
       {
@@ -239,6 +246,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-INF',
+        note: null,
         daily_activities: [],
       },
     ];
@@ -282,6 +290,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'NANA',
         official_backup: 'MAMA',
         billing_code: 'FACT-2026-SUP',
+        note: null,
         daily_activities: [],
       },
       {
@@ -291,6 +300,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'NANA',
         official_backup: 'LOTO',
         billing_code: 'FACT-2026-NOM',
+        note: null,
         daily_activities: [],
       },
       {
@@ -300,6 +310,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'MAMA',
         official_backup: 'LOTO',
         billing_code: 'FACT-2026-RES',
+        note: null,
         daily_activities: [],
       },
     ];
@@ -358,6 +369,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -415,6 +427,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -486,6 +499,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -504,6 +518,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Carol',
         official_backup: 'Dave',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
       {
@@ -513,6 +528,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -563,6 +579,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -581,6 +598,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Carol',
         official_backup: 'Dave',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
       {
@@ -590,6 +608,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -640,6 +659,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -658,6 +678,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -706,6 +727,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -765,6 +787,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Charlie',
         official_backup: 'Dana',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
     ];
@@ -816,6 +839,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -875,6 +899,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Charlie',
         official_backup: 'Dana',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
     ];
@@ -932,6 +957,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -993,6 +1019,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -1046,6 +1073,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -1111,6 +1139,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [],
       },
     ];
@@ -1162,6 +1191,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -1223,6 +1253,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Eve',
         official_backup: 'Frank',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-21',
@@ -1296,6 +1327,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-25',
@@ -1340,6 +1372,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-25',
@@ -1400,6 +1433,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-25',
@@ -1453,6 +1487,7 @@ describe('ScopeListPage Component', () => {
         official_main: 'Alice',
         official_backup: 'Bob',
         billing_code: 'FACT-2026-PAI',
+        note: null,
         daily_activities: [
           {
             day: '2026-09-25',

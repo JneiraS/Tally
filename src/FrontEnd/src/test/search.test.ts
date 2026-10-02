@@ -16,6 +16,7 @@ function scope(overrides: Partial<ScopeMonitoring> & { id: string }): ScopeMonit
     official_main: 'MAMA',
     official_backup: 'LOTO',
     billing_code: 'FACT-2026-PAI',
+    note: null,
     daily_activities: [],
     ...overrides,
   };

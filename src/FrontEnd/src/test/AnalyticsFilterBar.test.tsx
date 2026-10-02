@@ -8,7 +8,7 @@ import { CHECKBOX_CLASS } from "../constants/ui";
 import type { ScopeMonitoring } from "../types";
 
 function scope(id: string, name: string, billing_code: string | null = null): ScopeMonitoring {
-  return { id, name, knowledge_base_id: `KB-${id}`, official_main: "MAIN", official_backup: "BACK", billing_code, daily_activities: [] };
+  return { id, name, knowledge_base_id: `KB-${id}`, official_main: "MAIN", official_backup: "BACK", billing_code, note: null, daily_activities: [] };
 }
 
 const MANY = Array.from({ length: 20 }, (_, i) => scope(`s${i}`, `Périmètre ${i + 1}`));

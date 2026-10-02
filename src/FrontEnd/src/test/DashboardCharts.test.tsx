@@ -18,6 +18,7 @@ const scope = (
   official_main: 'MAIN',
   official_backup: 'BACK',
   billing_code: 'FACT-2026-PAI',
+  note: null,
   daily_activities,
 });
 

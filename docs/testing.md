@@ -17,10 +17,10 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 164 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 138 tests, dont **84 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 181 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 150 tests, dont **90 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 218 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 227 tests (vitest) |
 
 Deux exécutions, donc :
 
@@ -30,10 +30,10 @@ make test-db       # tout, y compris PostgreSQL
 ```
 
 **Reality check, chiffres mesurés sur ce dépôt :** `make test` sans
-`PROTAB_TEST_DATABASE_URL` affiche `219 passed, 84 skipped`. C'est le piège
+`PROTAB_TEST_DATABASE_URL` affiche `242 passed, 90 skipped`. C'est le piège
 principal : **un tiers de la suite n'a pas tourné**, et un « tout est vert »
 local n'est pas une preuve de non-régression des adaptateurs. Seuls
-`make test-db` et le compte `303 tests collected` distinguent les deux cas.
+`make test-db` et le compte `332 tests collected` distinguent les deux cas.
 
 ---
 
@@ -49,7 +49,7 @@ helpers explicites. Chaque module déclare ses propres doublures.
 | `daily_activity_test.py` (31) | Mise à jour, clôture, contraintes et canonicalisation de `feai` |
 | `official_code_test.py` (14) | Forme scalaire du quadrigramme : longueur, `/` refusé |
 | `non_working_days_test.py` (17) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
-| `scope_monitoring_test.py` (11) | Accès à une activité par jour, agrégat |
+| `scope_monitoring_test.py` (28) | Accès à une activité par jour, agrégat, note libre (`set_note`, borne, relecture) |
 | `audit_event_test.py` (5) | `build_changes` ne conserve que les champs modifiés |
 | `exceptions_test.py` (1) | Hiérarchie des exceptions métier |
 
@@ -58,11 +58,15 @@ plus solide du dépôt, et la seule qui reste valable si l'infrastructure change
 
 ### Application — `tests/unit/application/`
 
-Cinq fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
+Six fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
 `create_daily_activity_test.py`, `update_daily_activity_test.py`,
-`complete_daily_activity_test.py`, `queries_test.py`) plus
-`audit_trail_test.py`. Ils utilisent
+`complete_daily_activity_test.py`, `update_scope_note_test.py`,
+`queries_test.py`) plus `audit_trail_test.py`. Ils utilisent
 `InMemoryScopeMonitoringRepository` et un adaptateur d'audit mémoire.
+
+`update_scope_note_test.py` verrouille deux points qu'un adaptateur mémoire ne
+peut pas montrer seul : l'écriture **ciblée** (`update_note`, pas `save` — d'où
+le décorateur ci-dessous) et l'absence d'audit quand la note est inchangée.
 
 **`tests/unit/application/recording_repository.py` n'est pas un test** : c'est
 un décorateur qui enregistre les appels reçus au port, et il mérite qu'on
@@ -95,7 +99,7 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `postgres_scope_monitoring_repository_test.py` | 28 | Persistance de l'agrégat, écritures ciblées, traduction des violations de contrainte, isolation par projet |
+| `postgres_scope_monitoring_repository_test.py` | 34 | Persistance de l'agrégat, écritures ciblées (dont `update_note`), traduction des violations de contrainte, isolation par projet |
 | `postgres_auth_repository_test.py` | 33 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
 | `postgres_audit_trail_repository_test.py` | 4 | Écriture et lecture du journal d'audit |
@@ -115,7 +119,7 @@ Deux détails qui font gagner du temps :
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `api_test.py` | 30 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI |
+| `api_test.py` | 36 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI, note du périmètre |
 | `auth_api_test.py` | 9 | Login, session, cookie `Secure`, expiration du cookie alignée sur la session |
 | `audit_log_api_test.py` | 4 | Journal d'audit et sa pagination |
 | `scope_monitoring_csv_reader_test.py` | 6 | Lecture et rejet de CSV |
@@ -179,7 +183,7 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Vingt-six fichiers dans `src/FrontEnd/src/test/`. `src/test/setup.ts` importe
+Vingt-sept fichiers dans `src/FrontEnd/src/test/`. `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
 le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et
 attend deux réponses d'API. En revanche ni `ResizeObserver` ni dimensions ne sont
@@ -189,7 +193,7 @@ Les tests se répartissent entre logique pure (`kpi.test.ts`, `export.test.ts`,
 `validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`,
 `analytics.test.ts`, `nonWorkingDays.test.ts`, `search.test.ts`) et rendu de
 composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
-`FeaiTagInput`, `ActivityFormModal`, `ExportModal`, `DateNavigator`, `LoginBackground`,
+`FeaiTagInput`, `ActivityFormModal`, `ScopeNoteCard`, `ExportModal`, `DateNavigator`, `LoginBackground`,
 `AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`, `AuditActivityHeatmap`,
 `AuditShortcut`, `apiUnauthorized`, `AnalyticsPage`, `AnalyticsFilterBar`,
 `AnalyticsScopePicker`, `PageNav`, `PageShortcuts`).

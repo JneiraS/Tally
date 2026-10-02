@@ -48,6 +48,17 @@ class ScopeMonitoringRepository(Protocol):
         """
         ...
 
+    def update_note(self, scope_id: str, note: str | None) -> None:
+        """Overwrite the free-text note of one scope, leaving everything else alone.
+
+        ``None`` means "no note"; the repository stores it as SQL ``NULL``.
+
+        Raises:
+            ScopeMonitoringNotFoundError: the scope does not exist in the
+                current project.
+        """
+        ...
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         """Return the ScopeMonitoring with the given id, or None."""
         ...
