@@ -333,6 +333,45 @@ def test_create_daily_activity_returns_201(client):
     assert scope.daily_activity_for(date(2026, 9, 19)) is not None
 
 
+def test_create_daily_activity_canonicalises_a_prefixed_feai(client):
+    http, repo = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.post(
+        f"/scope-monitorings/{scope_id}/activities",
+        json={
+            "day": "2026-09-19",
+            "errors_reported": 2,
+            "incidents_created": 1,
+            "feai": ["FE INC000000001", "FEAIINC000000002"],
+        },
+    )
+
+    assert response.status_code == 201
+    scope = repo.find_by_id(scope_id)
+    assert scope.daily_activity_for(date(2026, 9, 19)).feai == [
+        "FE-INC000000001",
+        "FEAI-INC000000002",
+    ]
+
+
+def test_create_daily_activity_rejects_a_duplicate_written_with_another_separator(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.post(
+        f"/scope-monitorings/{scope_id}/activities",
+        json={
+            "day": "2026-09-19",
+            "errors_reported": 2,
+            "incidents_created": 1,
+            "feai": ["FE INC000000001", "FE/INC000000001"],
+        },
+    )
+
+    assert response.status_code == 400
+
+
 def test_create_daily_activity_unknown_scope_returns_404(client):
     http, _ = client
 
