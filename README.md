@@ -197,7 +197,7 @@ make project-admin ARGS="list-admins protab"             # dans le conteneur api
 | `PATCH /scope-monitorings/{id}`                                                                              | `{note}` (2000 caractères max)                                                              | `204`                                                                      | `404` périmètre inconnu, `422` note trop longue                           |
 | `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
 | `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
-| `GET /audit-log` | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
+| `GET /api/audit-log`                                                                  | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
 | `GET /project/settings`                                                                                     | —                                                                                           | `200` réglages du projet courant                                           | `401` session absente                                                      |
 | `PUT /project/settings`                                                                                     | `{excluded_weekdays: [1..7], excluded_dates: ["YYYY-MM-DD"]}`                               | `200` réglages mis à jour                                                  | `401` session absente, `422` payload invalide                              |
 
@@ -211,7 +211,7 @@ Chaque mutation (création/import de périmètre, création/mise à jour/validat
 journal `audit_log` : acteur (quadrigramme de session), action, périmètre, jour concerné et diff avant/après
 (`changes`, champ par champ). Les modifications sans changement effectif ne sont pas journalisées. L'écriture
 du journal est best-effort : un échec d'audit ne fait pas échouer la requête métier. Lecture via
-`GET /audit-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/audit-log`.
+`GET /api/audit-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/audit-log`.
 
 ## Persistance
 

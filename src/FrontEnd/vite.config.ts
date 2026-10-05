@@ -15,12 +15,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/audit-log":
-        {
-          target: "http://localhost:8000",
-          changeOrigin: true,
-          secure: false,
-        },
+      "/api/audit-log": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        secure: false,
+      },
       "/project/settings": {
         target: "http://localhost:8000",
         changeOrigin: true,

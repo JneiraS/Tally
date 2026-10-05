@@ -95,18 +95,20 @@ connaître :
 ## 4. Chemins et routage
 
 Les chemins d'API sont déclarés **une seule fois** dans
-`src/constants/routes.ts` (`AUDIT_LOG_PATH = "/audit-log"`) et repris
-symétriquement dans `app.py`, `nginx.conf` et `vite.config.ts`. La sécurité ne
-repose pas sur l'opacité du chemin mais sur le cookie de session : ne
-rétablissez pas l'ancien chemin haché.
+`src/constants/routes.ts` (`AUDIT_LOG_PATH = "/api/audit-log"`) et repris
+symétriquement dans `app.py`, `nginx.conf` et `vite.config.ts`. La route SPA
+associée (`AUDIT_LOG_PAGE_PATH = "/audit-log"`) est déclarée dans le même fichier
+mais **absente** des couches serveur. La sécurité ne repose pas sur l'opacité
+du chemin mais sur le cookie de session : ne rétablissez pas l'ancien chemin
+haché.
 
 Le proxy de développement est déclaré dans `vite.config.ts` pour
-`/scope-monitorings`, `/audit-log` et `/project/settings`, tous vers
+`/scope-monitorings`, `/api/audit-log` et `/project/settings`, tous vers
 `http://localhost:8000`. **Ajouter une route API en développement impose
 d'ajouter son chemin ici**, sinon CORS.
 
 Routage applicatif : `SCOPE_LIST_PATH`, `/scopes/:id`, `ANALYTICS_PATH`
-(`/analyse`), `AUDIT_LOG_PATH`, et `*` → `NotFoundPage`. Les quatre chemins de la
+(`/analyse`), `AUDIT_LOG_PAGE_PATH`, et `*` → `NotFoundPage`. Les cinq chemins de la
 SPA sont eux aussi des constantes de `routes.ts`, pour la même raison que les
 chemins d'API : une page ajoutée avec un littéral dans `App.tsx` dérive de la
 navigation d'un coup.

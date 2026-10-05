@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ANALYTICS_PATH, AUDIT_LOG_PATH } from "../constants/routes";
+import { ANALYTICS_PATH, AUDIT_LOG_PAGE_PATH } from "../constants/routes";
 
 /**
  * Raccourcis vers les deux vues qui ne sont plus dans l'en-tête.
@@ -20,7 +20,7 @@ import { ANALYTICS_PATH, AUDIT_LOG_PATH } from "../constants/routes";
  */
 const SHORTCUTS: ReadonlyArray<readonly [string, string]> = [
   [ANALYTICS_PATH, "g"],
-  [AUDIT_LOG_PATH, "l"],
+  [AUDIT_LOG_PAGE_PATH, "l"],
 ];
 
 export function PageShortcuts() {

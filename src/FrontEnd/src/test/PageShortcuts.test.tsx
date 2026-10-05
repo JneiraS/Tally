@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { render, fireEvent } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { PageShortcuts } from "../components/PageShortcuts";
-import { ANALYTICS_PATH, AUDIT_LOG_PATH } from "../constants/routes";
+import { ANALYTICS_PATH, AUDIT_LOG_PAGE_PATH } from "../constants/routes";
 
 function LocationProbe() {
   const { pathname } = useLocation();
@@ -39,7 +39,7 @@ describe("PageShortcuts", () => {
 
     pressKeys({ ctrlKey: true, altKey: true });
 
-    expect(getPath()).toBe(AUDIT_LOG_PATH);
+    expect(getPath()).toBe(AUDIT_LOG_PAGE_PATH);
   });
 
   it("navigue vers l'analyse avec Ctrl+Alt+G", () => {
@@ -59,7 +59,7 @@ describe("PageShortcuts", () => {
     expect(getPath()).toBe(ANALYTICS_PATH);
 
     pressKeys({ key: "l", ctrlKey: true, altKey: true });
-    expect(getPath()).toBe(AUDIT_LOG_PATH);
+    expect(getPath()).toBe(AUDIT_LOG_PAGE_PATH);
   });
 
   it("accepte la touche en majuscule", () => {
@@ -71,11 +71,11 @@ describe("PageShortcuts", () => {
   });
 
   it("ne fait rien quand on est déjà sur la cible", () => {
-    renderWithShortcuts(AUDIT_LOG_PATH);
+    renderWithShortcuts(AUDIT_LOG_PAGE_PATH);
 
     pressKeys({ ctrlKey: true, altKey: true });
 
-    expect(getPath()).toBe(AUDIT_LOG_PATH);
+    expect(getPath()).toBe(AUDIT_LOG_PAGE_PATH);
   });
 
   it("ignore une simple touche A", () => {

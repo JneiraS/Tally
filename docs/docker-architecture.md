@@ -38,7 +38,7 @@ flowchart TD
     OUTILS -->|"TCP 5432 · publication 0.0.0.0:5432"| DB
     OUTILS -.->|"http://127.0.0.1:8874/docs"| API
 
-    FE -->|"/scope-monitorings · /auth/ · /audit-log …<br/>proxy_pass http://api:8000"| API
+    FE -->|"/scope-monitorings · /auth/ · /api/* …<br/>proxy_pass http://api:8000"| API
     API -->|"DSN DATABASE_URL<br/>postgresql://…@db:5432/protab"| DB
     DB --- VOL
 ```
@@ -214,7 +214,7 @@ effet. Le cycle complet est documenté dans [`.env.example`](../.env.example).
 flowchart TB
     REQ["Requête navigateur<br/>http://localhost:5173/…"] --> MATCH{"nginx<br/><i>location</i> en correspondance ?"}
 
-    MATCH -->|"/scope-monitorings<br/>/scope-monitorings/<br/>/audit-log<br/>/audit-log/<br/>/auth/*<br/>/projects<br/>/project/settings<br/>/healthz"| PROXY["proxy_pass http://api:8000"]
+    MATCH -->|"/scope-monitorings<br/>/scope-monitorings/<br/>/api/<br/>/auth/*<br/>/projects<br/>/project/settings<br/>/healthz"| PROXY["proxy_pass http://api:8000"]
     MATCH -->|"tout le reste"| SPA["try_files $uri $uri/ /index.html"]
 
     PROXY --> API["FastAPI<br/>projet courant via ContextVar<br/>filtre project_id obligatoire"]
@@ -225,16 +225,16 @@ Le rôle de `frontend` est double : servir la SPA **et** être le point d'entré
 n'appelle donc jamais `api:8000` directement — tout passe par son propre origine, ce qui évite toute
 configuration CORS et garde le cookie de session same-origin.
 
-### Deux routes déclarées en exact **et** en préfixe
+### Une route déclarée en exact **et** en préfixe
 
-Sur les huit blocs `proxy_pass`, seuls `/scope-monitorings` et `/audit-log` sont dupliqués en version
-exacte (`= /chemin`) et en version préfixe (`/chemin/`). Ce ne sont pas deux règles redondantes mais deux
-cas distincts : le frontend appelle les routes **sans slash final** (`GET /scope-monitorings`), tandis que
-`location /scope-monitorings/` ne correspondrait pas à cette URL exacte. L'API répond pourtant en `307` aux
-préfixés avec slash, vers leur forme canonique — un client qui tomberait dessus serait redirigé, donc
-l'inexactitude serait invisible au navigateur. Le couple `= /chemin` + `/chemin/` rend le proxy correct
-sans dépendre de cette redirection, et `proxy_redirect off` laisse FastAPI gérer ses propres redirections
-sans double réécriture.
+Sur les blocs `proxy_pass`, `/scope-monitorings` est dupliqué en version exacte (`= /chemin`) et en version
+préfixe (`/chemin/`). Ce ne sont pas deux règles redondantes mais deux cas distincts : le frontend appelle
+les routes **sans slash final** (`GET /scope-monitorings`), tandis que `location /scope-monitorings/` ne
+correspondrait pas à cette URL exacte. L'API répond pourtant en `307` aux préfixés avec slash, vers leur
+forme canonique — un client qui tomberait dessus serait redirigé, donc l'inexactitude serait invisible au
+navigateur. Le couple `= /chemin` + `/chemin/` rend le proxy correct sans dépendre de cette redirection,
+et `proxy_redirect off` laisse FastAPI gérer ses propres redirections sans double réécriture. `/api/` est
+déclaré en préfixe seul, couvrant toutes les routes API déplacées sous ce préfixe.
 
 Les autres ne sont déclarés qu'une seule fois, selon l'usage réel : `/projects`, `/healthz` et
 `/project/settings` en **exact** (ce sont des routes sans sous-ressource), `/auth/` en **préfixe** (le
@@ -244,8 +244,9 @@ frontend appelle `/auth/login`, `/auth/logout`, etc.).
 `5173`, sans avoir à toucher au port `8874` réservé à la boucle locale.
 
 La liste des chemins relayés fait foi dans `nginx.conf` et se retrouve, côté application, dans la liste
-d'authentification et les constantes de routage du front. **Ajouter une route API signifie ajouter son bloc
-`location` ici** — sinon la requête est servie par la SPA et l'appel échoue en silence côté JavaScript.
+d'authentification et les constantes de routage du front. **Ajouter une route API hors préfixe `/api/`
+signifie ajouter son bloc `location` ici** — sinon la requête est servie par la SPA et l'appel échoue
+en silence côté JavaScript. Les routes sous `/api/` sont déjà couvertes par le bloc préfixe unique.
 
 ### En-têtes transmis
 

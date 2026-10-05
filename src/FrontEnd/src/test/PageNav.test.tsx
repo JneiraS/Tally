@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { PageNav } from "../components/PageNav";
-import { ANALYTICS_PATH, AUDIT_LOG_PATH } from "../constants/routes";
+import { ANALYTICS_PATH, AUDIT_LOG_PAGE_PATH } from "../constants/routes";
 
 function renderNav(path: string, orientation?: "horizontal" | "vertical") {
   return render(
@@ -34,7 +34,7 @@ describe("PageNav", () => {
     );
     expect(screen.getByRole("link", { name: "Journal" })).toHaveAttribute(
       "href",
-      AUDIT_LOG_PATH,
+      AUDIT_LOG_PAGE_PATH,
     );
   });
 

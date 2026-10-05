@@ -1210,9 +1210,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   inverse la polarité : seules les routes de `PUBLIC_ROUTES` (`/healthz`, `/projects`, `/auth/*`, docs)
   peuvent être non authentifiées. Ajouter une route publique = ajouter son chemin à cette liste.
 - **Chemins d'API** : déclarés une seule fois côté front dans `src/FrontEnd/src/constants/routes.ts`
-  (`AUDIT_LOG_PATH`) et symétriquement dans `app.py` / `nginx.conf` / `vite.config.ts`. Ne pas restaurer
-  l'ancien chemin haché `6d857a9d…-log` : la sécurité repose sur le cookie de session, pas sur l'opacité
-  du chemin. Le journal d'audit est ainsi `GET /audit-log`.
+  sous deux constantes : `AUDIT_LOG_PATH = "/api/audit-log"` (endpoint API, présent dans
+  `app.py` / `nginx.conf` / `vite.config.ts`) et `AUDIT_LOG_PAGE_PATH = "/audit-log"`
+  (route SPA, **absente** des couches serveur). Ne pas restaurer l'ancien chemin haché
+  `6d857a9d…-log` : la sécurité repose sur le cookie de session, pas sur l'opacité du chemin.
+  Le journal d'audit est ainsi `GET /api/audit-log`.
 
 ## 28.2 Configuration
 
