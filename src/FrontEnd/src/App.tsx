@@ -20,7 +20,7 @@ import { ExternalLink, Terminal } from "lucide-react";
 import { AuthSession, protabApi } from "./services/api";
 import {
   ANALYTICS_PATH,
-  AUDIT_LOG_PATH,
+  AUDIT_LOG_PAGE_PATH,
   SCOPE_LIST_PATH,
 } from "./constants/routes";
 
@@ -121,7 +121,7 @@ function AppContent() {
                     />
                   }
                 />
-                <Route path={AUDIT_LOG_PATH} element={<AuditLogPage />} />
+                <Route path={AUDIT_LOG_PAGE_PATH} element={<AuditLogPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </main>

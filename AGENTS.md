@@ -1210,9 +1210,11 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   inverse la polarité : seules les routes de `PUBLIC_ROUTES` (`/healthz`, `/projects`, `/auth/*`, docs)
   peuvent être non authentifiées. Ajouter une route publique = ajouter son chemin à cette liste.
 - **Chemins d'API** : déclarés une seule fois côté front dans `src/FrontEnd/src/constants/routes.ts`
-  (`AUDIT_LOG_PATH`) et symétriquement dans `app.py` / `nginx.conf` / `vite.config.ts`. Ne pas restaurer
-  l'ancien chemin haché `6d857a9d…-log` : la sécurité repose sur le cookie de session, pas sur l'opacité
-  du chemin. Le journal d'audit est ainsi `GET /audit-log`.
+  sous deux constantes : `AUDIT_LOG_PATH = "/api/audit-log"` (endpoint API, présent dans
+  `app.py` / `nginx.conf` / `vite.config.ts`) et `AUDIT_LOG_PAGE_PATH = "/audit-log"`
+  (route SPA, **absente** des couches serveur). Ne pas restaurer l'ancien chemin haché
+  `6d857a9d…-log` : la sécurité repose sur le cookie de session, pas sur l'opacité du chemin.
+  Le journal d'audit est ainsi `GET /api/audit-log`.
 
 ## 28.2 Configuration
 
@@ -1523,9 +1525,10 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   de ce que le navigateur tient — et il faudrait l'avoir mesuré avant de le créer.
 - **Toute la logique de `/analyse` est pure et vit dans `utils/analytics.ts`.** Les
   composants ne calculent rien : ils reçoivent des agrégats et les rendent. C'est ce qui
-  rend la page testable sans rendu — Recharts ne monte aucun `<svg>` sous jsdom
-  (`RootSurface` renvoie `null` sous 0×0), donc un test qui attend le graphique attend
-  l'échec.
+  rend la page testable sans rendu — **les sparklines SVG maison** (`Sparkline.tsx`)
+  remplacent Recharts sur cette page (pas de recharts, pas de problème d'outline,
+  365 kB économisés). Les données viennent de `aggregateByDay` / `aggregateByWeek`
+  et `coverageByColumn` — code pur déjà testé et jamais rendu avant ce changement.
 - **Un seul sens de tri pour le classement : du plus dégradé au moins dégradé.** Y
   compris pour le taux de transformation, donc croissant. Faire varier le sens selon la
   métrique est une faute d'usage, pas une commodité : un superviseur cherche qui traiter
@@ -1563,8 +1566,8 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   avertissement affichable, jamais par une colonne.
 - **Les deux plafonds de lisibilité de `/analyse` sont explicites parce qu'ils
   contredisent le choix de l'utilisateur** : au-delà de 120 jours on force la semaine (et on
-  le dit), au-delà de 8 périmètres l'aire empilée garde le top 8 + « Autres (n) » en gris
-  neutre. Un plafond silencieux fait passer une sélection pour respectée alors qu'elle ne
+  le dit), au-delà de 15 périmètres le classement affiche `+N autres périmètres`.
+  Un plafond silencieux fait passer une sélection pour respectée alors qu'elle ne
   l'est pas.
 - **L'URL de `/analyse` est un reflet de l'état local, pas sa source.** Écrire l'URL
   depuis le `setState` met un effet de bord dans un updater (React peut l'appeler deux fois
@@ -1574,9 +1577,9 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   pendant le chargement des périmètres.
 - **Le classement de `/analyse` est une liste HTML, pas un graphique à barres.** La
   valeur est en texte (la barre est `aria-hidden`), la barre est calée sur le pire
-  périmètre, et elle est **inversée** pour le taux de transformation : sans cela le
-  périmètre le plus dégradé, en tête de liste, recevrait la barre la plus courte. Un
-  taux indéfini n'a aucune barre — une barre nulle se lirait comme un 0 %.
+  périmètre. **Le taux de transformation n'est plus inversé** (la barre suit
+  `totalErrors`, un taux indéfini n'a pas de barre). Un taux indéfini n'a aucune
+  barre — une barre nulle se lirait comme un 0 %.
 - **La heatmap de `/analyse` porte les erreurs brutes par jour ou par semaine.** Une
   ligne représente un périmètre, une colonne une jour ou une semaine ISO selon le
   réglage `granularity`, et l'intensité de la cellule est proportionnelle à
@@ -1595,10 +1598,19 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `sticky left-0`, et la région prend `tabIndex={0}` quand elle déborde réellement
   (au-delà de 12 colonnes) — un conteneur défilant non focusable est inatteignable au
   clavier (WCAG 2.1.1), et un `tabIndex` permanent serait un point d'arrêt sans effet.
-  Le libellé de colonne visible est abrégé au jour seul : « 21 sept. 2026 » ne tient
-  pas dans 2 rem et `truncate` n'en montrerait que le premier chiffre, ce qui
-  alignerait des jours différents sous le même nombre ; la date complète reste dans
-  le `title` et le libellé accessible de la cellule.
+  **Le coin `sticky` de l'en-tête est opaque** (`bg-slate-50` au lieu de
+  `bg-slate-50/80`) pour éviter l'artefact de superposition au défilement. Les filets
+  blancs entre cellules sont remplacés par `gap-px` + `rounded-[3px]` +
+  `border-slate-100/60 dark:border-nord-2`. Les paliers d'intensité passent de 3
+  non contigus à **5 paliers continus AA-conformes** (`blue-100` → `blue-200` →
+  `blue-300` → `blue-700` → `blue-900` en clair, `nord-2` → `nord-3` → `nord-7` →
+  `nord-8` → `nord-9` en sombre), chaque palier portant son texte `text-xs` à
+  ≥4,5:1. Une **légende visuelle** (5 pastilles + « `—` : aucune saisie ») est rendue
+  sous la matrice depuis le même tableau unique `HEATMAP_SCALE`. En vue journalière,
+  un **séparateur de semaine** (filet `border-l-2`) marque le changement de semaine
+  ISO. Le **total par périmètre** apparaît dans la cellule de nom (droite,
+  `ml-auto tabular-nums`), évitant une colonne supplémentaire qui dupliquerait le
+  classement.
 - **Un test de `/analyse` ne doit pas chercher un nombre global.** En vue
   journalière, les en-têtes de colonne portent « 11 », « 12 »… Un `getByText("11")`
   sur la page entière peut donc tomber sur la heatmap au lieu du compteur KPI :
@@ -1616,18 +1628,21 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   quand elles n'ont plus d'effet. Une sélection vide est volontairement atteignable
   et signale la conséquence dans la carte, sans laisser un écran de graphiques vide
   sans explication.
-- **Le filtre de codes de facturation est multi-sélectionnable.** Il inclut une
-  option `Sans code` pour les lignes historiques sans code. Il ne détruit jamais
+- **Le filtre de codes de facturation est multi-sélectionnable en chips.** Il inclut
+  une option `Sans code` pour les lignes historiques sans code. **Tous les codes sont
+  accessibles** (plus de `+N autres` non cliquable). Il ne détruit jamais
   `scopeIds` : il réduit seulement les périmètres analysés et les actions globales
   s'appliquent aux périmètres visibles après filtrage. Retirer tous les codes
   sélectionnés restaure la sélection de périmètres précédente.
- - **La sélection des périmètres passe par un multi-select compact.** La carte n'affiche
-   jamais la liste complète en permanence : un déclencheur affiche la recherche et le
-   compteur, puis ouvre un popover desktop ou la `Modal` existante sur mobile. La liste
-   contient une recherche, de vraies cases à cocher, « Tout cocher », « Tout décocher »
-   et « Terminé ». La sélection est appliquée immédiatement, sans état intermédiaire.
-   Le conteneur de la liste peut donc être `max-h-72 overflow-y-auto` : il reste dans le
-   popover, n'augmente pas la hauteur de la carte, et reste atteignable au clavier.
+- **La sélection des périmètres passe par un multi-select compact.** La carte n'affiche
+  jamais la liste complète en permanence : un déclencheur affiche la recherche et le
+  compteur, puis ouvre un popover desktop ou la `Modal` existante sur mobile. La liste
+  contient une recherche, de vraies cases à cocher, « Tout cocher », « Tout décocher »
+  et « Terminé ». La sélection est appliquée immédiatement, sans état intermédiaire.
+  Le conteneur de la liste peut donc être `max-h-72 overflow-y-auto` : il reste dans le
+  popover, n'augmente pas la hauteur de la carte, et reste atteignable au clavier.
+  **Sur mobile (< 768 px), la carte de filtres se replie** derrière un bouton
+  « Filtres » avec compteur de réglages actifs ; l'export reste dans l'en-tête.
 - **`PageNav` n'est monté que dans le pied de page.** Il était aussi dans l'en-tête, où
   « Périmètres » faisait doublon avec le logo : on a retiré l'instance de `Navbar`, pas ses
   entrées, ce qui laisse `PageNav` complet pour le mobile. **Le pied de page est le seul chemin

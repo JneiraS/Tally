@@ -1,6 +1,6 @@
 import { useId, useMemo } from "react";
 import { Link } from "react-router-dom";
-import { buildErrorHeatmap, weekLabel } from "../utils/analytics";
+import { buildErrorHeatmap, weekLabel, isoWeekKey } from "../utils/analytics";
 import type {
   ErrorHeatmapCell,
   ErrorHeatmapRow,
@@ -9,26 +9,26 @@ import type {
 import { ScopeMonitoring } from "../types";
 import { formatDateFr } from "../utils/date";
 import { BillingCodeBadge } from "./BillingCodeBadge";
+import { CARD_CLASS, CARD_PADDING_CLASS, CARD_TITLE_CLASS, CARD_SUBTITLE_CLASS, HEATMAP_SCALE } from "../constants/ui";
 
-/**
- * Nombre maximal de libellés de colonne lisibles sur la ligne d'en-tête.
- *
- * Au-delà, les en-têtes se chevauchent. Un libellé sur N colonnes suffit : chaque
- * en-tête garde un `title` et chaque cellule son libellé complet, donc la lecture
- * au survol et celle d'un lecteur d'écran restent complètes.
- */
 const MAX_VISIBLE_COLUMN_LABELS = 12;
+const RANKING_LIMIT = 15;
 
-/** Erreurs brutes par périmètre et par colonne, avec classement de la période. */
+function getHeatmapStep(intensity: number) {
+  return HEATMAP_SCALE.find((step) => intensity <= step.max) ?? HEATMAP_SCALE[HEATMAP_SCALE.length - 1];
+}
+
+interface AnalyticsErrorHeatmapProps {
+  scopes: ScopeMonitoring[];
+  days: string[];
+  granularity?: Granularity;
+}
+
 export function AnalyticsErrorHeatmap({
   scopes,
   days,
   granularity = "semaine",
-}: {
-  scopes: ScopeMonitoring[];
-  days: string[];
-  granularity?: Granularity;
-}) {
+}: AnalyticsErrorHeatmapProps) {
   const titleId = useId();
   const heatmap = useMemo(
     () => buildErrorHeatmap(scopes, days, granularity),
@@ -39,13 +39,13 @@ export function AnalyticsErrorHeatmap({
   return (
     <section
       aria-labelledby={titleId}
-      className="bg-white dark:bg-nord-1 p-4 sm:p-5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs"
+      className={`${CARD_CLASS} ${CARD_PADDING_CLASS}`}
     >
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h3 id={titleId} className="text-sm font-semibold text-slate-800 dark:text-nord-5">
+        <h3 id={titleId} className={CARD_TITLE_CLASS}>
           Erreurs par {perColumn} et par périmètre
         </h3>
-        <p className="text-xs text-slate-500 dark:text-nord-4">
+        <p className={CARD_SUBTITLE_CLASS}>
           Volume total d'erreurs · {perColumn}s ISO · — : aucune saisie
         </p>
       </div>
@@ -57,6 +57,7 @@ export function AnalyticsErrorHeatmap({
       ) : (
         <>
           <ErrorMatrix heatmap={heatmap} />
+          <HeatmapLegend />
           <ErrorRanking rows={heatmap.rows} />
         </>
       )}
@@ -64,17 +65,11 @@ export function AnalyticsErrorHeatmap({
   );
 }
 
-/**
- * La matrice est un `overflow-x-auto` et non un `overflow-hidden` : en vue
- * journalière, une période de 120 jours représente 120 colonnes d'au moins 2 rem,
- * soit plusieurs fois la largeur de l'écran. Masquer ce qui dépasse laisserait
- * des colonnes hors d'atteinte — visuellement et pour le clavier — ce qui est pire
- * qu'une barre de défilement. La colonne des noms reste `sticky` pour que les
- * lignes restent identifiables pendant le défilement, et la région devient
- * focusable quand elle déborde réellement, faute de quoi le conteneur serait
- * inatteignable au clavier (WCAG 2.1.1).
- */
-function ErrorMatrix({ heatmap }: { heatmap: ReturnType<typeof buildErrorHeatmap> }) {
+function ErrorMatrix({
+  heatmap,
+}: {
+  heatmap: ReturnType<typeof buildErrorHeatmap>;
+}) {
   const labelStride = Math.max(
     1,
     Math.ceil(heatmap.columns.length / MAX_VISIBLE_COLUMN_LABELS),
@@ -94,27 +89,30 @@ function ErrorMatrix({ heatmap }: { heatmap: ReturnType<typeof buildErrorHeatmap
         className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-blue-600"
       >
         <div
-          className="grid"
+          className="grid gap-px rounded-[3px]"
           style={{
             gridTemplateColumns: `minmax(7rem, 1.5fr) repeat(${heatmap.columns.length}, minmax(2rem, 1fr))`,
           }}
         >
-          <div className="sticky left-0 z-10 bg-slate-50/80 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0/60 dark:text-nord-4">
+          <div className="sticky left-0 z-10 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0 dark:text-nord-4">
             Périmètre
           </div>
           {heatmap.columns.map((column, index) => {
             const { full, short } = columnLabels(column, heatmap.granularity);
             const visible = index % labelStride === 0;
+            const startsWeek =
+              heatmap.granularity === "jour" &&
+              index > 0 &&
+              isoWeekKey(heatmap.columns[index - 1]) !== isoWeekKey(column);
+
             return (
               <div
                 key={column}
                 title={full}
-                className="bg-slate-50/80 px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0/60 dark:text-nord-4"
+                className={`bg-slate-50 px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-600 dark:bg-nord-0 dark:text-nord-4 ${startsWeek ? "border-l-2 border-slate-300 dark:border-nord-3" : ""}`}
               >
                 {visible ? (
-                  <span className="block truncate text-[10px] leading-tight">
-                    {short}
-                  </span>
+                  <span className="block truncate text-[10px] leading-tight">{short}</span>
                 ) : (
                   <span className="sr-only">{full}</span>
                 )}
@@ -134,13 +132,6 @@ function ErrorMatrix({ heatmap }: { heatmap: ReturnType<typeof buildErrorHeatmap
   );
 }
 
-/**
- * `short` est ce qui se lit dans la colonne, `full` ce que le survol et le nom
- * accessible doivent restituer. En vue journalière, « 21 sept. 2026 » ne tient
- * pas dans une colonne de 2 rem : `truncate` n'en montrerait que le premier
- * chiffre, ce qui alignerait des jours différents sous le même nombre. Seul le
- * jour est affiché, la date entière restant disponible.
- */
 function columnLabels(
   column: string,
   granularity: Granularity,
@@ -166,6 +157,9 @@ function ErrorRow({
           {row.name}
         </Link>
         <BillingCodeBadge code={row.billing_code} />
+        <span className="ml-auto shrink-0 tabular-nums text-xs text-slate-500 dark:text-nord-4" aria-hidden="true">
+          Tot. {row.totalErrors}
+        </span>
       </div>
       {row.cells.map((cell) => (
         <ErrorCell
@@ -203,28 +197,54 @@ function ErrorCell({
     : "aucune saisie";
   const label = `${scopeName}, ${column} : ${value}, ${change}`;
 
+  const step = getHeatmapStep(intensity);
+
   return (
     <div
       role="img"
       aria-label={label}
       title={label}
-      className={`flex min-h-10 items-center justify-center border-l border-t border-white/60 px-1 text-xs font-semibold tabular-nums dark:border-nord-1 ${heatmapClass(intensity)}`}
+      className={`flex min-h-10 items-center justify-center border-l border-t border-slate-100 dark:border-nord-2 px-1 text-xs font-semibold tabular-nums ${step.cell}`}
     >
       {cell.saisi ? cell.errors : "—"}
     </div>
   );
 }
 
+function HeatmapLegend() {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-nord-4">
+      <span className="flex items-center gap-1.5">
+        <span className="w-5 h-5 rounded border border-slate-200 dark:border-nord-2" aria-hidden="true" />
+        <span className="sr-only">Aucune saisie</span>
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="flex items-center gap-1.5" aria-label="Intensité : faible">
+          {HEATMAP_SCALE.slice(1).map((step, i) => (
+            <span key={i} className={`w-5 h-5 rounded ${step.legend}`} aria-hidden="true" />
+          ))}
+        </span>
+        <span>faible</span>
+        <span className="mx-1" aria-hidden="true">▸</span>
+        <span>élevée</span>
+      </span>
+    </div>
+  );
+}
+
 function ErrorRanking({ rows }: { rows: ErrorHeatmapRow[] }) {
   const max = Math.max(...rows.map((row) => row.totalErrors), 1);
+  const displayed = rows.slice(0, RANKING_LIMIT);
+  const hasMore = rows.length > RANKING_LIMIT;
+
   return (
     <div className="mt-5 border-t border-slate-100 pt-4 dark:border-nord-2">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="text-sm font-semibold text-slate-800 dark:text-nord-5">Périmètres les plus exposés</h4>
-        <p className="text-xs text-slate-500 dark:text-nord-4">Total d'erreurs sur la période</p>
+        <h4 className={CARD_TITLE_CLASS}>Périmètres les plus exposés</h4>
+        <p className={CARD_SUBTITLE_CLASS}>Total d'erreurs sur la période</p>
       </div>
       <ol className="grid gap-x-6 gap-y-2 md:grid-cols-2">
-        {rows.slice(0, 15).map((row) => (
+        {displayed.map((row) => (
           <li key={row.id}>
             <Link to={`/scopes/${row.id}`} className="block rounded-lg px-1 py-1 transition-colors hover:bg-slate-50 dark:hover:bg-nord-2">
               <div className="flex items-baseline justify-between gap-3">
@@ -241,19 +261,11 @@ function ErrorRanking({ rows }: { rows: ErrorHeatmapRow[] }) {
           </li>
         ))}
       </ol>
+      {hasMore && (
+        <p className="mt-3 text-xs text-slate-500 dark:text-nord-4">
+          +{rows.length - RANKING_LIMIT} autres périmètres
+        </p>
+      )}
     </div>
   );
-}
-
-function heatmapClass(intensity: number): string {
-  if (intensity === 0) {
-    return "bg-slate-50 text-slate-600 dark:bg-nord-2 dark:text-nord-4";
-  }
-  if (intensity <= 0.25) {
-    return "bg-blue-100 text-slate-700 dark:bg-nord-3 dark:text-nord-6";
-  }
-  if (intensity <= 0.55) {
-    return "bg-blue-300 text-slate-900 dark:bg-nord-8 dark:text-nord-0";
-  }
-  return "bg-blue-700 text-white dark:bg-nord-9 dark:text-nord-0";
 }

@@ -1,10 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { ANALYTICS_PATH, AUDIT_LOG_PATH, SCOPE_LIST_PATH } from "../constants/routes";
+import { ANALYTICS_PATH, AUDIT_LOG_PAGE_PATH, SCOPE_LIST_PATH } from "../constants/routes";
 
 const ITEMS = [
   { to: SCOPE_LIST_PATH, label: "Périmètres", end: true },
   { to: ANALYTICS_PATH, label: "Analyse", end: false },
-  { to: AUDIT_LOG_PATH, label: "Journal", end: false },
+  { to: AUDIT_LOG_PAGE_PATH, label: "Journal", end: false },
 ];
 
 /**

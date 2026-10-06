@@ -390,3 +390,26 @@ export function periodDaysFor(
 ): string[] {
   return buildPeriodDays(from, to, config, workingDaysOnly);
 }
+
+/**
+ * Couverture de saisie par colonne (jour ou semaine), en %.
+ *
+ * Réutilise `coverageRate` de `kpi.ts` par groupe de jours : on ne réimplémente
+ * pas le taux — deux définitions concurrentes d'un même chiffre sont un défaut,
+ * pas une extension (§28.6).
+ */
+export function coverageByColumn(
+  scopes: ScopeMonitoring[],
+  days: string[],
+  granularity: Granularity,
+): number[] {
+  if (days.length === 0 || scopes.length === 0) return [];
+
+  const labelOf = granularity === "jour" ? (day: string) => day : isoWeekKey;
+  const columns = [...new Set(days.map(labelOf))].sort();
+
+  return columns.map((column) => {
+    const columnDays = days.filter((day) => labelOf(day) === column);
+    return coverageRate(scopes, columnDays);
+  });
+}

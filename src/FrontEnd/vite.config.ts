@@ -5,7 +5,14 @@ import tailwindcss from "@tailwindcss/vite";
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss({
+      // Forcer le scan des fichiers sources pour générer les classes utilitaires
+      // (Tailwind v4 ne détecte pas toujours automatiquement dans cette structure)
+      content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+    }),
+  ],
   server: {
     port: 5173,
     // Configuration du proxy dev pour éviter tout problème CORS avec le backend FastAPI (port 8000)
@@ -15,12 +22,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      "/audit-log":
-        {
-          target: "http://localhost:8000",
-          changeOrigin: true,
-          secure: false,
-        },
+      "/api/audit-log": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+        secure: false,
+      },
       "/project/settings": {
         target: "http://localhost:8000",
         changeOrigin: true,

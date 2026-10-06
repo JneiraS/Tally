@@ -76,4 +76,20 @@ def test_public_routes_stay_unauthenticated():
     assert client.get("/healthz").status_code == 200
     assert client.get("/scope-monitorings").status_code == 401
     assert client.get("/project/settings").status_code == 401
-    assert client.get("/audit-log").status_code == 401
+    assert client.get("/api/audit-log").status_code == 401
+
+
+def test_old_audit_log_path_is_not_an_api_route():
+    """The old /audit-log endpoint was moved to /api/audit-log so that
+    the SPA route /audit-log serves index.html on hard refresh.
+    """
+    client = TestClient(
+        create_app(InMemoryScopeMonitoringRepository(), FakeAuthRepository())
+    )
+
+    # The old path must NOT be an API route (404, not 401 or 200)
+    r = client.get("/audit-log")
+    assert r.status_code == 404, (
+        "GET /audit-log must return 404 so the SPA owns this path; "
+        f"got {r.status_code}"
+    )

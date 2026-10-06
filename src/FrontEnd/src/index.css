@@ -2,6 +2,9 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@source "../index.html";
+@source "../src/**/*.{js,ts,jsx,tsx}";
+
 @theme {
     /* Palette Nord historique utilisée par le thème sombre. */
     --color-nord-0: #2e3440;

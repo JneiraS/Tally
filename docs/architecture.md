@@ -228,7 +228,7 @@ Table des routes :
 | POST | `/scope-monitorings/{scope_id}/activities` | oui | Création d'une activité |
 | PATCH | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Mise à jour des compteurs |
 | POST | `/scope-monitorings/{scope_id}/activities/complete` | oui | Clôture d'un lot de jours |
-| GET | `/audit-log` | oui | Journal d'audit |
+| GET | `/api/audit-log` | oui | Journal d'audit |
 
 \* `/auth/me` et `/auth/logout` figurent dans `PUBLIC_ROUTES` **parce qu'ils
 gèrent eux-mêmes l'absence de session** (`current_user` lève un 401,

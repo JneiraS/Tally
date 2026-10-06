@@ -433,7 +433,7 @@ def create_app(
         return _activity_to_response(get_daily_activity.execute(scope_id, day))
 
     @app.get(
-        "/audit-log",
+        "/api/audit-log",
         response_model=list[AuditEventResponse],
         dependencies=[Depends(project_context)],
     )

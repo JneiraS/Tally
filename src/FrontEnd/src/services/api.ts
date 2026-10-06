@@ -383,7 +383,7 @@ export const protabApi = {
   },
 
   /**
-   * GET /audit-log
+   * GET /api/audit-log
    * Liste les événements du journal d'audit, du plus récent au plus ancien.
    * Paramètres filtres optionnels : scope_id, actor, action, from_date, to_date, limit.
    */

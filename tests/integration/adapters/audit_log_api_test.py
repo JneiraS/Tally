@@ -168,7 +168,7 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
     )
 
     get_body = http.get(
-        "/audit-log"
+        "/api/audit-log"
     )
     assert get_body.status_code == 200
     events = get_body.json()
@@ -180,7 +180,7 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
     )
 
     filtered = http.get(
-        "/audit-log",
+        "/api/audit-log",
         params={"action": "activity_created"},
     )
     assert filtered.status_code == 200
@@ -188,7 +188,7 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
 
     assert (
         http.get(
-            "/audit-log",
+            "/api/audit-log",
             params={"actor": "ZZZZ"},
         ).json()
         == []
@@ -212,7 +212,7 @@ def test_get_audit_log_limit(env):
         )
 
     events = http.get(
-        "/audit-log",
+        "/api/audit-log",
         params={"limit": 2},
     ).json()
     assert len(events) == 2

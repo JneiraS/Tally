@@ -5,8 +5,11 @@ import { protabApi } from "../services/api";
 import { NonWorkingDays, ScopeMonitoring } from "../types";
 import { getTodayIsoDate } from "../utils/date";
 import {
+  aggregateByDay,
+  aggregateByWeek,
   buildPeriodDays,
   computePeriodSummary,
+  coverageByColumn,
   MAX_TRACKED_DAYS,
   normalizeRange,
   periodDelta,
@@ -19,7 +22,8 @@ import {
 } from "../components/AnalyticsFilterBar";
 import {
   AnalyticsErrorHeatmap,
-} from "../components/AnalyticsCharts";
+} from "../components/AnalyticsHeatmap";
+import { AnalyticsKpiCards } from "../components/AnalyticsKpiCards";
 import {
   buildExportRows,
   downloadFile,
@@ -29,17 +33,91 @@ import {
 
 const GRANULARITIES = ["jour", "semaine"] as const;
 
-/** Valeur de `scopeIds` signifiant « périmètre désélectionné ». */
 const NO_SCOPE_SELECTION = "-";
 
-/**
- * Page d'analyse, entièrement dérivée de `GET /scope-monitorings`.
- *
- * Aucun appel supplémentaire : la liste renvoie déjà tous les périmètres avec
- * leur historique. Un endpoint d'agrégation côté serveur n'aurait de sens qu'à
- * partir du jour où la charge dépasse ce que le navigateur peut tenir, ce qui
- * n'est pas le cas ici — et il faudrait alors mesurer avant de le créer.
- */
+function SkeletonCard() {
+  return (
+    <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs p-4 animate-pulse space-y-3">
+      <div className="h-4 w-3/4 bg-slate-200 dark:bg-nord-2 rounded" />
+      <div className="h-8 w-1/2 bg-slate-200 dark:bg-nord-2 rounded" />
+      <div className="h-8 w-full bg-slate-200 dark:bg-nord-2 rounded" />
+    </div>
+  );
+}
+
+function SkeletonHeatmap() {
+  return (
+    <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs p-4 animate-pulse space-y-4">
+      <div className="h-5 w-1/3 bg-slate-200 dark:bg-nord-2 rounded" />
+      <div className="h-64 bg-slate-200 dark:bg-nord-2 rounded" />
+    </div>
+  );
+}
+
+function AnalyticsEmptyState({
+  icon,
+  title,
+  hint,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-12 text-center shadow-2xs space-y-3">
+      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-nord-0 text-blue-600 dark:text-nord-8 flex items-center justify-center mx-auto">
+        {icon}
+      </div>
+      <h2 className="text-base font-semibold text-slate-800 dark:text-nord-6">
+        {title}
+      </h2>
+      <p className="text-xs text-slate-500 dark:text-nord-4 max-w-sm mx-auto">
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+function ContextPills({
+  period,
+  scopeCount,
+  granularity,
+  workingDaysOnly,
+  billingCodes,
+  compare,
+}: {
+  period: string;
+  scopeCount: number;
+  granularity: "jour" | "semaine";
+  workingDaysOnly: boolean;
+  billingCodes: string[];
+  compare: boolean;
+}) {
+  const pills = [
+    period,
+    `${scopeCount} périmètre${scopeCount === 1 ? "" : "s"}`,
+    granularity === "jour" ? "Par jour" : "Par semaine",
+    workingDaysOnly ? "Jours ouvrés" : "Tous les jours",
+  ];
+
+  if (billingCodes.length > 0) {
+    pills.push(`Codes : ${billingCodes.map((c) => (c === "__sans_code__" ? "Sans code" : c)).join(", ")}`);
+  }
+  if (compare) {
+    pills.push("Comparaison à la période précédente");
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 dark:text-nord-4 bg-slate-50 dark:bg-nord-1 rounded-lg border border-slate-200 dark:border-nord-2 p-2">
+      {pills.map((pill, i) => (
+        <span key={i} className="flex items-center gap-1.5 px-2 py-0.5 bg-white dark:bg-nord-0 rounded border border-slate-200 dark:border-nord-2">
+          {pill}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function AnalyticsPage({
   nonWorkingDays,
 }: {
@@ -66,10 +144,6 @@ export function AnalyticsPage({
     initialFilters(searchParams, today, nonWorkingDays),
   );
 
-  // La sélection par défaut est « tous les périmètres », ce qui n'est connu
-  // qu'après le chargement. Une URL partagée est résolue à ce moment-là, une
-  // seule fois : la réappliquer à chaque changement de `allScopeIds` écraserait
-  // une décoche faite entre-temps.
   const scopeIdsResolved = useRef(false);
   useEffect(() => {
     if (loading || scopeIdsResolved.current) return;
@@ -88,10 +162,6 @@ export function AnalyticsPage({
     }));
   }, [loading, allScopeIds, searchParams]);
 
-  // Le retour arrière du navigateur doit resynchroniser la période affichée,
-  // sinon l'URL annonce une plage que la page ne montre pas. Seules les clés
-  // pilotées par l'URL sont reprises, pour ne pas écraser les réglages purement
-  // locaux (métrique, comparaison, exclusion des jours non ouvrés).
   const fromUrl = searchParams.get("from");
   const toUrl = searchParams.get("to");
   const granularityUrl = searchParams.get("granularity");
@@ -114,20 +184,11 @@ export function AnalyticsPage({
     });
   }, [loading, fromUrl, toUrl, granularityUrl, today]);
 
-  /**
-   * Une seule source de vérité pour les filtres : l'état local, l'URL en étant
-   * le reflet. Écrire l'URL depuis le `setState` aurait deux défauts — un effet de
-   * bord dans un updater (React peut l'appeler deux fois en mode strict) et une
-   * URL qui repart de l'ancienne sélection à chaque frappe.
-   */
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("from", filters.from);
     params.set("to", filters.to);
     params.set("granularity", filters.granularity);
-    // Toujours écrit, y compris vide : une clé absente se lit « tous les
-    // périmètres », donc l'URL d'une sélection vide ramènerait l'utilisateur à
-    // la vue complète sans qu'il l'ait demandée.
     params.set("scopeIds", filters.scopeIds.join(","));
     setSearchParams(params, { replace: true });
   }, [filters, setSearchParams]);
@@ -152,9 +213,6 @@ export function AnalyticsPage({
     [scopes, filters.scopeIds, filters.billingCodes],
   );
 
-  // Au-delà du plafond, l'agrégat journalier devient illisible : on force la
-  // semaine plutôt que de laisser un standard qui tient 120 points et un qui en
-  // affiche 300 dans le même composant.
   const granularity =
     days.length > MAX_TRACKED_DAYS ? "semaine" : filters.granularity;
 
@@ -182,6 +240,19 @@ export function AnalyticsPage({
     );
   }, [filters.compare, filters.from, filters.to, filters.workingDaysOnly, nonWorkingDays, selected, summary]);
 
+  const series = useMemo(() => {
+    const agg = granularity === "jour"
+      ? aggregateByDay(selected, days)
+      : aggregateByWeek(selected, days);
+    const couverture = coverageByColumn(selected, days, granularity);
+    return {
+      erreurs: agg.map((p) => p.erreurs),
+      incidents: agg.map((p) => p.incidents),
+      arriere: agg.map((p) => p.arriere),
+      couverture,
+    };
+  }, [selected, days, granularity]);
+
   const exportSelection = () => {
     const rows = buildExportRows(selected, filters.from, filters.to);
     downloadFile(
@@ -193,9 +264,14 @@ export function AnalyticsPage({
 
   if (loading) {
     return (
-      <p className="py-12 text-center text-sm text-slate-500 dark:text-nord-4">
-        Chargement de l'analyse...
-      </p>
+      <div className="space-y-6" role="status" aria-label="Chargement de l'analyse">
+        <div className="h-8 w-48 bg-slate-200 dark:bg-nord-2 rounded animate-pulse" />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonHeatmap />
+      </div>
     );
   }
 
@@ -228,29 +304,14 @@ export function AnalyticsPage({
         onExport={exportSelection}
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-nord-4">
-        <p aria-label="Configuration analysée" className="flex flex-wrap gap-x-2 gap-y-1">
-          <span>{formatPeriod(filters.from, filters.to)}</span>
-          <span aria-hidden="true">·</span>
-          <span>{selected.length} périmètre{selected.length === 1 ? "" : "s"}</span>
-          <span aria-hidden="true">·</span>
-          <span>{granularity === "jour" ? "Par jour" : "Par semaine"}</span>
-          <span aria-hidden="true">·</span>
-          <span>{filters.workingDaysOnly ? "Jours ouvrés" : "Tous les jours"}</span>
-          {filters.billingCodes.length > 0 && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>Codes : {filters.billingCodes.map((code) => code === "__sans_code__" ? "Sans code" : code).join(", ")}</span>
-            </>
-          )}
-          {filters.compare && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>Comparaison à la période précédente</span>
-            </>
-          )}
-        </p>
-      </div>
+      <ContextPills
+        period={formatPeriod(filters.from, filters.to)}
+        scopeCount={selected.length}
+        granularity={granularity}
+        workingDaysOnly={filters.workingDaysOnly}
+        billingCodes={filters.billingCodes}
+        compare={filters.compare}
+      />
 
       {selected.length === 0 ? (
         <AnalyticsEmptyState
@@ -260,7 +321,12 @@ export function AnalyticsPage({
         />
       ) : (
         <>
-          <SummaryCards summary={summary} delta={delta} compare={filters.compare} />
+          <AnalyticsKpiCards
+            summary={summary}
+            delta={delta}
+            compare={filters.compare}
+            series={series}
+          />
 
           {granularity !== filters.granularity && (
             <p
@@ -279,110 +345,15 @@ export function AnalyticsPage({
               hint="Aucun jour traité n'apparaît dans cette période. Élargissez la période, ou saisissez les compteurs depuis la page des périmètres."
             />
           ) : (
-            <>
-              <AnalyticsErrorHeatmap
-                scopes={selected}
-                days={days}
-                granularity={granularity}
-              />
-            </>
+            <AnalyticsErrorHeatmap
+              scopes={selected}
+              days={days}
+              granularity={granularity}
+            />
           )}
         </>
       )}
     </div>
-  );
-}
-
-
-function AnalyticsEmptyState({
-  icon,
-  title,
-  hint,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  hint: string;
-}) {
-  return (
-    <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-12 text-center shadow-2xs space-y-3">
-      <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-nord-0 text-blue-600 dark:text-nord-8 flex items-center justify-center mx-auto">
-        {icon}
-      </div>
-      <h2 className="text-base font-semibold text-slate-800 dark:text-nord-6">
-        {title}
-      </h2>
-      <p className="text-xs text-slate-500 dark:text-nord-4 max-w-sm mx-auto">
-        {hint}
-      </p>
-    </div>
-  );
-}
-
-function SummaryCards({
-  summary,
-  delta,
-  compare,
-}: {
-  summary: ReturnType<typeof computePeriodSummary>;
-  delta: ReturnType<typeof periodDelta> | null;
-  compare: boolean;
-}) {
-  const cards = [
-    { label: "Erreurs", value: summary.erreurs, key: "erreursPct" as const },
-    { label: "Incidents", value: summary.incidents, key: "incidentsPct" as const },
-    { label: "En attente", value: summary.arriere, key: "arrierePct" as const },
-    {
-      label: "Couverture de saisie",
-      value: Math.round(summary.couverture),
-      suffix: " %",
-      key: "couverturePct" as const,
-    },
-  ];
-
-  return (
-    <section aria-label="Résumé de la période">
-      <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {cards.map((card) => (
-          <div
-            key={card.label}
-            className="bg-white dark:bg-nord-1 p-4 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs"
-          >
-            <dt className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-nord-4">
-              {card.label}
-            </dt>
-            <dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900 dark:text-nord-6">
-              {card.value.toLocaleString("fr-FR")}
-              {card.suffix}
-            </dd>
-            {compare && (
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-nord-4">
-                <DeltaText value={delta ? delta[card.key] : null} />
-              </p>
-            )}
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
-
-function DeltaText({ value }: { value: number | null }) {
-  // Une base nulle n'a pas de pourcentage : afficher « +∞ % » ou « 0 % »
-  // transformerait une absence de référence en chiffre, ce qui est pire que
-  // de ne rien montrer.
-  if (value === null) return <span>— vs période précédente</span>;
-  const sign = value > 0 ? "+" : "";
-  const signClass =
-    value > 0
-      ? "text-red-600 dark:text-nord-11"
-      : value < 0
-        ? "text-emerald-700 dark:text-nord-14"
-        : "";
-  return (
-    <span className={signClass}>
-      {sign}
-      {value} % vs période précédente
-    </span>
   );
 }
 
@@ -395,8 +366,6 @@ function initialFilters(
   const to = searchParams.get("to");
   const granularityParam = searchParams.get("granularity");
   const fallback = resolvePresetRange("mois", today, nonWorkingDays);
-  // Un lien partagé peut citer un périmètre supprimé : on ne garde que ceux qui
-  // existent encore, sinon la page s'ouvrirait sur une sélection vide.
   return {
     from: from ?? fallback.from,
     to: to ?? fallback.to,
