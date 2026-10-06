@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { AnalyticsFilterBar, type AnalyticsFilters } from "../components/AnalyticsFilterBar";
 import { CHECKBOX_CLASS } from "../constants/ui";
@@ -38,7 +38,34 @@ function renderBar(scopes: ScopeMonitoring[] = MANY, filters = FILTERS) {
   return onChange;
 }
 
+// Polyfill matchMedia for jsdom
+const createMatchMediaMock = (isMobile: boolean) => {
+  return vi.fn().mockImplementation((query: string) => ({
+    matches: isMobile && query === "(max-width: 767px)",
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+};
+
 describe("AnalyticsFilterBar", () => {
+  let originalMatchMedia: typeof window.matchMedia;
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    originalMatchMedia = window.matchMedia;
+    // Desktop par défaut
+    window.matchMedia = createMatchMediaMock(false);
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
   it("n'affiche pas les périmètres tant que le sélecteur est fermé", () => {
     renderBar();
 
@@ -83,8 +110,6 @@ describe("AnalyticsFilterBar", () => {
   it("révèle les dates uniquement pour une période personnalisée", () => {
     renderBar();
     expect(screen.queryByLabelText("Période : début")).not.toBeInTheDocument();
-    // Le composant parent contrôle les filtres : le clic émet le patch, puis
-    // le parent remonte la nouvelle valeur au rendu suivant.
     renderBar(MANY, { ...FILTERS, preset: "perso" });
     expect(screen.getByLabelText("Période : début")).toBeInTheDocument();
     expect(screen.getByLabelText("Période : fin")).toBeInTheDocument();
@@ -96,7 +121,7 @@ describe("AnalyticsFilterBar", () => {
     expect(classes).toEqual(new Set([CHECKBOX_CLASS]));
   });
 
-  it("garde le bouton d'export existant", () => {
+  it("garde le bouton d'export dans l'en-tête", () => {
     const onExport = vi.fn();
     render(
       <AnalyticsFilterBar
@@ -107,7 +132,36 @@ describe("AnalyticsFilterBar", () => {
         onExport={onExport}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /exporter la sélection/i }));
+    fireEvent.click(screen.getByRole("button", { name: /exporter/i }));
     expect(onExport).toHaveBeenCalledOnce();
+  });
+
+  it("replie les filtres sur mobile et les déplie au clic", () => {
+    window.matchMedia = createMatchMediaMock(true); // mobile
+    const onChange = renderBar();
+
+    // Sur mobile, le contenu est replié par défaut (display: none via classe hidden)
+    // Le div avec la classe conditionnelle est le grand-parent du fieldset "Période"
+    const fieldset = screen.getByText("Période").closest("fieldset");
+    const contentDiv = fieldset?.parentElement?.parentElement;
+    expect(contentDiv).toHaveClass("hidden");
+    expect(screen.getByRole("button", { name: /filtres/i })).toBeInTheDocument();
+
+    // Clic pour déplier
+    fireEvent.click(screen.getByRole("button", { name: /filtres/i }));
+    expect(screen.getByText("Période")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /masquer/i })).toBeInTheDocument();
+    // Le contenu n'a plus la classe hidden
+    const expandedDiv = screen.getByText("Période").closest("fieldset")?.parentElement?.parentElement;
+    expect(expandedDiv).not.toHaveClass("hidden");
+  });
+
+  it("affiche le compteur de filtres actifs sur mobile replié", () => {
+    window.matchMedia = createMatchMediaMock(true);
+    const filters = { ...FILTERS, preset: "7j" as const, workingDaysOnly: false };
+    renderBar(MANY, filters);
+
+    const toggle = screen.getByRole("button", { name: /filtres/i });
+    expect(toggle).toHaveTextContent(/1/); // 1 filtre actif : preset 7j (workingDaysOnly=false n'est pas un filtre)
   });
 });

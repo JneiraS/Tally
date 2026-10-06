@@ -6,6 +6,7 @@ import {
   buildErrorHeatmap,
   clampRange,
   computePeriodSummary,
+  coverageByColumn,
   firstActivityDay,
   isoWeekKey,
   normalizeRange,
@@ -411,5 +412,34 @@ describe("bornes de lisibilité", () => {
       from: "2026-09-18",
       to: LUNDI,
     });
+  });
+});
+
+describe("couverture par colonne", () => {
+  const SCOPES = [
+    scope("s1", "Alpha", [
+      activity("2026-09-21", 4, 1),
+      activity("2026-09-22", 2, 2),
+    ]),
+    scope("s2", "Beta", [activity("2026-09-21", 6, 3)]),
+    scope("s3", "Gamma", []),
+  ];
+
+  it("renvoie un pourcentage par jour pour la granularité jour", () => {
+    const cols = coverageByColumn(SCOPES, ["2026-09-21", "2026-09-22", "2026-09-23"], "jour");
+    // 21: 2/3 saisies = 67%, 22: 1/3 = 33%, 23: 0/3 = 0%
+    expect(cols).toEqual([67, 33, 0]);
+  });
+
+  it("regroupe les jours par semaine ISO pour la granularité semaine", () => {
+    const cols = coverageByColumn(SCOPES, ["2026-09-21", "2026-09-22", "2026-09-28"], "semaine");
+    // 2026-W39 contient 21, 22 : 3/6 = 50%
+    // 2026-W40 contient 28 : 0/3 = 0%
+    expect(cols).toEqual([50, 0]);
+  });
+
+  it("gère une période vide", () => {
+    expect(coverageByColumn(SCOPES, [], "jour")).toEqual([]);
+    expect(coverageByColumn([], ["2026-09-21"], "jour")).toEqual([]);
   });
 });

@@ -311,11 +311,11 @@ dépasse ce que le navigateur tient — et il faudrait alors mesurer avant de le
 créer, pas le supposer.
 
 Toute la logique de calcul est **pure** et vit dans `utils/analytics.ts` :
-presets de période, bornes, semaines ISO, agrégats, résumé, delta, classement et
-séries empilées. Elle compose `utils/kpi.ts` — `transformationRate`,
+presets de période, bornes, semaines ISO, agrégats, résumé, delta, classement,
+**sparklines** et séries. Elle compose `utils/kpi.ts` — `transformationRate`,
 `trailingErrors`, `coverageRate`, `isWorkingDay`, `lastWorkingDays` — sans les
 reimplémenter : deux définitions concurrentes d'un même chiffre sont un défaut,
-pas une.extension. Les tests portent donc sur ce module, ce qui est le seul
+pas une extension. Les tests portent donc sur ce module, ce qui est le seul
 endroit où ils sont déterministes.
 
 Trois règles qu'un coup d'œil au rendu ne donne pas :
@@ -329,10 +329,14 @@ Trois règles qu'un coup d'œil au rendu ne donne pas :
   complète sans qu'il l'ait demandée. L'écriture est suspendue pendant le
   chargement, sinon elle figerait une liste vide que le partageur ne retrouverait
   pas.
+- **Le chargement affiche un squelette** (`animate-pulse`) au lieu d'un texte nu,
+  pour éviter le flash de contenu.
+
 Sous les filtres, la page rappelle la période, le nombre de périmètres sélectionnés,
 la granularité réellement affichée, les codes retenus, les jours inclus et la
-comparaison éventuelle ; ce contexte reste visible quand les contrôles ne sont plus
-dans le viewport.
+comparaison éventuelle sous forme de **pills** (badges) au lieu d'un chapelet de
+middots ; ce contexte reste visible quand les contrôles ne sont plus dans le
+viewport.
 
 La section principale de l'analyse affiche une **heatmap des erreurs** : une ligne
 par périmètre, une colonne par jour ou par semaine selon le réglage *Par jour /
@@ -345,21 +349,25 @@ vue répond à « combien d'erreurs ont été observées ? ». Une activité à 
 affiche `0`, alors qu'une période sans activité affiche `—` et porte le libellé
 accessible « aucune saisie ».
 
-La première carte est compacte et organisée selon la décision à prendre :
-**Période** et **Granularité** sur la première ligne, puis **Périmètres analysés**
-sur toute la largeur. Les périmètres sont choisis dans un multi-select : la carte
-affiche uniquement le déclencheur, la recherche et le compteur `N périmètres
-sélectionnés sur M`. La liste complète ouvre un popover desktop, ou la `Modal`
-existante sur mobile ; elle contient de vraies cases à cocher, la recherche, les
-actions globales et `Terminé`. Les cochages sont appliqués immédiatement. Une
-sélection vide reste possible et affiche un message directement dans la carte au
-lieu de laisser l'utilisateur deviner pourquoi les graphiques ont disparu.
+La **carte de filtres** est compacte et organisée selon la décision à prendre :
+**Période** et **Granularité** en chips sur la première ligne, puis **Périmètres
+analysés** sur toute la largeur. Les périmètres sont choisis dans un multi-select :
+la carte affiche uniquement le déclencheur, la recherche et le compteur `N
+périmètres sélectionnés sur M`. La liste complète ouvre un popover desktop, ou la
+`Modal` existante sur mobile ; elle contient de vraies cases à cocher, la
+recherche, les actions globales et `Terminé`. Les cochages sont appliqués
+immédiatement. Une sélection vide reste possible et affiche un message directement
+dans la carte au lieu de laisser l'utilisateur deviner pourquoi les graphiques ont
+disparu. **Sur mobile (< 768 px), la carte se replie** derrière un bouton
+« Filtres » qui affiche le nombre de réglages actifs ; l'export reste accessible
+dans l'en-tête même repliée.
 
-Le bloc **Codes de facturation** propose une sélection multiple, y compris
-`Sans code` pour les anciens périmètres qui n'ont pas encore de code. Le filtre
-réduit les périmètres analysés sans effacer leur sélection : retirer le filtre
-restaure donc les périmètres précédemment retenus. Les actions `Tout sélectionner`
-et `Tout désélectionner` s'appliquent uniquement aux périmètres actuellement
+Le bloc **Codes de facturation** propose une sélection multiple en chips, y
+compris `Sans code` pour les anciens périmètres qui n'ont pas encore de code.
+**Tous les codes sont accessibles** (plus de `+N autres` non cliquable) ; le
+filtre réduit les périmètres analysés sans effacer leur sélection : retirer le
+filtre restaure donc les périmètres précédemment retenus. Les actions `Tout
+cocher` et `Tout décocher` s'appliquent uniquement aux périmètres actuellement
 visibles après filtrage.
 
 ### Chaque bloc mesure une chose différente
@@ -368,10 +376,18 @@ La page rassemble les indicateurs de période, la heatmap et le classement :
 
 | Bloc | Résolution | Métrique |
 | --- | --- | --- |
-| Compteurs de période | période entière | erreurs, incidents, en attente, couverture |
+| Compteurs de période (+ sparklines) | période entière | erreurs, incidents, en attente, couverture |
 | Heatmap | jour ou semaine, selon le réglage | volume d'erreurs observées |
 | Classement | période entière | total d'erreurs par périmètre |
 | Cellule sans saisie | jour ou semaine | aucune activité distinguée de zéro erreur |
+
+Les **cartes KPI** affichent chacune : une icône, la valeur en `text-3xl` colorée
+selon la sévérité (amber pour erreurs/en attente, rose pour incidents, emerald
+pour couverture), une **sparkline SVG** (tendance sur la période, domaine fixe
+`[0,100]` pour la couverture), et un delta unique « +N % » avec note de bas de
+page « Écarts calculés vs période précédente de même longueur » quand la
+comparaison est active — plus de répétition « vs période précédente » sur chaque
+carte.
 
 La heatmap suit le réglage *Par jour / Par semaine*, et ses en-têtes nomment la
 résolution réellement affichée. La heatmap
@@ -385,15 +401,27 @@ plusieurs fois la largeur de l'écran. Masquer le débordement laisserait des
 colonnes hors d'atteinte, ce qui est pire qu'une barre de défilement. La
 colonne des noms est `sticky` pour que les lignes restent identifiables, et la
 région devient focusable quand elle déborde réellement, faute de quoi elle
-serait inatteignable au clavier. Un libellé de date sur N colonnes suffit, chaque
-en-tête conservant son `title` et chaque cellule son libellé complet.
+serait inatteignable au clavier. **Le coin `sticky` de l'en-tête est opaque**
+(`bg-slate-50` au lieu de `bg-slate-50/80`) pour éviter l'artefact de
+superposition au défilement. Les filets blancs entre cellules sont remplacés par
+un filet neutre `gap-px` + `rounded-[3px]` + `border-slate-100/60 dark:border-nord-2`,
+les paliers d'intensité passent de 3 non contigus à **5 paliers continus
+AA-conformes** (`blue-100` → `blue-200` → `blue-300` → `blue-700` → `blue-900` en
+clair, `nord-2` → `nord-3` → `nord-7` → `nord-8` → `nord-9` en sombre), chaque
+palier portant son texte `text-xs` à ≥4,5:1. Une **légende visuelle** (5 pastilles
++ « `—` : aucune saisie ») est rendue sous la matrice depuis le même tableau
+unique `HEATMAP_SCALE`. En vue journalière, un **séparateur de semaine** (filet
+`border-l-2`) marque le changement de semaine ISO. Le **total par périmètre**
+apparaît dans la cellule de nom (droite, `ml-auto tabular-nums`), évitant une
+colonne supplémentaire qui dupliquerait le classement.
 
 Deux plafonds de lisibilité restent explicites parce qu'ils changent ce qui est
 affiché : au-delà de **120 jours** l'agrégat passe en semaine — annoncé par un
 bandeau, car le choix « par jour » de l'utilisateur est alors ignoré et l'URL
-réécrite — et le classement s'arrête aux **15** périmètres les plus exposés. La
-heatmap affiche toutes les lignes sélectionnées : une troncature y ferait
-disparaître un périmètre sans indiquer pourquoi.
+réécrite — et le classement s'arrête aux **15** périmètres les plus exposés,
+**avec la mention `+N autres périmètres`**. La heatmap affiche toutes les lignes
+sélectionnées : une troncature y ferait disparaître un périmètre sans indiquer
+pourquoi.
 
 La heatmap porte aussi la distinction entre une saisie sans erreur et une absence
 de saisie : une activité à zéro erreur affiche `0`, tandis qu'une colonne sans
@@ -414,17 +442,14 @@ horizontales : à quarante périmètres un graphique est un mur, son axe de noms
 140 px mangeait la moitié de la largeur sur mobile, et la seule façon d'y lire une
 valeur était de passer la souris dessus. Chaque ligne porte la valeur **en texte** — la
 barre est décorative, `aria-hidden` — et la barre est calée sur le pire périmètre,
-faute de quoi elle ne comparerait rien. Pour le taux de transformation la barre est
-**inversée** (`100 − taux`), sinon le périmètre le plus dégradé, en tête de liste,
-recevrait la barre la plus courte. Un taux indéfini n'a aucune barre : une barre de
-longueur nulle se lirait comme un 0 %.
+faute de quoi elle ne comparerait rien. **Le taux de transformation n'est plus
+inversé** (la barre suit `totalErrors`, un taux indéfini n'a pas de barre). Un
+taux indéfini n'a aucune barre : une barre de longueur nulle se lirait comme un 0 %.
 
-La **sélection des périmètres** est une rangée de pastilles, avec les 12 premières
-visibles et un bouton « +N autres » qui déploie la suite en ligne. La liste était
-dans une boîte `max-h-28 overflow-y-auto` : cinq périmètres suffisaient à faire
-apparaître une barre de défilement pour une sélection qui se lit d'un coup d'œil.
-Le déploiement ne passe pas par une modale — son « Annuler » doublonnerait celui de
-la page, et sa superposition masquerait le graphique qu'on est en train de filtrer.
+La **sélection des périmètres** utilise un **multi-select compact** (déclencheur
++ popover desktop / `Modal` mobile) avec vraies cases à cocher, recherche, « Tout
+cocher » / « Tout décocher » et « Terminé » — plus de rangée de pastilles
+`max-h-28`. L'export a été **remonté dans l'en-tête** de la carte de filtres.
 
 ---
 
@@ -441,6 +466,29 @@ et parce que son arriéré valait `erreurs - incidents` : empiler `incidents` +
 exactement le haut de son propre empilement. Le même total s'affichait deux fois,
 dans deux registres visuels, lisibles comme deux mesures distinctes. L'arriéré
 reste lisible comme valeur dans les KPI. Voir `AGENTS.md` §28.6.
+
+### Sparklines sur `/analyse` — pas de recharts
+
+La page `/analyse` n'utilise **pas** `recharts`. Les tendances des 4 métriques
+(erreurs, incidents, en attente, couverture) sont rendues par des **sparklines
+SVG maison** (`components/Sparkline.tsx`) dans les cartes KPI. Raisons :
+
+- Poids : pas de dépendance lourde (365 kB gzippé pour `LineChart` + deps) pour 4
+  micro-courbes.
+- Accessibilité : pas de problème d'outline sur `<svg>` (recharts n'a pas
+  d'`accessibilityLayer` stable, l'outline nécessite des hacks `className` sur
+  le wrapper qui ne marchent pas en production).
+- Simplicité : chaque sparkline est un `<svg viewBox>` + un `<path>` avec
+  `vector-effect="non-scaling-stroke"`, couleur via `currentColor` héritée du
+  texte de la carte (pas de hex en dur). Le domaine est auto-scalé sauf pour la
+  couverture (`[0, 100]` fixe).
+- Tests : jsdom rend l'inline SVG sans layout, donc le `d` du path est testable
+  (contrairement à recharts qui ne monte aucun `<svg>` sous jsdom).
+
+La donnée vient de `aggregateByDay` / `aggregateByWeek` (`utils/analytics.ts:184-197`)
+et `coverageByColumn` (nouveau, même fichier) — **code pur déjà testé et jamais
+rendu avant ce changement**. Pas de nouvelle logique métier, seulement de la
+visualisation.
 
 Deux pièges liés aux recharts, documentés en `AGENTS.md` §28.6 et utiles à
 rappeler :
