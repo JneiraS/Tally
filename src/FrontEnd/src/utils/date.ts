@@ -91,3 +91,44 @@ export function formatFullDateFr(isoDate: string): string {
 export function compareIsoDatesDesc(a: string, b: string): number {
   return b.localeCompare(a);
 }
+
+/**
+ * Convertit une date ISO en instant ISO du **début de la journée locale**.
+ *
+ * Le journal d'audit filtre le serveur, qui ne connaît aucun fuseau : les
+ * bornes d'une journée doivent donc être résolues ici, dans le fuseau du
+ * navigateur — celui qui affiche déjà les horodatages du journal et qui
+ * indexe les lignes de la heatmap (§28.6). C'est aussi le seul choix qui
+ * afficherait « 19 septembre » de part et d'autre de l'écran.
+ *
+ * `new Date("2026-09-19")` aurait été interprété en UTC, donc décalé d'un jour
+ * à l'heure d'été : la date est décomposée puis reconstruite en heure locale,
+ * comme le fait `addDaysIso` ci-dessus.
+ *
+ * Une zone qui décale son minimuit (changement d'heure à 00 h) fait avancer
+ * l'instant d'une heure plutôt que de renvoyer une date invalide ; la journée
+ * demandée reste alors couverte, simplement depuis son premier instant réel.
+ */
+export function isoDateToLocalDayStart(isoDate: string): string {
+  if (!isValidIsoDate(isoDate)) return "";
+  const [yearStr, monthStr, dayStr] = isoDate.split('-');
+  return new Date(
+    parseInt(yearStr, 10),
+    parseInt(monthStr, 10) - 1,
+    parseInt(dayStr, 10)
+  ).toISOString();
+}
+
+/**
+ * Convertit une date ISO en instant ISO du **début du lendemain local**.
+ *
+ * C'est la borne haute d'une journée, et elle est **exclusive** côté serveur :
+ * `from` inclusif + `to` exclusif est la seule façon d-dire « toute cette
+ * journée » sans arrondi à la seconde près. Une borne haute à 23:59:59
+ * exclurait la dernière seconde, et une à 23:59:59.999 dépendrait de la
+ * précision d'horloge de la base.
+ */
+export function isoDateToNextLocalDayStart(isoDate: string): string {
+  if (!isValidIsoDate(isoDate)) return "";
+  return isoDateToLocalDayStart(addDaysIso(isoDate, 1));
+}

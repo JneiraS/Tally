@@ -152,8 +152,28 @@ par réflexion, puisque `mypy` ne voit pas le code de test.
 ### Port d'audit — `ports/outbound/audit_trail_repository.py`
 
 Deux méthodes : `record(event)` et une requête de consultation acceptant un
-`AuditEventQuery` dont le champ `limit` vaut **200 par défaut**
-(`audit_trail_repository.py:15`).
+`AuditEventQuery` dont le champ `limit` vaut **200 par défaut**.
+
+Trois décisions de ce query object portent le comportement du filtre, et les
+**deux adaptateurs doivent les respecter à l'identique** (§11) :
+
+- `scope_ids` est un tuple : la liste vide ne filtre pas, un élément suffit.
+  La saisie d'un UUID n'est plus exigée, le sélecteur de périmètres passe par
+  les noms.
+- `actor` est un **préfixe insensible à la casse**, pas une égalité. La colonne
+  stocke `quadrigramme.strip().upper()`, donc une égalité renvoyait zéro ligne
+  pour `abcd` comme pour le partiel `AB` — un filtre qui vide la table à la
+  frappe se lit comme un filtre cassé.
+- La période filtre **`created_at`**, pas `day`. `day` est la journée métier
+  concernée et vaut `NULL` pour `scope_created`, `scope_imported` et
+  `scope_note_updated` : la filtrer faisait disparaître un tiers du journal dès
+  qu'une date était saisie. La fenêtre est **semi-ouverte**
+  (`from` inclusif, `to` exclusif), seule façon d-dire « toute cette journée »
+  sans arrondi à la seconde près ; le serveur n'ayant aucun fuseau, le front
+  résout les minuits locaux en instants avant d'appeler.
+
+La normalisation de `actor` (`.strip().upper()`, blanc = aucun filtre) est faite
+**une seule fois à la frontière entrante** (`app.py`), jamais dans les adaptateurs.
 
 ### Absence de port pour l'authentification
 
@@ -287,7 +307,12 @@ mode **synchrone**, avec un pool partagé construit par `postgres_pool.py`.
   valide plus les jours non travaillés : il persiste `NonWorkingDays.to_dict()`
   et relit par `NonWorkingDays.from_raw()`.
 - `PostgresAuditTrailRepository` — table `audit_log`
-  (`postgres_audit_trail_repository.py:25`).
+  (`postgres_audit_trail_repository.py:25`). Le filtre `actor` est un `ILIKE`
+  `'préfixe%'` ; il n'exploite donc **pas** `idx_audit_log_actor` (un btree ne
+  peut pas servir un `ILIKE`), ce qui est acceptable à l'échelle d'un journal
+  d'audit. `ILIKE` est préféré à un `LIKE` sur un terme pré-majusculé pour que
+  l'insensibilité à la casse ne dépende pas de la façon dont la colonne est
+  stockée aujourd'hui.
 
 **Il n'y a pas d'outil de migration.** Le schéma est appliqué de façon
 idempotente à chaque `connect()`, par `CREATE TABLE IF NOT EXISTS` et quelques

@@ -3,7 +3,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { AnalyticsScopePicker } from "../components/AnalyticsScopePicker";
+import { ScopePicker } from "../components/ScopePicker";
 import { CHECKBOX_CLASS } from "../constants/ui";
 import type { ScopeMonitoring } from "../types";
 import { makeScope } from "./factories";
@@ -16,12 +16,12 @@ const scopes: ScopeMonitoring[] = [
 
 function renderPicker(selectedIds = scopes.map((scope) => scope.id)) {
   const onChange = vi.fn();
-  render(<AnalyticsScopePicker scopes={scopes} selectedIds={selectedIds} onChange={onChange} />);
+  render(<ScopePicker scopes={scopes} selectedIds={selectedIds} onChange={onChange} />);
   fireEvent.click(screen.getByRole("button", { name: /sélectionner les périmètres/i }));
   return onChange;
 }
 
-describe("AnalyticsScopePicker", () => {
+describe("ScopePicker", () => {
   it("recherche un périmètre sans afficher les autres", () => {
     renderPicker();
     fireEvent.change(screen.getByRole("textbox", { name: /rechercher un périmètre/i }), { target: { value: "airbus" } });

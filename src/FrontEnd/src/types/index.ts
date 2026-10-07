@@ -94,11 +94,15 @@ export interface AuditEvent {
 }
 
 export interface AuditLogQuery {
-  scope_id?: string;
+  /** Sent as a repeated `scope_id`; an empty array means "no filter". */
+  scope_ids?: string[];
+  /** Case-insensitive prefix of the actor code, not an exact match. */
   actor?: string;
   action?: AuditAction;
-  from_date?: string;
-  to_date?: string;
+  /** Inclusive lower bound on `created_at`, as an ISO instant. */
+  from_created_at?: string;
+  /** Exclusive upper bound on `created_at`, as an ISO instant. */
+  to_created_at?: string;
   limit?: number;
 }
 

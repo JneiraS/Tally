@@ -54,11 +54,37 @@ def make_scope_with_activity(
         )
     )
     repo.save(scope)
-    return scope
+    return scope.id
 
 
 def all_events(audit: InMemoryAuditTrailRepository):
     return audit.list(AuditEventQuery(limit=1000))
+
+
+def record_activity(http, scope_id: str, day: str) -> None:
+    """Record one ``activity_created`` event, as an authenticated actor would.
+
+    Audit events are only written by use cases reached through HTTP, and the
+    actor comes from the ``ContextVar`` the auth dependency sets — never from
+    the request body. Writing the activity straight into the repository would
+    therefore leave no trace at all.
+    """
+    token = set_current_actor("ABCD")
+    try:
+        assert (
+            http.post(
+                f"/scope-monitorings/{scope_id}/activities",
+                json={
+                    "day": day,
+                    "errors_reported": 1,
+                    "incidents_created": 0,
+                    "feai": [],
+                },
+            ).status_code
+            == 201
+        )
+    finally:
+        reset_current_actor(token)
 
 
 def test_create_scope_records_audit_via_api(env):
@@ -193,6 +219,124 @@ def test_get_audit_log_endpoint_filters_and_orders(env):
         ).json()
         == []
     )
+
+
+def test_get_audit_log_actor_is_a_case_insensitive_prefix(env):
+    """``abcd`` and ``AB`` used to return nothing: the filter looked broken."""
+    http, audit, repo = env
+    make_scope_with_activity(repo)
+    token = set_current_actor("ABCD")
+    try:
+        http.post(
+            "/scope-monitorings/scope-001/activities",
+            json={
+                "day": "2026-09-21",
+                "errors_reported": 1,
+                "incidents_created": 0,
+                "feai": [],
+            },
+        )
+    finally:
+        reset_current_actor(token)
+
+    for actor in ("ABCD", "abcd", "AbCd"):
+        body = http.get("/api/audit-log", params={"actor": actor})
+        assert body.status_code == 200
+        assert [event["action"] for event in body.json()] == ["activity_created"], actor
+
+    # A prefix widens rather than clearing: no list of valid actors has to be
+    # known in advance to find them.
+    body = http.get("/api/audit-log", params={"actor": "AB"})
+    assert body.status_code == 200
+    assert [event["action"] for event in body.json()] == ["activity_created"]
+
+    # A blank filter is "no filter", not "match the empty prefix".
+    assert len(http.get("/api/audit-log", params={"actor": "   "}).json()) == 1
+
+
+def test_get_audit_log_filters_by_repeated_scope_id(env):
+    http, audit, repo = env
+    make_scope_with_activity(repo)
+    record_activity(http, "scope-001", "2026-09-21")
+    other = http.post(
+        "/scope-monitorings",
+        json=[
+            {
+                "name": "Scope Beta",
+                "knowledge_base_id": "KB-00000002",
+                "official_main": "Main",
+                "official_backup": "Backup",
+                "billing_code": "FACT-2026-BETA",
+            }
+        ],
+    ).json()["ids"][0]
+
+    picked = http.get("/api/audit-log", params=[("scope_id", other)]).json()
+    assert [event["scope_id"] for event in picked] == [other]
+
+    both = http.get(
+        "/api/audit-log",
+        params=[("scope_id", other), ("scope_id", "scope-001")],
+    ).json()
+    assert len(both) == 2
+
+    # No scope_id at all is not an empty selection.
+    assert len(http.get("/api/audit-log").json()) == 2
+
+
+def test_get_audit_log_period_keeps_events_without_a_business_day(env):
+    """`day` is NULL for scope_created; filtering on it hid the event."""
+    http, audit, repo = env
+    make_scope_with_activity(repo)
+    # The scope is created first, so the day-less scope_created event is the
+    # OLDER of the two — the window below has to reach back past the activity
+    # to prove it still keeps the day-less event.
+    http.post(
+        "/scope-monitorings",
+        json=[
+            {
+                "name": "Scope Gamma",
+                "knowledge_base_id": "KB-00000003",
+                "official_main": "Main",
+                "official_backup": "Backup",
+                "billing_code": "FACT-2026-GAMMA",
+            }
+        ],
+    )
+    record_activity(http, "scope-001", "2026-09-21")
+
+    everything = http.get("/api/audit-log").json()
+    assert [event["action"] for event in everything] == [
+        "activity_created",
+        "scope_created",
+    ]
+    scope_created = next(
+        event for event in everything if event["action"] == "scope_created"
+    )
+    assert scope_created["day"] is None
+
+    kept = http.get(
+        "/api/audit-log",
+        params={
+            "from_created_at": scope_created["created_at"],
+            "to_created_at": "2999-01-01T00:00:00Z",
+        },
+    ).json()
+    assert [event["action"] for event in kept] == [
+        "activity_created",
+        "scope_created",
+    ]
+
+    # Half-open: an instant equal to the upper bound is excluded, so this
+    # window drops the newest event and keeps only the older one.
+    newest = everything[0]
+    assert [
+        event["action"]
+        for event in http.get(
+            "/api/audit-log",
+            params={"to_created_at": newest["created_at"]},
+        ).json()
+    ] == ["scope_created"]
 
 
 def test_get_audit_log_limit(env):

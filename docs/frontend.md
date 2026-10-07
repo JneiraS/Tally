@@ -58,10 +58,11 @@ src/FrontEnd/src/
 ├── constants/routes.ts   Chemins déclarés une seule fois (API + SPA)
 ├── constants/ui.ts       Classe de case à cocher partagée
 ├── constants/nonWorkingDays.ts  Échelle ISO des jours, source unique
-├── hooks/                useTheme, useToast
+├── constants/auditActions.ts     Libellés et icônes des 6 actions d'audit
+├── hooks/                useTheme, useToast, useMediaQuery, useDebouncedValue
 ├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
 │                         AuditLogPage, LoginPage, NotFoundPage
-├── components/           26 composants (modales, éditeurs, graphiques, toasts)
+├── components/           29 composants (modales, éditeurs, graphiques, toasts)
 └── utils/                kpi, date, export, validation, knowledgeBase,
                           auditStats, analytics, search
 ```
@@ -171,6 +172,58 @@ descend par props. Il n'y a pas de bibliothèque de gestion d'état global.
 **`ScopeListPage` affiche un seul jour, pas un cumul.** Le jour à l'ouverture
 vient de `defaultDisplayDay()` (`utils/kpi.ts`) : la date du jour si elle est
 ouvrée, sinon le dernier jour ouvré.
+
+**Le journal se filtre côté serveur, et son filtrage était cassé jusqu'à
+`AuditLogFilterBar`.** Les trois défauts, tous reproduits par
+`audit_log_api_test.py` :
+
+- le champ « périmètre » envoyait la saisie brute en `scope_id`, comparé par
+  égalité — il fallait coller un UUID. C'est désormais le sélecteur de
+  `ScopePicker`, qui passe des **noms** ;
+- « acteur » comparait l'égalité d'un code stocké en majuscules : `abcd` et le
+  partiel `AB` renvoyaient zéro ligne. C'est un **préfixe insensible à la casse**
+  côté serveur (`ILIKE`), pas un correctif d'interface ;
+- une frappe = une requête HTTP. `useDebouncedValue` (300 ms) regroupe la rafale,
+  et un compteur de requête (`requestIdRef`) empêche une réponse lente de
+  remplacer le résultat d'un filtre plus récent.
+
+L'effet de requête observe un `useMemo`, **pas l'objet `filters`** : taper produit
+un objet neuf à chaque frappe, et un effet indexé sur son identité déclencherait
+une requête par caractère — le debounce serait inerte tout en ayant l'air posé.
+
+**La période du journal se résout en instants côté front, en heure locale.**
+`isoDateToLocalDayStart()` / `isoDateToNextLocalDayStart()` (`utils/date.ts`)
+convertissent les jours saisis en bornes UTC, parce que le serveur n'a aucun
+fuseau et que le journal affiche déjà les horodatages en heure locale (même
+fuseau que `auditStats.ts`, donc la heatmap et le filtre concordent). La borne
+haute est le **lendemain** local, exclusive : `23:59:59` perdrait la dernière
+seconde. `new Date("2026-09-19")` aurait été lu en UTC, donc décalé d'un jour à
+l'heure d'été — la date est décomposée puis reconstruite, comme `addDaysIso`.
+
+**Le filtre porte sur la date d'enregistrement, pas sur la journée métier.**
+Une création de périmètre, un import et une note n'ont pas de `day` : filtrer
+`day` ferait disparaître un tiers du journal. La carte le dit explicitement, et
+`activeFilterCount` alimente le badge mobile comme l'état vide, qui offre un
+bouton de réinitialisation — l'ancien texte « essayer d'élargir les filtres » ne
+donnait aucun moyen de le faire.
+
+**`ScopePicker` est partagé entre `/analyse` et le journal**, et porte donc une
+prop `label` : hériter du « Périmètres analysés » nommerait la mauvaise chose à
+un lecteur d'écran. Le pied de page n'annonce le plafond de 500 que lorsqu'il est
+atteint.
+
+**Une carte de filtres n'abrite aucun popover.** Le popover de `ScopePicker` est
+en `position: absolute` dans la carte, donc tout `overflow-*` sur cette carte le
+coupe à son bord bas — sans trace en console. Les deux cartes l'ont fait : le
+sélecteur du journal étant le 2ᵉ fieldset sur 3, environ 150px d'un popover de
+~448px restaient visibles. Le rognage ne servait qu'à arrondir les coins
+supérieurs, d'où le `rounded-t-xl` de l'en-tête qui le remplace.
+`expectDoesNotClip` (`src/test/overflowGuard.ts`) verrouille l'invariant dans les
+tests des deux barres — c'est un **garde-fou de classe, pas une preuve de
+rendu** : jsdom ne calcule aucun layout et ne charge pas Tailwind, donc
+`getComputedStyle(...).overflow` renverrait `visible` quel que soit le
+`className`. Le `overflow-hidden` du popover lui-même reste en revanche correct,
+il le découpe sur ses propres coins (`Navbar.tsx:137`).
 
 **« Jour ouvré » se décide dans `constants/nonWorkingDays.ts`, nulle part
 ailleurs.** `getUTCDay()` et `getDay()` numérotent à partir du dimanche alors

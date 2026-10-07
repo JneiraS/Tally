@@ -1,8 +1,8 @@
 import csv
 from collections.abc import AsyncIterator
-from datetime import date
+from datetime import date, datetime
 
-from fastapi import Depends, FastAPI, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, Query, Request, Response, UploadFile
 
 from protab.adapters.inbound.api.auth import (
     clear_session_cookie,
@@ -438,20 +438,23 @@ def create_app(
         dependencies=[Depends(project_context)],
     )
     def list_scope_audit_log(
-        scope_id: str | None = None,
+        scope_id: list[str] = Query(default=[]),
         actor: str | None = None,
         action: str | None = None,
-        from_date: date | None = None,
-        to_date: date | None = None,
+        from_created_at: datetime | None = None,
+        to_created_at: datetime | None = None,
         limit: int = 200,
     ) -> list[AuditEventResponse]:
         events = list_audit_events.execute(
             AuditEventQuery(
-                scope_id=scope_id,
-                actor=actor,
+                scope_ids=tuple(scope_id),
+                # Normalised once here, at the boundary, so neither adapter
+                # re-declares the rule (AGENTS.md §28.1). Blank means "no
+                # filter" rather than "match the empty prefix".
+                actor=(actor or "").strip().upper() or None,
                 action=action,
-                from_date=from_date,
-                to_date=to_date,
+                from_created_at=from_created_at,
+                to_created_at=to_created_at,
                 limit=max(1, min(limit, 1000)),
             )
         )

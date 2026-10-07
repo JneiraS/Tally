@@ -1,4 +1,9 @@
-"""In-memory adapter of the AuditTrailRepository port for tests."""
+"""In-memory adapter of the AuditTrailRepository port for tests.
+
+Every filter here mirrors ``PostgresAuditTrailRepository.list`` exactly: the two
+are interchangeable (AGENTS.md §11), so a query that selects the right events
+in memory must select the same ones in SQL.
+"""
 
 from dataclasses import replace
 
@@ -20,16 +25,24 @@ class InMemoryAuditTrailRepository:
         project_id = current_project_id() or "protab"
         events = [event for event in self.events if event.project_id == project_id]
 
-        if query.scope_id:
-            events = [event for event in events if event.scope_id == query.scope_id]
-        if query.actor:
-            events = [event for event in events if event.actor == query.actor]
+        if query.scope_ids:
+            wanted = set(query.scope_ids)
+            events = [event for event in events if event.scope_id in wanted]
         if query.action:
             events = [event for event in events if event.action == query.action]
-        if query.from_date:
-            events = [event for event in events if event.day and event.day >= query.from_date]
-        if query.to_date:
-            events = [event for event in events if event.day and event.day <= query.to_date]
+        if query.actor:
+            prefix = query.actor.strip().upper()
+            events = [
+                event
+                for event in events
+                if event.actor is not None and event.actor.upper().startswith(prefix)
+            ]
+        if query.from_created_at:
+            events = [
+                event for event in events if event.created_at >= query.from_created_at
+            ]
+        if query.to_created_at:
+            events = [event for event in events if event.created_at < query.to_created_at]
 
         events.sort(key=lambda event: event.created_at, reverse=True)
         return events[: query.limit]

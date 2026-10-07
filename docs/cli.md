@@ -204,6 +204,11 @@ verrouillé et vous perdez les sessions encore ouvertes.
    ```
    Le login n'est pas audité : un quadrigramme qui s'est connecté puis n'a rien fait ne laisse aucune trace.
 
+   Le filtre « intervenant » de l'écran Journal **ne sait pas lister** les acteurs : c'est une
+   recherche par préfixe insensible à la casse, appliquée par le serveur. Il faut donc connaître au
+   moins le début du code pour le trouver, et cette requête reste le seul moyen d'énumérer tous les
+   acteurs d'un projet.
+
 2. **Nommez-le administrateur.** Il n'a besoin d'être déclaré dans aucun périmètre :
    ```bash
    uv run protab-project add-admin <projet> <quadrigramme>
