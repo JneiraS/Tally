@@ -125,7 +125,9 @@ export function ScopeListPage({
     if (!day) return null;
     return scopes.reduce(
       (acc, scope) => {
-        const activity = (scope.daily_activities || []).find((a) => a.day === day);
+        const activity = (scope.daily_activities || []).find(
+          (a) => a.day === day,
+        );
         if (!activity) return acc;
         return {
           day,
@@ -144,11 +146,13 @@ export function ScopeListPage({
   // sur eux ; le message « aucune saisie » ne sert que de repli.
   const hasUntreatedBacklog = Boolean(
     lastWorkingDay &&
-      untreatedLastWorkingDayCount > 0 &&
-      selectedDay !== lastWorkingDay,
+    untreatedLastWorkingDayCount > 0 &&
+    selectedDay !== lastWorkingDay,
   );
   const showEmptyDayNotice =
-    !hasUntreatedBacklog && latestData !== null && latestData.day !== selectedDay;
+    !hasUntreatedBacklog &&
+    latestData !== null &&
+    latestData.day !== selectedDay;
 
   const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
     setScopes((prev) =>
@@ -237,7 +241,9 @@ export function ScopeListPage({
       const selectedDayCompleted = selectedActivity
         ? isCompleted(selectedActivity.status)
         : false;
-      const selectedDayKo = selectedActivity ? isKo(selectedActivity.status) : false;
+      const selectedDayKo = selectedActivity
+        ? isKo(selectedActivity.status)
+        : false;
 
       let status: "completed" | "ko" | "in_progress" | "none" = "none";
       if (selectedActivity) {
@@ -320,7 +326,8 @@ export function ScopeListPage({
       rate,
       trailing,
       delta,
-      completionPct: total === 0 ? 0 : Math.round((completedCount / total) * 100),
+      completionPct:
+        total === 0 ? 0 : Math.round((completedCount / total) * 100),
     };
   }, [scopes, enrichedScopes, selectedDay, nonWorkingDays]);
 
@@ -357,7 +364,7 @@ export function ScopeListPage({
             Périmètres de Supervision
           </h1>
           <p className="text-sm text-slate-500 dark:text-nord-4 mt-1">
-            Projection et suivi quotidien des activités par périmètre de
+            Pilotage et suivi quotidien des activités par périmètre de
             surveillance
           </p>
         </div>
@@ -423,7 +430,8 @@ export function ScopeListPage({
             {stats.completedCount} / {stats.total}
           </p>
           <p className="text-xs text-slate-500 dark:text-nord-4 mt-1">
-            {stats.completionPct} % {isSelectedDayToday ? "aujourd'hui" : selectedDayValidationLabel}
+            {stats.completionPct} %{" "}
+            {isSelectedDayToday ? "aujourd'hui" : selectedDayValidationLabel}
           </p>
         </div>
 
@@ -480,37 +488,37 @@ export function ScopeListPage({
       </div>
 
       {hasUntreatedBacklog && lastWorkingDay && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-nord-13/30 dark:bg-nord-13/15"
-          >
-            <Inbox
-              aria-hidden="true"
-              className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-nord-13"
-            />
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-950 dark:text-nord-13">
-                {untreatedLastWorkingDayCount === 1
-                  ? "1 périmètre non traité"
-                  : `${untreatedLastWorkingDayCount} périmètres non traités`}
-                {" "}
-                le {formatDateFr(lastWorkingDay)}.
-              </p>
-              <p className="mt-0.5 text-xs text-amber-800 dark:text-nord-4">
-                Certains périmètres du dernier jour ouvré n'ont pas encore été traités.
-              </p>
-              <button
-                type="button"
-                onClick={showUntreatedBacklog}
-                aria-label={`Voir les ${untreatedLastWorkingDayCount} périmètres non traités du ${formatDateFr(lastWorkingDay)}`}
-                className="mt-2 min-h-11 rounded-lg px-2 text-xs font-semibold text-amber-900 underline decoration-amber-300 underline-offset-2 hover:text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-nord-13 dark:decoration-nord-13/50 dark:hover:text-nord-6"
-              >
-                Voir ces périmètres
-              </button>
-            </div>
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 dark:border-nord-13/30 dark:bg-nord-13/15"
+        >
+          <Inbox
+            aria-hidden="true"
+            className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-nord-13"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-950 dark:text-nord-13">
+              {untreatedLastWorkingDayCount === 1
+                ? "1 périmètre non traité"
+                : `${untreatedLastWorkingDayCount} périmètres non traités`}{" "}
+              le {formatDateFr(lastWorkingDay)}.
+            </p>
+            <p className="mt-0.5 text-xs text-amber-800 dark:text-nord-4">
+              Certains périmètres du dernier jour ouvré n'ont pas encore été
+              traités.
+            </p>
+            <button
+              type="button"
+              onClick={showUntreatedBacklog}
+              aria-label={`Voir les ${untreatedLastWorkingDayCount} périmètres non traités du ${formatDateFr(lastWorkingDay)}`}
+              className="mt-2 min-h-11 rounded-lg px-2 text-xs font-semibold text-amber-900 underline decoration-amber-300 underline-offset-2 hover:text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 dark:text-nord-13 dark:decoration-nord-13/50 dark:hover:text-nord-6"
+            >
+              Voir ces périmètres
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Aucune saisie le jour affiché : pointer vers la dernière journée
           contenant des données, sinon un historique réimporté resterait
@@ -579,7 +587,11 @@ export function ScopeListPage({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrer par action">
+        <div
+          className="flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Filtrer par action"
+        >
           {quickFilterOptions.map((option) => {
             const isActive = quickFilter === option.key;
             return (
@@ -687,7 +699,7 @@ export function ScopeListPage({
                 <thead className="bg-slate-50/80 dark:bg-nord-0/60 border-b border-slate-200 dark:border-nord-2 text-xs font-semibold text-slate-700 dark:text-nord-4 uppercase tracking-wider">
                   <tr>
                     <th scope="col" className="px-5 py-3.5">
-                      Périmètre & Base KB
+                      Périmètre & KB
                     </th>
                     <th scope="col" className="px-5 py-3.5">
                       Responsable
@@ -739,9 +751,9 @@ export function ScopeListPage({
                           onClick={(e) => e.stopPropagation()}
                           className="inline-block mt-0.5 text-xs font-mono text-slate-500 dark:text-nord-4 bg-slate-100 dark:bg-nord-0 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2 hover:text-blue-600 dark:hover:text-nord-8 hover:border-blue-400 dark:hover:border-nord-9/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:focus-visible:ring-nord-8"
                         >
-                        {scope.knowledge_base_id}
-                      </a>
-                    </td>
+                          {scope.knowledge_base_id}
+                        </a>
+                      </td>
 
                       {/* Responsables */}
                       <td className="px-5 py-4">

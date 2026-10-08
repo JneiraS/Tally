@@ -7,13 +7,13 @@
  * bloquer sur un champ vide. Comme la note du périmètre et le motif du
  * panneau de statut, c'est un brouillon : rien n'est écrit avant confirmation.
  */
-import { useEffect, useState } from 'react';
-import { AlertCircle, Loader2, OctagonX } from 'lucide-react';
-import { KO_REASON_MAX_LENGTH } from '../constants/dayStatus';
-import { ApiError, protabApi } from '../services/api';
-import { formatDateFr } from '../utils/date';
-import { useToastActions } from '../hooks/useToast';
-import { Modal } from './Modal';
+import { useEffect, useState } from "react";
+import { AlertCircle, Loader2, OctagonX } from "lucide-react";
+import { KO_REASON_MAX_LENGTH } from "../constants/dayStatus";
+import { ApiError, protabApi } from "../services/api";
+import { formatDateFr } from "../utils/date";
+import { useToastActions } from "../hooks/useToast";
+import { Modal } from "./Modal";
 
 interface BatchKoModalProps {
   isOpen: boolean;
@@ -35,7 +35,7 @@ export function BatchKoModal({
   onConfirmed,
 }: BatchKoModalProps) {
   const { success, error: toastError } = useToastActions();
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -43,7 +43,7 @@ export function BatchKoModal({
   // on ne veut pas la confusion d'un motif resté dans le champ.
   useEffect(() => {
     if (isOpen) {
-      setReason('');
+      setReason("");
       setErrorMessage(null);
     }
   }, [isOpen]);
@@ -58,19 +58,19 @@ export function BatchKoModal({
     event.preventDefault();
     if (days.length === 0) return;
 
-    const koReason = cleaned === '' ? null : cleaned;
+    const koReason = cleaned === "" ? null : cleaned;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
       await protabApi.setActivitiesStatus(scopeId, {
         days,
-        status: 'ko',
+        status: "ko",
         ko_reason: koReason,
       });
       success(
-        'Journées signalées KO',
+        "Journées signalées KO",
         `${days.length} journée(s) écartée(s) du traitement en attente${
-          koReason ? ` — ${koReason}` : ''
+          koReason ? ` — ${koReason}` : ""
         }.`,
       );
       onConfirmed(days, koReason);
@@ -81,10 +81,10 @@ export function BatchKoModal({
       } else {
         setErrorMessage(
           (err as Error)?.message ||
-            'Une erreur est survenue lors du signalement.',
+            "Une erreur est survenue lors du signalement.",
         );
       }
-      toastError('Échec du signalement', (err as Error)?.message);
+      toastError("Échec du signalement", (err as Error)?.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -111,16 +111,16 @@ export function BatchKoModal({
         <div className="flex items-start gap-2.5 p-3.5 bg-rose-50 dark:bg-nord-11/15 border border-rose-200 dark:border-nord-11/30 text-rose-800 dark:text-nord-11 rounded-xl text-xs">
           <OctagonX className="w-5 h-5 shrink-0 mt-0.5" />
           <p>
-            Ces journées seront écartées du traitement en attente : elles ont été
-            regardées et n'ont pas pu l'être pour un problème technique. Elles
-            sortiront aussi des taux de couverture de la page d'analyse.
+            Ces journées seront écartées du traitement en attente : elles ont
+            été regardées et n'ont pas pu l'être pour un problème technique.
+            Elles sortiront aussi des taux de couverture de la page d'analyse.
           </p>
         </div>
 
         <p className="text-xs text-slate-600 dark:text-nord-4">
           <span className="font-semibold text-slate-800 dark:text-nord-5">
-            {days.length} journée{days.length > 1 ? 's' : ''}
-          </span>{' '}
+            {days.length} journée{days.length > 1 ? "s" : ""}
+          </span>{" "}
           {from === to ? (
             <>le {formatDateFr(from)}</>
           ) : (
@@ -141,7 +141,7 @@ export function BatchKoModal({
             onChange={(e) => setReason(e.target.value)}
             disabled={isSubmitting}
             rows={3}
-            placeholder="Panne du collecteur, incident réseau, maintenance… (facultatif)"
+            placeholder="Collecte impossible, incident réseau, maintenance… (facultatif)"
             className="w-full px-3 py-2 text-sm text-slate-900 dark:text-nord-5 bg-white dark:bg-nord-0 border border-slate-200 dark:border-nord-2 rounded-lg resize-y focus:outline-none focus:ring-1 focus:border-rose-400 dark:focus:border-nord-11 disabled:opacity-60"
           />
           <p className="text-xs text-slate-500 dark:text-nord-4 text-right">
@@ -164,7 +164,8 @@ export function BatchKoModal({
             className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg bg-rose-600 dark:bg-nord-11 text-white hover:bg-rose-700 dark:hover:bg-nord-12 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            Signaler {days.length > 1 ? `${days.length} journées` : 'la journée'}
+            Signaler{" "}
+            {days.length > 1 ? `${days.length} journées` : "la journée"}
           </button>
         </div>
       </form>

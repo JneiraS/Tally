@@ -11,18 +11,18 @@
  * périmètre : un autosave enverrait une requête par frappe, donc un événement
  * d'audit par caractère tapé. Rien n'est écrit avant « Enregistrer ».
  */
-import { useEffect, useState } from 'react';
-import { Loader2, OctagonX, RotateCcw, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { Loader2, OctagonX, RotateCcw, ShieldCheck } from "lucide-react";
 import {
   DAY_STATUS_DESCRIPTIONS,
   DAY_STATUS_ICONS,
   DAY_STATUS_LABELS,
   KO_REASON_MAX_LENGTH,
   type DayStatus,
-} from '../constants/dayStatus';
-import { Badge } from './Badge';
-import { useToastActions } from '../hooks/useToast';
-import { protabApi } from '../services/api';
+} from "../constants/dayStatus";
+import { Badge } from "./Badge";
+import { useToastActions } from "../hooks/useToast";
+import { protabApi } from "../services/api";
 
 interface DayStatusPanelProps {
   scopeId: string;
@@ -38,10 +38,10 @@ interface DayStatusPanelProps {
 
 const STATUS_CHIP_CLASS: Record<DayStatus, string> = {
   pending:
-    'bg-amber-100/60 dark:bg-nord-13/20 text-amber-700 dark:text-nord-13 border-amber-200/60 dark:border-nord-13/30',
+    "bg-amber-100/60 dark:bg-nord-13/20 text-amber-700 dark:text-nord-13 border-amber-200/60 dark:border-nord-13/30",
   completed:
-    'bg-emerald-100/60 dark:bg-nord-14/20 text-emerald-700 dark:text-nord-14 border-emerald-200/60 dark:border-nord-14/30',
-  ko: 'bg-rose-100/60 dark:bg-nord-11/20 text-rose-700 dark:text-nord-11 border-rose-200/60 dark:border-nord-11/30',
+    "bg-emerald-100/60 dark:bg-nord-14/20 text-emerald-700 dark:text-nord-14 border-emerald-200/60 dark:border-nord-14/30",
+  ko: "bg-rose-100/60 dark:bg-nord-11/20 text-rose-700 dark:text-nord-11 border-rose-200/60 dark:border-nord-11/30",
 };
 
 export function DayStatusPanel({
@@ -56,18 +56,18 @@ export function DayStatusPanel({
   // Le brouillon du motif ne s'ouvre que sur une demande explicite : garder un
   // champ en permanence visible ferait ressembler le KO à une saisie de plus.
   const [isReasonOpen, setIsReasonOpen] = useState(false);
-  const [draftReason, setDraftReason] = useState(koReason ?? '');
+  const [draftReason, setDraftReason] = useState(koReason ?? "");
 
   // Le panneau est remonté à chaque changement de jour (le parent le key), donc
   // le brouillon repart de la valeur enregistrée sans synchronisation manuelle.
   useEffect(() => {
-    setDraftReason(koReason ?? '');
+    setDraftReason(koReason ?? "");
     setIsReasonOpen(false);
   }, [day, koReason]);
 
   const StatusIcon = DAY_STATUS_ICONS[status];
   const cleaned = draftReason.trim();
-  const isReasonDirty = cleaned !== (koReason ?? '');
+  const isReasonDirty = cleaned !== (koReason ?? "");
 
   const write = async (
     next: DayStatus,
@@ -82,11 +82,11 @@ export function DayStatusPanel({
         ko_reason: reason,
       });
       onChanged(day, next, reason);
-      setDraftReason(reason ?? '');
+      setDraftReason(reason ?? "");
       setIsReasonOpen(false);
       success(message, `${DAY_STATUS_LABELS[next]} — ${day}`);
     } catch (err: unknown) {
-      error('Échec du changement de statut', (err as Error)?.message);
+      error("Échec du changement de statut", (err as Error)?.message);
     } finally {
       setIsSaving(false);
     }
@@ -111,10 +111,12 @@ export function DayStatusPanel({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {status !== 'completed' && (
+          {status !== "completed" && (
             <button
               type="button"
-              onClick={() => write('completed', null, 'Journée marquée terminée')}
+              onClick={() =>
+                write("completed", null, "Journée marquée terminée")
+              }
               disabled={isSaving}
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 dark:bg-nord-14 text-white hover:bg-emerald-700 dark:hover:bg-nord-15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
@@ -127,7 +129,7 @@ export function DayStatusPanel({
             </button>
           )}
 
-          {status === 'ko' ? (
+          {status === "ko" ? (
             <>
               <button
                 type="button"
@@ -135,11 +137,11 @@ export function DayStatusPanel({
                 aria-expanded={isReasonOpen}
                 className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-slate-600 dark:text-nord-4 hover:text-slate-900 dark:hover:text-nord-6 border border-slate-200 dark:border-nord-2 transition-colors"
               >
-                {isReasonOpen ? 'Masquer le motif' : 'Modifier le motif'}
+                {isReasonOpen ? "Masquer le motif" : "Modifier le motif"}
               </button>
               <button
                 type="button"
-                onClick={() => write('pending', null, 'Signalement KO levé')}
+                onClick={() => write("pending", null, "Signalement KO levé")}
                 disabled={isSaving}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-rose-700 dark:text-nord-11 bg-rose-50 dark:bg-nord-11/15 hover:bg-rose-100 dark:hover:bg-nord-11/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -161,7 +163,7 @@ export function DayStatusPanel({
         </div>
       </div>
 
-      {status === 'ko' && koReason && !isReasonOpen && (
+      {status === "ko" && koReason && !isReasonOpen && (
         <p className="text-xs text-slate-600 dark:text-nord-4">
           <span className="font-semibold">Motif :</span> {koReason}
         </p>
@@ -179,12 +181,12 @@ export function DayStatusPanel({
             onChange={(e) => setDraftReason(e.target.value)}
             disabled={isSaving}
             rows={2}
-            placeholder="Panne du collecteur, incident en cours, maintenance… (facultatif)"
+            placeholder="Collecte impossible, incident en cours, maintenance… (facultatif)"
             className="w-full px-3 py-2 text-sm text-slate-900 dark:text-nord-5 bg-white dark:bg-nord-0 border border-slate-200 dark:border-nord-2 rounded-lg resize-y focus:outline-none focus:ring-1 focus:border-rose-400 dark:focus:border-nord-11 disabled:opacity-60"
           />
           <div className="flex items-center justify-between gap-2">
             <p
-              className={`text-xs ${cleaned.length > KO_REASON_MAX_LENGTH ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-nord-4'}`}
+              className={`text-xs ${cleaned.length > KO_REASON_MAX_LENGTH ? "text-rose-600 dark:text-rose-400" : "text-slate-500 dark:text-nord-4"}`}
             >
               {cleaned.length} / {KO_REASON_MAX_LENGTH}
             </p>
@@ -192,7 +194,7 @@ export function DayStatusPanel({
               <button
                 type="button"
                 onClick={() => {
-                  setDraftReason(koReason ?? '');
+                  setDraftReason(koReason ?? "");
                   setIsReasonOpen(false);
                 }}
                 disabled={isSaving}
@@ -204,9 +206,9 @@ export function DayStatusPanel({
                 type="button"
                 onClick={() =>
                   write(
-                    'ko',
-                    cleaned === '' ? null : cleaned,
-                    'Journée signalée KO',
+                    "ko",
+                    cleaned === "" ? null : cleaned,
+                    "Journée signalée KO",
                   )
                 }
                 disabled={isSaving || cleaned.length > KO_REASON_MAX_LENGTH}
@@ -220,7 +222,7 @@ export function DayStatusPanel({
         </div>
       )}
 
-      {status === 'ko' && !isReasonOpen && (
+      {status === "ko" && !isReasonOpen && (
         <Badge type="ko" label="Journée écartée du traitement en attente" />
       )}
     </section>
