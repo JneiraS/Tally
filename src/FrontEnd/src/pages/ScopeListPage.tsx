@@ -149,10 +149,19 @@ export function ScopeListPage({
     untreatedLastWorkingDayCount > 0 &&
     selectedDay !== lastWorkingDay,
   );
+  // Une journée qui porte des lignes n'est pas vide, même si aucune ne porte de
+  // mesure : un jour KO est traité — quelqu'un est passé dessus et a constaté le
+  // blocage. Sans cette condition, un utilisateur qui venait de remplir ses
+  // périmètres lisait « aucune saisie », parce que ce qu'il a rempli est
+  // précisément ce qui rend la journée invisible à `latestActivityDay`.
+  const hasActivityOnSelectedDay = scopes.some((scope) =>
+    (scope.daily_activities || []).some((a) => a.day === selectedDay),
+  );
   const showEmptyDayNotice =
     !hasUntreatedBacklog &&
     latestData !== null &&
-    latestData.day !== selectedDay;
+    latestData.day !== selectedDay &&
+    !hasActivityOnSelectedDay;
 
   const handleActivityChanged = (scopeId: string, activity: DailyActivity) => {
     setScopes((prev) =>

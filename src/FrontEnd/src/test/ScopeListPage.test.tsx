@@ -11,7 +11,7 @@ import { ToastContainer } from '../components/Toast';
 import { KNOWLEDGE_BASE_URL } from '../utils/knowledgeBase';
 import { protabApi } from '../services/api';
 import { getTodayIsoDate } from '../utils/date';
-import { makeScope } from './factories';
+import { makeActivity, makeScope } from './factories';
 
 vi.mock('../services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/api')>();
@@ -1488,6 +1488,122 @@ describe('ScopeListPage Component', () => {
     expect(
       within(screen.getByRole('table')).getByLabelText('Incidents créés 2026-09-24'),
     ).toHaveValue(4);
+  });
+
+  // Un jour KO est traité : quelqu'un est passé dessus et a constaté le blocage.
+  // Le dire « aucune saisie » était donc faux, et l'utilisateur qui vient de
+  // remplir ses périmètres lisait « vide » — parce que ce qu'il a rempli est
+  // précisément ce qui rend la journée invisible au calcul.
+  it('n annonce pas « aucune saisie » quand la journée est signalée KO', async () => {
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-28');
+    // Le 28 porte des saisies : c'est donc `latestActivityDay`, et la navigation
+    // doit partir de là. Le 26 — jour affiché — ne porte que des KO, et le
+    // message annonçait « aucune saisie le 26 » alors qu'il contient des lignes.
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      makeScope({
+        id: 'ko-1',
+        name: 'Scope bloqué',
+        knowledge_base_id: 'KB-KO-001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [
+          makeActivity('2026-09-25', { status: 'ko', ko_reason: 'Collecteur HS' }),
+        ],
+      }),
+      makeScope({
+        id: 'ko-2',
+        name: 'Scope saisi',
+        knowledge_base_id: 'KB-KO-002',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [
+          makeActivity('2026-09-28', { errors_reported: 5, status: 'completed' }),
+        ],
+      }),
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    // On revient trois fois : 28 → 27 → 26 → 25, un vendredi, jour ouvré, dont
+    // toutes les lignes sont KO. Un samedi serait ignoré par le calendrier.
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.click(screen.getByLabelText(/Afficher le jour précédent/i));
+    }
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope bloqué')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Aucune saisie/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Voir cette journée/i)).not.toBeInTheDocument();
+  });
+
+  it('n annonce pas « aucune saisie » sur une journée mixte', async () => {
+    // Une saisie réelle ET un KO : la journée est traitée, donc pas de bandeau.
+    vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-28');
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      makeScope({
+        id: 'mix-1',
+        name: 'Scope saisi',
+        knowledge_base_id: 'KB-MIX-001',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [makeActivity('2026-09-25', { errors_reported: 4 })],
+      }),
+      makeScope({
+        id: 'mix-2',
+        name: 'Scope bloqué',
+        knowledge_base_id: 'KB-MIX-002',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [
+          makeActivity('2026-09-25', { status: 'ko', ko_reason: 'Collecteur HS' }),
+        ],
+      }),
+      makeScope({
+        id: 'mix-3',
+        name: 'Scope récent',
+        knowledge_base_id: 'KB-MIX-003',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [
+          makeActivity('2026-09-28', { errors_reported: 2, status: 'completed' }),
+        ],
+      }),
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    await screen.findByRole('table');
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.click(screen.getByLabelText(/Afficher le jour précédent/i));
+    }
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope bloqué')).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Aucune saisie/i)).not.toBeInTheDocument();
   });
 
   it('signale la dernière saisie et permet d\'afficher cette journée', async () => {

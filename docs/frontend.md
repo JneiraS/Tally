@@ -262,6 +262,19 @@ complètent le tableau :
   proposant de l'afficher. Les deux ne doivent jamais coexister : deux
   `role="status"` simultanés rendraient l'un des deux inatteignable.
 
+Le repli suit la **même** règle que le bandeau : une journée qui porte des
+lignes n'est pas vide, même si aucune ne porte de mesure. Un jour KO est traité,
+donc `showEmptyDayNotice` teste « la journée affichée porte-t-elle au moins une
+activité », et non « porte-t-elle une mesure ». Sans cela, un utilisateur qui
+venait de remplir ses périmètres lisait « aucune saisie », parce que ce qu'il a
+rempli est précisément ce qui rend la journée invisible au calcul de la dernière
+journée saisie.
+
+Deux pièges à l'écriture d'une fixture, tous deux constatés : le jour visé doit
+être **ouvré** (un samedi est écarté par le calendrier), et la navigation doit
+partir d'un jour qui porte des saisies — sinon `latestData.day === selectedDay`
+et la notice ne s'affiche même pas, ce qui fait passer le test pour rien.
+
 ### Le détail est mono-jour lui aussi
 
 `ScopeDetailPage` n'affiche plus que **deux** blocs :
@@ -742,7 +755,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-35 fichiers dans `src/test/` (324 tests). `src/test/setup.ts` importe
+35 fichiers dans `src/test/` (326 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

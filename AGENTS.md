@@ -1506,6 +1506,16 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   exception, un périmètre bloqué par une panne remonterait chaque matin, indéfiniment, sans qu'aucun
   travail reste à faire — le statut n'aurait alors aucune utilité. Verrouillé par
   `ne compte pas une journée KO parmi les périmètres non traités`.
+- **La même règle s'applique à la notice « aucune saisie », sinon le dépôt définit « traité » deux fois
+  et n'en respecte qu'une.** `showEmptyDayNotice` comparait des **dates** et ignorait le statut : sur une
+  journée entièrement KO, elle annonçait « aucune saisie le 6 oct. » alors que la journée contient des
+  lignes, et proposait d'aller voir le 8. Symptôme exact : un utilisateur qui vient de remplir ses
+  périmètres lit « vide », **parce que ce qu'il a rempli est précisément ce qui rend la journée invisible
+  à `latestActivityDay`**. La condition porte donc sur « la journée affichée porte-t-elle au moins une
+  activité », pas sur « porte-t-elle une mesure ». Verrouillé par `n annonce pas « aucune saisie » quand
+  la journée est signalée KO`. Deux pièges de fixture : le jour visé doit être **ouvré** (un samedi est
+  ignoré par le calendrier) et la navigation doit partir d'un jour qui porte des saisies, sinon
+  `latestData.day === selectedDay` et la notice ne s'affiche même pas.
 - **Le statut est écrit par `DayStatusPanel`, dans l'en-tête de la carte « Activité du jour », jamais dans
   `TodayActivityEditor`.** L'éditeur fait un autosave à 800 ms : lui faire porter un clic sur « Signaler
   un KO » mettrait deux mécanismes d'écriture en concurrence sur la même ligne. Le motif est un
@@ -1801,7 +1811,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 324 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 326 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge
