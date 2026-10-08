@@ -1530,9 +1530,20 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   une journée KO à compteurs nuls compterait comme une saisie dans `sumByLabel`, `traitees`,
   `coverageRate` et les cellules de la heatmap — donc **améliorerait artificiellement le taux de
   couverture** tout en aplatissant la courbe d'erreurs. La contrepartie est obligatoire :
-  `PeriodSummary.joursKo` compte ces journées, sinon la couverture chuterait sans que rien n'explique
-  pourquoi. Le filtre KO vit dans `measuredActivitiesIn` (`utils/kpi.ts`), un seul endroit, pas dans
-  chaque appelant qui réadditionne des cellules.
+  `PeriodSummary.relevesKo` les compte et `AnalyticsKpiCards` les **affiche**, en ligne
+  conditionnelle sous les cartes KPI — donc seulement s'il y en a, sans quoi la couverture chuterait
+  sans que rien n'explique pourquoi. Ce n'est pas une carte : pas de delta (moins de KO n'est pas
+  forcément mieux) ni de sparkline (une tendance n'apprend rien), c'est une **explication du
+  dénominateur**. Le filtre KO vit dans `measuredActivitiesIn` (`utils/kpi.ts`), un seul endroit, pas
+  dans chaque appelant qui réadditionne des cellules.
+- **Un relevé KO est une cellule périmètre × jour, pas une journée — et le vocabulaire doit le dire.**
+  Deux périmètres bloqués le **même** jour font deux relevés : la ligne en affiche « 2 relevés KO
+  (périmètre × jour) », jamais « 2 journées », qui ferait croire à deux dates de panne. C'est
+  l'unité du dénominateur de `coverageRate` (« cellules périmètre × jour »), donc l'explication
+  rapporte au chiffre qu'elle sert à expliquer. Le champ s'appelle `relevesKo` et la fonction
+  `countKoCells` : un nom qui dit « jours » dans une grandeur qui n'en compte pas fait dériver le
+  prochain qui s'en sert. Verrouillé par `compte les relevés KO par périmètre et par jour, pas par
+  journée`, qui échoue aussi si le mot « journée » revient.
 - **L'export CSV ajoute `Statut` et `Motif KO` en fin de ligne, jamais au milieu.** `traite` et
   `termine` restent en place et sont dérivés du statut, pour la raison déjà documentée lors de
   `code_facturation` : un tableur configuré sur un export antérieur doit continuer de viser les bonnes
@@ -1780,7 +1791,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 319 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 323 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

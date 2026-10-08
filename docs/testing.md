@@ -17,11 +17,11 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 226 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 170 tests, dont **98 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 228 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 171 tests, dont **99 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
 | Typage Python | `src/protab` | `make typecheck` | `mypy`, `disallow_untyped_defs` |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 319 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 323 tests (vitest) |
 
 Trois exécutions, donc :
 
@@ -141,7 +141,7 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `postgres_scope_monitoring_repository_test.py` | 41 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`), `set_activities_status` et son upsert, **migration `handled`/`completed` → `status`**, traduction des violations de contrainte, isolation par projet |
+| `postgres_scope_monitoring_repository_test.py` | 42 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`), `set_activities_status` et son upsert, **migration `handled`/`completed` → `status`**, traduction des violations de contrainte, isolation par projet |
 | `postgres_auth_repository_test.py` | 33 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
 | `postgres_audit_trail_repository_test.py` | 5 | Écriture et lecture du journal d'audit, matrice de filtrage mirroring `audit_trail_filter_test.py`, **événement sans journée métier conservé par une période** |

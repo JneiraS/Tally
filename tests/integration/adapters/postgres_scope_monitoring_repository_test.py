@@ -397,6 +397,20 @@ def test_set_activities_status_creates_a_missing_day_at_zero(repo):
     assert created.feai == []
 
 
+def test_set_activities_status_refuses_an_empty_day_list(repo):
+    """Une liste vide ne doit pas être rapportée « périmètre introuvable ».
+
+    Le `WHERE EXISTS` porte sur l'instruction entière : sans jour à écrire,
+    `rowcount` reste 0 et l'adapter lasserait croire que le périmètre est absent
+    — une cause fausse. Le refus est donc explicite, et l'in-memory fait pareil
+    pour rester interchangeable (AGENTS.md §11).
+    """
+    seed_three_days(repo)
+
+    with pytest.raises(ValueError):
+        repo.set_activities_status("scope-001", [], DayStatus.KO)
+
+
 def test_completing_a_ko_day_clears_its_reason_in_the_database(repo):
     seed_three_days(repo)
     repo.set_activities_status(

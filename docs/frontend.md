@@ -404,8 +404,18 @@ sélectionnables. Une journée sans aucune saisie — précisément le cas d'une
   `coverageRate` et les cellules de la heatmap. Sans cela, une journée KO à
   compteurs nuls compterait comme une saisie et **améliorerait artificiellement
   le taux de couverture** tout en aplatissant la courbe d'erreurs. En contrepartie
-  obligatoire, `PeriodSummary.joursKo` compte ces journées : la couverture baisse,
-  et le compteur dit pourquoi.
+  obligatoire, `PeriodSummary.relevesKo` les compte et `AnalyticsKpiCards` les
+  affiche — **une ligne conditionnelle**, présente seulement s'il y en a :
+  « N relevés KO sur la période (périmètre × jour), exclus de la couverture et
+  des totaux ». Ce n'est pas une carte KPI : pas de delta (moins de KO n'est pas
+  forcément mieux), pas de sparkline. C'est une explication du dénominateur, et
+  une ligne permanente apprendrait au lecteur de l'ignorer.
+
+  **Un relevé est une cellule périmètre × jour, pas une journée.** Deux
+  périmètres bloqués le même jour font deux relevés — l'unité est celle du
+  dénominateur de `coverageRate`. Écrire « journées » ferait croire à deux dates
+  de panne : c'est exactement ce que l'écran affichait avant que le vocabulaire
+  ne soit aligné sur l'unité réelle.
 - **L'export CSV** ajoute `Statut` et `Motif KO` **après** les colonnes
   existantes, `traite` et `termine` restant en place et dérivées du statut. Un
   jour KO s'y lit « traité, non terminé », ce qui est exact.
@@ -706,7 +716,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-35 fichiers dans `src/test/` (319 tests). `src/test/setup.ts` importe
+35 fichiers dans `src/test/` (323 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

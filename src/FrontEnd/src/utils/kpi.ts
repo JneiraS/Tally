@@ -239,8 +239,14 @@ export function measuredActivitiesIn(
   );
 }
 
-/** Journées signalées KO dans un ensemble de jours : la couverture manquante. */
-export function countKoDays(
+/**
+ * Relevés KO — cellules périmètre × jour, **pas** un compte de journées.
+ *
+ * Deux périmètres bloqués le même jour en font deux. L'unité est celle du
+ * dénominateur de `coverageRate`, sinon l'explication ne rapporterait pas au
+ * chiffre qu'elle cherche à expliquer.
+ */
+export function countKoCells(
   scopes: ScopeMonitoring[],
   days: string[],
 ): number {

@@ -6,7 +6,7 @@ import {
 import { NonWorkingDays, ScopeMonitoring } from "../types";
 import { addDaysIso, isValidIsoDate } from "./date";
 import {
-  countKoDays,
+  countKoCells,
   coverageRate,
   isWorkingDay,
   lastWorkingDays,
@@ -63,14 +63,18 @@ export interface PeriodSummary {
   /** Cellules effectivement saisies, tous périmètres confondus. */
   traitees: number;
   /**
-   * Journées signalées KO sur la période.
+   * Relevés KO sur la période — cellules périmètre × jour, **pas** des journées.
    *
-   * Elles ne comptent ni dans `couverture` ni dans `traitees` — une journée que
-   * personne n'a pu traiter n'est pas une saisie — donc sans ce compteur la
+   * Deux périmètres bloqués le même jour en comptent deux : l'unité est celle du
+   * dénominateur de `couverture`, sinon l'explication ne rapporterait pas au
+   * chiffre qu'elle sert à expliquer.
+   *
+   * Ils ne comptent ni dans `couverture` ni dans `traitees` — un relevé que
+   * personne n'a pu produire n'est pas une saisie — donc sans ce compteur la
    * couverture chuterait sans que rien n'explique pourquoi. C'est la
    * contrepartie obligatoire de l'exclusion.
    */
-  joursKo: number;
+  relevesKo: number;
 }
 
 export interface PeriodDelta {
@@ -298,7 +302,7 @@ function sumByLabel(
   scopes.forEach((scope) => {
     // Les journées KO sont écartées des sommes : une journée bloquée par une panne
     // n'a produit aucune mesure, et l'y compter ajouterait des zéros
-    // indiscernables d'une journée réellement sans erreur. Le compteur `joursKo`
+    // indiscernables d'une journée réellement sans erreur. Le compteur `relevesKo`
     // du résumé de période dit où elles sont passées.
     (scope.daily_activities || []).forEach((activity) => {
       if (isKo(activity.status)) return;
@@ -344,7 +348,7 @@ export function computePeriodSummary(
     transformation: transformationRate(totals.incidents, totals.erreurs),
     couverture: coverageRate(scopes, days),
     traitees,
-    joursKo: countKoDays(scopes, days),
+    relevesKo: countKoCells(scopes, days),
   };
 }
 

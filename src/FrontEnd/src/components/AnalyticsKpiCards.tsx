@@ -1,4 +1,4 @@
-import { Activity, AlertCircle, Inbox, ClipboardCheck } from "lucide-react";
+import { Activity, AlertCircle, Inbox, ClipboardCheck, OctagonX } from "lucide-react";
 import { Sparkline } from "./Sparkline";
 import { CARD_CLASS, CARD_PADDING_CLASS, CARD_TITLE_CLASS } from "../constants/ui";
 
@@ -69,6 +69,16 @@ interface AnalyticsKpiCardsProps {
     incidents: number;
     arriere: number;
     couverture: number;
+    /**
+     * Relevés KO sur la période — cellules périmètre × jour, **pas** des
+     * journées : deux périmètres bloqués le même jour en comptent deux.
+     *
+     * Ils sont exclus de `traitees` et de `couverture`, sans quoi un relevé que
+     * personne n'a pu produire compterait comme une saisie — et la couverture
+     * s'améliorerait donc d'elle-même. Ce nombre est la contrepartie : il dit
+     * pourquoi le taux baisse.
+     */
+    relevesKo: number;
   };
   delta: {
     erreursPct: number | null;
@@ -149,6 +159,17 @@ export function AnalyticsKpiCards({ summary, delta, compare, series }: Analytics
           <KpiCard key={card.deltaKey} {...card} />
         ))}
       </dl>
+      {summary.relevesKo > 0 && (
+        <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-nord-11/30 dark:bg-nord-11/15 dark:text-nord-11">
+          <OctagonX className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>
+            {summary.relevesKo} relevé{summary.relevesKo > 1 ? 's' : ''} KO sur
+            la période (périmètre × jour), exclu
+            {summary.relevesKo > 1 ? 's' : ''} de la couverture et des totaux :
+            le traitement y était impossible pour un problème technique.
+          </span>
+        </p>
+      )}
       {compare && delta && (
         <p className="mt-3 text-xs text-slate-500 dark:text-nord-4" id="delta-footnote">
           Écarts calculés vs période précédente de même longueur.

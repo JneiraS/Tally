@@ -470,12 +470,29 @@ describe("jours KO", () => {
     expect(totals).toEqual({ erreurs: 10, incidents: 4 });
   });
 
-  it("compte les journées KO à part pour que la couverture reste explicable", () => {
+  it("compte les relevés KO à part pour que la couverture reste explicable", () => {
     const summary = computePeriodSummary(KO_SCOPES, DAYS);
 
     expect(summary.traitees).toBe(2); // 2 lignes saisies, pas 3
     expect(summary.couverture).toBe(50); // 2 cellules sur 4
-    expect(summary.joursKo).toBe(1);
+    expect(summary.relevesKo).toBe(1);
+  });
+
+  it("compte un relevé KO par périmètre et par jour, pas un par journée", () => {
+    // Deux périmètres bloqués le MÊME jour : une seule date de panne, deux
+    // cellules. L'unité est celle du dénominateur de la couverture — l'écrire en
+    // « journées » ferait croire à deux dates, ce que l'écran affichait.
+    const scopes = [
+      scope("c1", "Alpha", [activity(LUNDI, 4, 1, { status: "ko" })]),
+      scope("c2", "Beta", [activity(LUNDI, 6, 3, { status: "ko" })]),
+    ];
+
+    const summary = computePeriodSummary(scopes, [LUNDI]);
+
+    expect(summary.relevesKo).toBe(2);
+    // La couverture tombe à 0 : les deux cellules sont écartées.
+    expect(summary.couverture).toBe(0);
+    expect(summary.traitees).toBe(0);
   });
 
   it("ne gonfle pas la couverture par rapport à une journée sans saisie", () => {

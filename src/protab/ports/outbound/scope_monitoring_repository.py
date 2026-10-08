@@ -70,6 +70,11 @@ class ScopeMonitoringRepository(Protocol):
         Raises:
             ScopeMonitoringNotFoundError: the scope does not exist in the current
                 project.
+            ValueError: ``days`` is empty. Stated here because it is a contract,
+                not an accident — the in-memory adapter must refuse it too, or the
+                two would stop being interchangeable (§28.1). The application
+                never triggers it: ``SetActivitiesStatusUseCase`` rejects the
+                empty list first, as ``DailyActivityNotFoundError``.
         """
         ...
 
