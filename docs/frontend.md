@@ -264,11 +264,22 @@ complètent le tableau :
 
 ### Le détail est mono-jour lui aussi
 
-`ScopeDetailPage` affiche **trois** blocs qui ne se confondent plus :
+`ScopeDetailPage` n'affiche plus que **deux** blocs :
 
-1. **« Saisie du {date} »** — l'éditeur en ligne et le statut de la journée ;
-2. **« Relevé du {date} »** — une seule ligne, celle du jour affiché ;
-3. **« Historique des journées »** (`<details>`, replié) — les *autres* journées.
+1. **« Saisie du {date} »** — l'éditeur en ligne, le statut de la journée et le
+   sélecteur de jour ;
+2. **« Historique des journées »** (`<details>`, replié) — **toutes** les
+   journées, jour affiché compris.
+
+Un troisième bloc, « Relevé du {date} », avait existé entre les deux : un tableau
+d'une ligne. Il faisait doublon avec l'éditeur — même écriture par deux routes,
+donc deux validations et deux boutons à faire diverger — **et** il ne bougeait
+pas quand on changeait de jour, ce qui se lisait comme un empilement de lignes.
+Les deux problèmes avaient la même cause : deux zones pour la même journée.
+
+Le sélecteur de jours vit dans l'en-tête de la carte de saisie, **pas** dans un
+tableau : c'est le seul moyen de passer d'une journée à l'autre, il doit donc
+être là où on saisit.
 
 Avant, un seul tableau listait tout l'historique alors que seul le
 `DateNavigator` de la carte du haut bougeait. Revenir de trois jours le laissait
@@ -276,15 +287,14 @@ inchangé, et le tableau se lisait alors comme un empilement : **le symptôme é
 réel, sa cause fausse** — aucune ligne n'était jamais dupliquée, `daily_activities`
 ayant une PK `(scope_id, day)`.
 
-**Un seul chemin de saisie pour le jour affiché.** La ligne du « Relevé » ne
-porte **pas** de crayon : l'éditeur du dessus saisit déjà ces compteurs en
-autosave, et la modale lui proposerait la même écriture par une seconde route —
-donc deux validations et deux boutons divergents. Le récapitulatif saisit les
-compteurs nulle part. Il garde en revanche **« Terminer »** et **« Signaler un
-KO »**, qui écrivent le *statut* : le panneau du haut ne couvre qu'un jour, l'historique en a beaucoup.
+**Un seul éditeur de saisie sur toute la page.** Le test
+`n'expose qu'une seule zone de saisie sur toute la page` le verrouille : dupliquer
+l'éditeur — ne serait-ce que pour afficher un récapitulatif — casse quatre tests.
 
-L'**historique**, lui, garde son crayon : les journées qu'il liste n'ont pas
-d'éditeur, la modale reste leur seul accès à la saisie.
+L'**historique**, lui, garde le crayon de chaque ligne : les journées qu'il
+liste n'ont pas d'éditeur, la modale reste leur accès à la saisie. Il garde
+aussi **« Terminer »** et **« Signaler un KO »** par ligne, qui écrivent le
+*statut* — le panneau du haut ne couvre qu'un jour affiché.
 
 Deux règles à tenir si le tableau évolue :
 

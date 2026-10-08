@@ -1,11 +1,11 @@
 /**
- * Statut de la journée affichée dans la carte « Activité du jour ».
+ * Statut de la journée affichée, dans la carte « Saisie du {date} ».
  *
  * Le statut est écrit ici et **pas** dans l'éditeur de compteurs : celui-ci fait
  * un autosave à 800 ms, et lui faire porter un clic sur « Signaler un KO »
  * mettrait deux mécanismes d'écriture en concurrence sur la même ligne. Le
- * composant est donc rendu dans l'en-tête de la carte, à côté du sélecteur de
- * jour — c'est le même emplacement que le jour affiché, donc la même portée.
+ * composant est donc rendu dans la carte de saisie, sous son en-tête — le même
+ * jour que celui qu'elle édite, donc la même portée.
  *
  * Le motif du KO est un **brouillon**, pour la même raison que la note du
  * périmètre : un autosave enverrait une requête par frappe, donc un événement

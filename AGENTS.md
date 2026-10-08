@@ -1469,18 +1469,22 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   de saisie, alors que seul le `DateNavigator` de la carte bougeait : revenir de trois jours laissait
   le tableau inchangé et se lisait comme un empilement de lignes — le symptôme était réel, sa cause
   fausse, et aucune ligne n'était jamais dupliquée (`daily_activities` a une PK `(scope_id, day)`).
-  Aujourd'hui : une carte « Saisie du {date} » (l'éditeur), une carte « Relevé du {date} » (une seule
-  ligne), et un `<details>` « Historique des journées » qui **exclut le jour affiché** — le montrer
-  deux fois afficherait la même donnée en double. Les deux tableaux partagent `ActivityRow`, faute de
-  quoi la ligne du jour et celle de l'historique divergeraient au premier bouton ajouté.
-- **Un seul chemin de saisie pour le jour affiché, sinon la duplication se paie deux fois.** L'éditeur
-  du dessus saisit déjà les compteurs en autosave ; garder le crayon sur la ligne du « Relevé »ouvrait
-  `ActivityFormModal` sur la même écriture — même validation, même endpoint, deux boutons et deux
-  copies des règles FEAI à faire diverger. La ligne du jour est donc un **récapitulatif** : plus de
-  crayon. Elle garde « Terminer » et « Signaler un KO », qui écrivent le **statut**, pas les compteurs —
-  le panneau du haut ne couvre qu'un jour, l'historique en a beaucoup. L'historique, lui, garde son
-  crayon : les journées qu'il liste n'ont pas d'éditeur. Verrouillé par
-  `ne propose qu'un seul chemin de saisie pour le jour affiché`.
+  Un troisième bloc, « Relevé du {date} » — un tableau d'une ligne — avait existé entre les deux : il
+  faisait doublon avec l'éditeur, et il ne bougeait pas quand on changeait de jour, ce qui se lisait
+  comme un empilement. **Les deux problèmes avaient la même cause : deux zones pour la même
+  journée.** Il est supprimé ; ses 82 lignes avec. Aujourd'hui deux blocs seulement : la carte
+  « Saisie du {date} » (éditeur, statut, **et le sélecteur de jour**) et le `<details>` « Historique
+  des journées », qui liste **toutes** les journées, jour affiché compris — il l'excluait pour ne pas
+  le montrer deux fois à côté de son propre tableau, et ce tableau ayant disparu, l'exclusion
+  disparaissait avec lui.
+- **Un seul éditeur de saisie sur toute la page de détail, sinon la duplication se paie deux fois.**
+  L'éditeur saisit les compteurs en autosave ; lui adjoindre un tableau récapitulatif — ou un second
+  éditeur — offrirait la même écriture par deux routes : deux validations et deux copies des règles
+  FEAI à faire diverger. `ActivityRow` reste partagé par l'historique et par les lignes du tableau,
+  faute de quoi elles divergeraient au premier bouton ajouté. **Ne pas réintroduire de tableau par
+  jour** : il avait exactement les deux défauts qu'on cherchait à supprimer. Verrouillé par
+  `n'expose qu'une seule zone de saisie sur toute la page` — dupliquer l'éditeur en fait échouer
+  **quatre** tests, dont `suit le sélecteur de jour sans jamais dupliquer l'éditeur`.
 - **Deux clés identiques sur deux frères, c'est un bug React, pas un avertissement.** `DayStatusPanel`
   et `TodayActivityEditor` portent tous deux `key={editorDay}` et sont frères : React refuse de les
   réconcilier et **abandonne le rendu**, ce qui vide le tableau sans lever la moindre erreur. Seul le

@@ -147,14 +147,11 @@ export function ScopeDetailPage() {
     return sortedActivities.map((a) => a.day);
   }, [sortedActivities]);
 
-  // Le jour affiché a sa propre carte « Relevé » juste au-dessus : le montrer
-  // aussi dans l'historique le ferait apparaître deux fois sur l'écran, pour la
-  // même donnée. L'historique montre donc les *autres* journées.
-  const historyActivities = useMemo(
-    () => sortedActivities.filter((a) => a.day !== editorDay),
-    [sortedActivities, editorDay],
-  );
-
+  // L'historique montre **toutes** les journées, jour affiché compris. Il
+  //Drawable a longtemps exclu le jour affiché, pour ne pas le montrer deux fois
+  // à côté de son propre tableau ; ce tableau ayant disparu, l'exclusion
+  // disparaît avec lui — un inventaire qui cache une journée dérouterait plus
+  // qu'une ligne de plus.
   const uncompletedDays = useMemo(() => {
     return sortedActivities.filter((a) => !isCompleted(a.status)).map((a) => a.day);
   }, [sortedActivities]);
@@ -457,6 +454,14 @@ export function ScopeDetailPage() {
               Compteurs et références FEAI — sauvegarde automatique
             </p>
           </div>
+          {/* Le sélecteur pilote l'unique zone de saisie de la page : sans autre
+              tableau par jour, c'est le seul moyen de passer d'une journée à
+              l'autre. */}
+          <DateNavigator
+            value={editorDay}
+            today={todayIso}
+            onChange={setEditorDay}
+          />
         </div>
 
         {/* Pas de `key` ici : le panneau se resynchronise sur `day` par effet, il
@@ -547,90 +552,10 @@ export function ScopeDetailPage() {
         </div>
       )}
 
-      {/* Activité de la journée affichée — la page de détail est mono-jour, comme
-          la page principale. L'historique complet est plus bas, dans un panneau
-          déroulant : sans lui, la navigation des jours semblait empiler des
-          lignes alors que le tableau ne bougeait simplement pas. */}
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-nord-6 flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600 dark:text-nord-8" />
-              Relevé du {formatFullDateFr(editorDay)}
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-nord-4">
-              {editorActivity
-                ? 'Erreurs, incidents créés et fiches FEAI de cette journée'
-                : "Aucune saisie sur cette journée — l'éditeur ci-dessus permet d'en créer une"}
-            </p>
-          </div>
-          <DateNavigator
-            value={editorDay}
-            today={todayIso}
-            onChange={setEditorDay}
-          />
-        </div>
-
-        {editorActivity ? (
-          <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600 dark:text-nord-5">
-                <thead className="bg-slate-50/80 dark:bg-nord-0/60 border-b border-slate-200 dark:border-nord-2 text-xs font-semibold text-slate-700 dark:text-nord-4 uppercase tracking-wider">
-                  <tr>
-                    <th scope="col" className="px-4 py-3">
-                      Jour (Date)
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-center">
-                      Erreurs signalées
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-center">
-                      Incidents créés
-                    </th>
-                    <th scope="col" className="px-4 py-3">
-                      Fiches FEAI
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-center">
-                      Statut
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-right">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
-                  {/* Pas de `onEdit` : l'éditeur du dessus est le seul chemin de
-                      saisie des compteurs de ce jour. Le garder ici proposerait la
-                      même écriture par deux routes — l'autosave en ligne et la
-                      modale — donc deux validations et deux boutons divergents. */}
-                  <ActivityRow
-                    key={`jour-${editorActivity.day}`}
-                    activity={editorActivity}
-                    isToday={editorDay === todayIso}
-                    onComplete={handleCompleteOneDay}
-                    onKo={(day) => openKoBatch([day])}
-                  />
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-10 text-center shadow-2xs">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-nord-0 text-slate-500 dark:text-nord-4 flex items-center justify-center mx-auto">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <p className="text-sm font-semibold text-slate-800 dark:text-nord-6">
-              Aucune activité le {formatDateFr(editorDay)}
-            </p>
-            <p className="text-xs text-slate-500 dark:text-nord-4 mt-1 max-w-sm mx-auto">
-              Saisissez les compteurs dans l'éditeur ci-dessus, ou signalez un KO
-              si le traitement était impossible pour un problème technique.
-            </p>
-          </div>
-        )}
-      </div>
-
       {/* Historique complet — replié par défaut, il est là pour la période et la
-          sélection multiple, pas pour le jour affiché. */}
+          sélection multiple. Il liste **toutes** les journées, jour affiché
+          compris : il avait exclu ce jour-là pour ne pas le montrer deux fois à
+          côté de son propre tableau, et ce tableau a disparu. */}
       <details
         className="group bg-white dark:bg-nord-1 rounded-2xl border border-slate-200 dark:border-nord-2 shadow-2xs"
         open={isHistoryOpen}
@@ -642,7 +567,7 @@ export function ScopeDetailPage() {
               <Calendar className="w-5 h-5 text-slate-400 dark:text-nord-4" />
               Historique des journées
               <span className="text-sm font-semibold text-slate-400 dark:text-nord-4">
-                ({historyActivities.length})
+                ({sortedActivities.length})
               </span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-nord-4">
@@ -694,7 +619,7 @@ export function ScopeDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
-                  {historyActivities.map((activity) => (
+                  {sortedActivities.map((activity) => (
                     <ActivityRow
                       key={activity.day}
                       activity={activity}
@@ -712,7 +637,7 @@ export function ScopeDetailPage() {
           </div>
 
           <p className="px-1 text-xs text-slate-500 dark:text-nord-4">
-            Total du périmètre, journée affichée comprise : {sortedActivities.length}{' '}
+            Total : {sortedActivities.length} relevé(s) d'activité • {totalErrors}{' '}
             relevé(s) • {totalErrors} erreur(s) • {totalIncidents} incident(s) •{' '}
             {totalFeai} réf(s) FEAI
           </p>

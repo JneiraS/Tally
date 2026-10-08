@@ -238,108 +238,144 @@ describe('ScopeDetailPage — page mono-jour', () => {
     vi.mocked(protabApi.setActivitiesStatus).mockResolvedValue(undefined);
   });
 
-  /** Le tableau du jour affiché, à distinguer de celui de l'historique. */
-  function dayTable() {
+  /**
+   * La zone de saisie du jour affiché.
+   *
+   * Elle a remplacé le tableau mono-jour supprimé : la garantie porte donc sur
+   * les champs eux-mêmes — un seul groupe, qui suit le sélecteur de jour.
+   */
+  function editor() {
     return within(
-      screen.getByRole('heading', { name: /Relevé du/i }).closest('div.space-y-3')!,
+      screen.getByRole('heading', { name: /Saisie du/i }).closest('div.space-y-4')!,
     );
   }
 
-  it('n’affiche qu’une seule ligne, celle du jour sélectionné', async () => {
+  /** Les champs du compteur d'erreurs — un seul doit exister à la fois. */
+  const errorFields = () => screen.getAllByLabelText('Erreurs signalées du jour');
+
+  it('n’expose qu’une seule zone de saisie sur toute la page', async () => {
+    // Le doublon qui motivait la suppression : l'éditeur du dessus et le tableau
+    // du jour « Relevé » proposaient la même écriture par deux routes.
     await renderPage();
 
-    const rows = dayTable().getAllByRole('row');
-    // Une ligne d'en-tête + une ligne de donnée : le tableau ne liste PAS tout
-    // l'historique, c'était la source du « cumul » décrit.
-    expect(rows).toHaveLength(2);
-    expect(dayTable().getByText('23 sept. 2026')).toBeInTheDocument();
-    expect(dayTable().queryByText('22 sept. 2026')).not.toBeInTheDocument();
+    expect(errorFields()).toHaveLength(1);
+    expect(
+      screen.queryByRole('heading', { name: /Relevé du/i }),
+    ).not.toBeInTheDocument();
   });
 
-  it('suit le sélecteur de jour sans empiler de ligne', async () => {
+  it('suit le sélecteur de jour sans jamais dupliquer l’éditeur', async () => {
     await renderPage();
-    expect(dayTable().getByText('23 sept. 2026')).toBeInTheDocument();
+    expect(editor().getByRole('heading', { name: /23 septembre 2026/ })).toBeInTheDocument();
+    expect(errorFields()).toHaveLength(1);
 
-    // Trois jours en arrière : la ligne affichée doit être REMPLACÉE, pas
-    // ajoutée. C'est exactement ce que la page ne faisait pas.
-    fireEvent.click(screen.getByLabelText(/Afficher le jour précédent/));
-    await waitFor(() => {
-      expect(dayTable().getByText('22 sept. 2026')).toBeInTheDocument();
-    });
-    expect(dayTable().queryByText('23 sept. 2026')).not.toBeInTheDocument();
-    expect(dayTable().getAllByRole('row')).toHaveLength(2);
-
-    fireEvent.click(screen.getByLabelText(/Afficher le jour précédent/));
-    await waitFor(() => {
-      expect(dayTable().getByText('21 sept. 2026')).toBeInTheDocument();
-    });
-    expect(dayTable().getAllByRole('row')).toHaveLength(2);
+    // Trois jours en arrière : l'éditeur doit être REMPLACÉ, pas empilé. C'est
+    // exactement ce que la page ne faisait pas avant le passage mono-jour.
+    const previous = screen.getByLabelText(/Afficher le jour précédent/);
+    for (const day of [22, 21]) {
+      fireEvent.click(previous);
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: new RegExp(`${day} septembre 2026`) }),
+        ).toBeInTheDocument();
+      });
+      expect(errorFields()).toHaveLength(1);
+    }
   });
 
-  it('ne répète pas le jour affiché dans l’historique', async () => {
+  it('pré-remplit l’éditeur avec les valeurs du jour sélectionné', async () => {
+    // Le sélecteur ne déplace pas seulement un titre : il doit recharger les
+    // compteurs, sinon on saisirait le jour affiché dans ceux d'un autre.
+    await renderPage();
+    expect(errorFields()[0]).toHaveValue(3);
+
+    fireEvent.click(screen.getByLabelText(/Afficher le jour précédent/));
+    await waitFor(() => {
+      expect(errorFields()[0]).toHaveValue(2);
+    });
+
+    fireEvent.click(screen.getByLabelText(/Afficher le jour précédent/));
+    await waitFor(() => {
+      // Le 21 septembre est terminé : l'éditeur le montre malgré tout.
+      expect(errorFields()[0]).toHaveValue(1);
+    });
+  });
+
+  it('inclut le jour affiché dans l’historique', async () => {
+    // L'historique l'excluait pour ne pas le montrer deux fois à côté de son
+    // propre tableau ; ce tableau ayant disparu, l'exclusion aussi.
     await renderPage();
 
     const history = await openHistory();
     expect(history.getByText('22 sept. 2026')).toBeInTheDocument();
-    // Le jour affiché a sa carte « Relevé » : le redire dans l'historique
-    // afficherait deux fois la même donnée.
-    expect(history.queryByText('23 sept. 2026')).not.toBeInTheDocument();
+    expect(history.getByText('23 sept. 2026')).toBeInTheDocument();
   });
 
   it('garde l’historique complet et sans doublon', async () => {
     await renderPage();
 
     const history = await openHistory();
-    // 5 journées relevées, une seule exclue du tableau : les 4 autres sont là,
-    // chacune une fois.
+    // Les 4 journées relevées, chacune une fois, jour affiché compris.
     const days = history
       .getAllByRole('row')
       .slice(1)
       .map((row) => within(row).getAllByText(/^\d{4}-\d{2}-\d{2}$/)[0].textContent);
-    expect(days).toEqual(['2026-09-22', '2026-09-21', '2026-09-20']);
+    expect(days).toEqual(['2026-09-23', '2026-09-22', '2026-09-21', '2026-09-20']);
     expect(new Set(days).size).toBe(days.length);
   });
 
-  it('annonce un relevé absent pour un jour sans saisie', async () => {
+  it('affiche une journée sans saisie comme telle, sans tableau dédié', async () => {
+    // L'état « aucune saisie » appartenait au tableau du jour supprimé. Il reste
+    // porté par l'éditeur et par le panneau de statut.
     await renderPage();
 
     const previous = screen.getByLabelText(/Afficher le jour précédent/);
-    // 23 → 22 → 21 → 20 → 19 ; aucune relevé n'existe pour le 19.
+    // 23 → 22 → 21 → 20 → 19 ; aucun relevé n'existe pour le 19.
     for (let i = 0; i < 4; i += 1) fireEvent.click(previous);
     await waitFor(() => {
       expect(
-        screen.getByText(/Aucune activité le 19 sept\. 2026/),
+        screen.getByRole('heading', { name: /19 septembre 2026/ }),
       ).toBeInTheDocument();
     });
+    const panel = screen.getByRole('region', { name: 'Statut de la journée 2026-09-19' });
+    expect(panel).toHaveTextContent('À traiter');
+    // Aucun relevé : les champs restent à zéro, et rien ne le prétend saisi.
+    // Le libellé d'état de l'éditeur ne s'affiche que sur saisie invalide ou en
+    // cours ; c'est le panneau de statut qui porte l'état « à traiter ».
+    expect(errorFields()[0]).toHaveValue(0);
   });
 
   it('ne propose qu’un seul chemin de saisie pour le jour affiché', async () => {
-    // L'éditeur du dessus saisit les compteurs en autosave. Le crayon de la
-    // ligne ouvrait la même saisie par la modale : deux validations et deux
-    // boutons pour la même écriture. Le récapitulatif ne saisit plus.
+    // L'éditeur saisit les compteurs en autosave ; la modale, atteinte par le
+    // crayon de l'historique, saisit les mêmes données. Deux routes pour la même
+    // écriture : deux validations et deux boutons à faire diverger.
     await renderPage();
 
-    const box = dayTable();
+    const history = await openHistory();
+    // Chaque ligne de l'historique a son crayon — le jour affiché compris, et
+    // c'est assumé : l'historique est un inventaire, l'éditeur la zone de saisie.
     expect(
-      box.queryByRole('button', { name: /Modifier l'activité/ }),
-    ).not.toBeInTheDocument();
-    // Les compteurs restent visibles, en lecture.
-    expect(box.getByText('3')).toBeInTheDocument();
+      history.getAllByRole('button', { name: /Modifier l'activité/ }).length,
+    ).toBeGreaterThan(0);
+    // Mais il n'existe qu'un seul éditeur à l'écran.
+    expect(errorFields()).toHaveLength(1);
   });
 
-  it('garde « Terminer » et ajoute « Signaler un KO » sur la ligne du jour', async () => {
+  it('garde « Terminer » et « Signaler un KO » sur chaque ligne d’historique', async () => {
     await renderPage();
 
-    const box = dayTable();
-    expect(box.getByRole('button', { name: /Terminer/ })).toBeInTheDocument();
-    // Le KO n'existait pas par ligne : le panneau du haut ne couvre qu'un jour.
-    expect(box.getByRole('button', { name: /^KO$/ })).toBeInTheDocument();
+    const history = await openHistory();
+    // Deux journées terminées n'offrent plus « Terminer » : il en reste 2.
+    expect(history.getAllByRole('button', { name: /Terminer/ }).length).toBe(2);
+    expect(history.getAllByRole('button', { name: /^KO$/ }).length).toBe(2);
   });
 
-  it('signale le KO du jour affiché depuis sa ligne, sans recharger', async () => {
+  it('signale le KO d’une journée depuis sa ligne, sans recharger', async () => {
     await renderPage();
 
-    fireEvent.click(dayTable().getByRole('button', { name: /^KO$/ }));
+    const history = await openHistory();
+    const row = history.getAllByRole('row').find((r) => within(r).queryByText(TODAY))!;
+    fireEvent.click(within(row).getByRole('button', { name: /^KO$/ }));
     // La modale annonce le jour au singulier.
     expect(
       screen.getByRole('button', { name: /Signaler la journée/ }),
@@ -358,27 +394,19 @@ describe('ScopeDetailPage — page mono-jour', () => {
     });
     expect(vi.mocked(protabApi.getScopeMonitoring)).toHaveBeenCalledTimes(1);
     await waitFor(() => {
-      expect(dayTable().getByText('KO')).toBeInTheDocument();
+      expect(history.getAllByText('KO').length).toBeGreaterThan(0);
     });
   });
 
-  it('laisse l’historique garder son crayon de saisie', async () => {
-    // Le jour affiché a son éditeur ; les autres journées de l'historique n'ont
-    // pas d'éditeur, donc la modale reste leur seul accès à la saisie.
+  it('n’expose des cases de sélection que dans l’historique', async () => {
     await renderPage();
 
+    // La zone de saisie n'a pas de tableau, donc rien à cocher.
+    expect(errorFields()).toHaveLength(1);
     const history = await openHistory();
     expect(
-      history.getAllByRole('button', { name: /Modifier l'activité/ }).length,
+      history.getAllByRole('checkbox', { name: /Sélectionner le jour/ }).length,
     ).toBeGreaterThan(0);
-  });
-
-  it('n’expose aucune case de sélection sur le tableau du jour', async () => {
-    // La sélection multiple n'a de sens que sur l'historique : une seule ligne,
-    // c'est un cas particulier que le composant sait déjà traiter.
-    await renderPage();
-
-    expect(dayTable().queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
   it('écrit le KO du jour affiché sans passer par l’historique', async () => {
@@ -389,7 +417,7 @@ describe('ScopeDetailPage — page mono-jour', () => {
       target: { value: 'Collecteur HS' },
     });
     // « Enregistrer » existe aussi dans la carte de note : on cible le panneau.
-    const panel = screen.getByRole('region', { name: new RegExp(TODAY) });
+    const panel = screen.getByRole('region', { name: `Statut de la journée ${TODAY}` });
     fireEvent.click(within(panel).getByRole('button', { name: 'Enregistrer' }));
 
     await waitFor(() => {
