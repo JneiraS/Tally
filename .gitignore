@@ -14,4 +14,24 @@ node_modules/
 
 # Local environment
 .env
-graphify-out/cache/last_query_stamp
+
+# Graphe de connaissance — ce qui est versionné, et ce qui ne doit pas l'être.
+#
+# VERSIONNÉ : graph.json (le graphe lui-même), GRAPH_REPORT.md, manifest.json.
+#   Un graphe périmé induit en erreur plus sûrement qu'un graphe absent, donc
+#   il accompagne le dépôt : un agent qui le découvre sans l'avoir construit
+#   commence par une carte à jour.
+#
+# IGNORÉ, et c'est 16 Mo sur 27 : le cache (fichiers nommés par hash de contenu,
+#   régénérables, un par révision du parseur), les sauvegardes datées des
+#   reconstructions précédentes, la page HTML et les labels signés. Sans cela, un
+#   `graphify update` salissait 38 entrées — 31 de cache, 1 sauvegarde, 6 en racine —
+#   dont 2,5 Mo de plus à chaque fois, et le graphe devenait coûteux à maintenir,
+#   donc abandonné. Il n'en salit plus que 3 : `graphify-out` propre devient un
+#   signal, « à jour ».
+graphify-out/cache/
+graphify-out/20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+graphify-out/graph.html
+graphify-out/.graphify_labels.json
+graphify-out/.graphify_labels.json.sig
+graphify-out/wiki/

@@ -1949,8 +1949,14 @@ When the user types `/graphify`, use the installed graphify skill or instruction
 
 Rules:
 
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+### Keeping the graph current
+
+- Run `make graph-update` **before** committing, so the graph lands in the same commit as the code it describes. The graph is versionned for exactly this reason: a stale graph misleads the next agent more surely than an absent one, and it is cheaper to ship one current file than to rediscover the architecture.
+- A `post-commit` hook rebuilds the graph in the background as a safety net for a forgotten `make graph-update`, so a dirty `graph.json` right after a commit is expected — commit it with the next change, or run `make graph-update` and commit it alone.
+- `core.hooksPath` is **local** config that Git does not propagate, so a fresh clone has no hook. Run `make graph-hooks-install` once per clone; re-run it after upgrading graphify, since the hooks embed the parser version that wrote them.
+- The hooks are versionned in `.githooks/` (not `.git/hooks/`) so they are reviewed like any other script, and they run detached, logging to `~/.cache/graphify-rebuild.log` rather than blocking or failing a commit. The interpreter path they pin at install time is a guarded preference, not a requirement — another clone falls through to the versionned `graphify-out/.graphify_python`, then to the `graphify` launcher on `PATH`.
+- Only three generated files are tracked: `graph.json`, `GRAPH_REPORT.md`, `manifest.json`, plus three machine markers graphify writes beside them (`.graphify_root`, `.graphify_python`, `cost.json`, a few hundred bytes in total). Everything else under `graphify-out/` is ignored — the AST cache (files named by content hash, one per parser revision), the dated pre-update snapshots (2.5 MB of the old state, added by every single update), `graph.html`, the labels and their signature, and `wiki/`. That split took the tracked footprint from 27 MB to 2.8 MB and a single `graphify update` from 38 changed files to 3; the alternative was a graph too expensive to maintain, and therefore abandoned.

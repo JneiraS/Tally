@@ -1,4 +1,4 @@
-.PHONY: help install test test-v test-failed typecheck run frontend db-up db-down db-shell docker-up docker-down project-admin test-db resources clean
+.PHONY: help install test test-v test-failed typecheck run frontend db-up db-down db-shell docker-up docker-down project-admin test-db resources graph-update graph-hooks-install clean
 
 # URL de la base dédiée aux tests d'intégration PostgreSQL
 TEST_DATABASE_URL ?= postgresql://protab:protab@localhost:5432/protab_test
@@ -74,6 +74,24 @@ project-admin:
 # Le rapport et son interprétation : docs/ressources.md
 resources:
 	./scripts/measure-usage.sh
+
+## graph-update: Reconstruit le graphe de connaissance (AST uniquement, aucun coût d'API)
+# Les fichiers de graphify-out/ versionnés (graph.json, GRAPH_REPORT.md, manifest.json)
+# sont alors modifiés : il faut committer le graphe avec le code qu'il décrit.
+graph-update:
+	graphify update .
+
+## graph-hooks-install: Active les hooks graphify pour ce clone (à lancer après un clone)
+# core.hooksPath est une config LOCALE : Git ne la propage pas. Sans cette cible, un
+# clone n'a pas de hook et son graphe se périme en silence. Les hooks sont versionnés
+# dans .githooks/ pour que le script soit relu comme du code du dépôt.
+# À relancer après une mise à jour de graphify : les hooks contiennent la version du
+# parseur de l'outil qui les a écrits.
+graph-hooks-install:
+	git config core.hooksPath .githooks
+	graphify hook install
+	rm -f .git/hooks/post-commit .git/hooks/post-checkout
+	@graphify hook status
 
 ## clean: Supprime l'environnement virtuel et les caches de test/python
 clean:
