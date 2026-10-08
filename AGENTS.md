@@ -1094,13 +1094,35 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   de fusionner. L'ancien `ON CONFLICT DO UPDATE` + `DELETE` des activités attendait là un cas
   d'usage qui mute un périmètre existant : cet usage est interdit, car il réécrit des jours qu'il
   n'a pas relus après une édition concurrente. Les mutations passent donc par des écritures ciblées du
-  port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed`, `update_note` —
+  port — `insert_daily_activity`, `update_daily_activity`, `set_activities_status`, `update_note` —
   chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
   `DailyActivityNotFoundError` ou `ScopeMonitoringNotFoundError`. Le refus a supprimé le cas
   particulier de la note (§28.1) : il n'y a plus de `DO UPDATE` auquel il faille l'exclure, donc plus
   d'asymétrie à documenter. Verrouillé par `test_save_refuses_an_existing_scope`,
   `test_a_refused_save_leaves_a_concurrent_note_intact` et
   `tests/unit/adapters/scope_monitoring_repository_save_test.py`.
+- **`set_activities_status` est le seul upsert du dépôt, et le seul endroit où un `ON CONFLICT DO UPDATE`
+  est légitime.** La clause n'y réécrit que `status` et `ko_reason` de lignes nommées : elle ne fusionne
+  jamais des compteurs qu'un appelant n'a pas relus, ce qui était l'objection qui a retiré la clause de
+  `save()`. Un jour sans ligne est créé **à compteurs nuls**, sans quoi le KO serait inatteignable là où
+  il est utile — une journée que personne n'a pu traiter. Conséquence à tenir : **`rowcount` ne distingue
+  plus un jour absent d'un jour mis à jour** (PostgreSQL compte un `UPDATE` même sans changement), donc le
+  refus de terminer un jour inexistant **vit dans le use case** (`SetActivitiesStatusUseCase`), pas dans
+  l'adapter. Verrouillé par `test_set_activities_status_creates_a_missing_day_at_zero` et
+  `test_complete_unknown_day_does_not_partially_persist`.
+- **`daily_activities.status` remplace deux booléens, `handled` et `completed`.** Une seule colonne
+  `TEXT` à trois valeurs (`pending` / `completed` / `ko`), plus `ko_reason`. Les deux drapeaux étaient
+  **toujours égaux** en production — le seul écrivain faisait les deux dans le même `SET` — donc rien n'est
+  perdu en les supprimant. Ajouter `ko` à côté aurait produit quatre états dont un **interdit**
+  (« terminée et KO ») et garanti par rien, c'est-à-dire exactement le piège absorbé en silence de
+  `incidents ⊆ erreurs` ci-dessous. L'énumération rend la combinaison non exprimable.
+  La migration est un `ADD COLUMN IF NOT EXISTS` + `UPDATE` de backfill + `DROP COLUMN`, le tout dans un
+  **`DO $$` gardé sur l'existence de `completed`** : sans ce garde, le **premier redémarrage** échoue,
+  car le deuxième démarrage lit une colonne que le premier a supprimée — une migration qui ne marche
+  qu'une fois casse tous les déploiement suivant sa mise à niveau. **Aucun `CHECK`** sur `status` : même
+  piège que `billing_code`, un `ALTER TABLE ADD CONSTRAINT` bloquerait le démarrage sur une ligne écrite
+  à la main. Verrouillé par `test_the_status_migration_carries_completed_days_over` et
+  `test_the_status_migration_is_idempotent`.
 - **`scope_monitorings.note` est un texte libre nullable, et la première route qui modifie un périmètre.**
   `PATCH /scope-monitorings/{id}` avec `{note}` ne touche qu'à elle — ni `name`, ni `billing_code`, ni les
   activités. La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
@@ -1110,6 +1132,19 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   ligne dégénérée viderait la liste des périmètres, cf. `billing_code` ci-dessus), la validation est un
   invariant d'écriture. Une note blanche est normalisée en `None` partout — domaine, API et TypeScript
   (`ScopeMonitoring.note` : `string | null`) — donc « pas de note » n'a qu'un état, pas deux.
+- **`daily_activities.ko_reason` est un texte libre nullable, qui n'existe que sur un jour KO.** La borne
+  `KO_REASON_MAX_LENGTH = 500` est déclarée **dans le domaine** et reprise par le schéma Pydantic, comme
+  `NOTE_MAX_LENGTH`. **Trois portes, dont deux à contre-courant**, et c'est délibéré :
+  - *écriture* — `DailyActivity.apply_status()` **refuse** un motif fourni pour un statut ≠ `ko`
+    (`InvalidKoReasonError`). L'ignorer silencieusement laisserait l'appelant croire le motif enregistré.
+    Le schéma `SetStatusRequest` refuse la même chose en `422` pour les appelants HTTP ;
+  - *relecture* — `__post_init__` **normalise sans refuser** (motif résiduel sur un jour terminé ⇒ `None`).
+    Le constructeur est le chemin de réhydratation des deux adapters ; une ligne dégénérée qui lèverait
+    viderait la liste des périmètres de l'instance. Même arbitrage que `billing_code` et `from_raw()` ;
+  - *effacement* — compléter une journée KO **efface le motif de la ligne**, sinon une journée terminée
+    porterait un motif de blocage, soit deux états pour une chose. L'information n'est pas perdue : elle
+    est dans `audit_log.changes`, ce qui est précisément le moment où on la consultera. Verrouillé par
+    `test_the_reason_a_completion_erased_stays_in_the_audit_trail`.
 - **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les écritures
   ciblées sur un périmètre joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en
   plus conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
@@ -1430,11 +1465,99 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
   et l'ouvrir sur la date du jour rendait un historique réimporté invisible alors qu'il était présent
   dans le détail de chaque périmètre.
+- **La page de détail l'est devenue aussi, après coup.** Elle listait l'historique complet sous la carte
+  de saisie, alors que seul le `DateNavigator` de la carte bougeait : revenir de trois jours laissait
+  le tableau inchangé et se lisait comme un empilement de lignes — le symptôme était réel, sa cause
+  fausse, et aucune ligne n'était jamais dupliquée (`daily_activities` a une PK `(scope_id, day)`).
+  Un troisième bloc, « Relevé du {date} » — un tableau d'une ligne — avait existé entre les deux : il
+  faisait doublon avec l'éditeur, et il ne bougeait pas quand on changeait de jour, ce qui se lisait
+  comme un empilement. **Les deux problèmes avaient la même cause : deux zones pour la même
+  journée.** Il est supprimé ; ses 82 lignes avec. Aujourd'hui deux blocs seulement : la carte
+  « Saisie du {date} » (éditeur, statut, **et le sélecteur de jour**) et le `<details>` « Historique
+  des journées », qui liste **toutes** les journées, jour affiché compris — il l'excluait pour ne pas
+  le montrer deux fois à côté de son propre tableau, et ce tableau ayant disparu, l'exclusion
+  disparaissait avec lui.
+- **Un seul éditeur de saisie sur toute la page de détail, sinon la duplication se paie deux fois.**
+  L'éditeur saisit les compteurs en autosave ; lui adjoindre un tableau récapitulatif — ou un second
+  éditeur — offrirait la même écriture par deux routes : deux validations et deux copies des règles
+  FEAI à faire diverger. `ActivityRow` reste partagé par l'historique et par les lignes du tableau,
+  faute de quoi elles divergeraient au premier bouton ajouté. **Ne pas réintroduire de tableau par
+  jour** : il avait exactement les deux défauts qu'on cherchait à supprimer. Verrouillé par
+  `n'expose qu'une seule zone de saisie sur toute la page` — dupliquer l'éditeur en fait échouer
+  **quatre** tests, dont `suit le sélecteur de jour sans jamais dupliquer l'éditeur`.
+- **Deux clés identiques sur deux frères, c'est un bug React, pas un avertissement.** `DayStatusPanel`
+  et `TodayActivityEditor` portent tous deux `key={editorDay}` et sont frères : React refuse de les
+  réconcilier et **abandonne le rendu**, ce qui vide le tableau sans lever la moindre erreur. Seul le
+  panneau en garde une, et il se resynchronise sur `day` par effet au lieu d'être remonté.
+- **Le flush de fin de saisie n'est pas du code mort — surtout pas.** `TodayActivityEditor` annule le
+  timer au démontage puis écrit la saisie en attente ; c'est ce qui évite de perdre un compteur saisi
+  dans la fenêtre de 800 ms du debounce. Il faut que `doSave` **accepte d'écrire après le démontage**
+  (`{ unmounting: true }`) : la garde `if (!mountedRef.current) return`, qui existe pour ne pas écrire
+  dans l'état React, annulait l'écriture elle aussi. Verrouillé par
+  `enregistre la saisie en attente quand le composant se démonte`.
 - **Un état « aucune saisie » doit rester atteignable.** Si le jour affiché ne contient aucune activité
   alors qu'une autre journée en contient, un bandeau `role="status"` nomme la dernière saisie et propose
   de l'afficher. Le bandeau « N périmètres non traités » du dernier jour ouvré l'emporte : il nomme les
   périmètres concernés et filtre la liste sur eux, la notice « aucune saisie » n'est qu'un repli. Deux
   `role="status"` simultanés rendraient l'un des deux inatteignable.
+- **Un jour KO est traité, et cette définition est dans `constants/dayStatus.ts`.** `isHandled(status)`
+  vaut vrai pour `completed` **et** pour `ko`, et c'est la seule ligne à écrire pour l'obtenir. Le
+  prédicat des non traités (`ScopeListPage.tsx:102`) et le filtre « à traiter » l'utilisent : sans cette
+  exception, un périmètre bloqué par une panne remonterait chaque matin, indéfiniment, sans qu'aucun
+  travail reste à faire — le statut n'aurait alors aucune utilité. Verrouillé par
+  `ne compte pas une journée KO parmi les périmètres non traités`.
+- **La même règle s'applique à la notice « aucune saisie », sinon le dépôt définit « traité » deux fois
+  et n'en respecte qu'une.** `showEmptyDayNotice` comparait des **dates** et ignorait le statut : sur une
+  journée entièrement KO, elle annonçait « aucune saisie le 6 oct. » alors que la journée contient des
+  lignes, et proposait d'aller voir le 8. Symptôme exact : un utilisateur qui vient de remplir ses
+  périmètres lit « vide », **parce que ce qu'il a rempli est précisément ce qui rend la journée invisible
+  à `latestActivityDay`**. La condition porte donc sur « la journée affichée porte-t-elle au moins une
+  activité », pas sur « porte-t-elle une mesure ». Verrouillé par `n annonce pas « aucune saisie » quand
+  la journée est signalée KO`. Deux pièges de fixture : le jour visé doit être **ouvré** (un samedi est
+  ignoré par le calendrier) et la navigation doit partir d'un jour qui porte des saisies, sinon
+  `latestData.day === selectedDay` et la notice ne s'affiche même pas.
+- **Le statut est écrit par `DayStatusPanel`, dans l'en-tête de la carte « Activité du jour », jamais dans
+  `TodayActivityEditor`.** L'éditeur fait un autosave à 800 ms : lui faire porter un clic sur « Signaler
+  un KO » mettrait deux mécanismes d'écriture en concurrence sur la même ligne. Le motif est un
+  **brouillon**, comme la note du périmètre — un autosave enverrait un `PATCH` par frappe, donc un
+  événement d'audit par caractère tapé. Le panneau ne recharge rien : il renvoie le statut enregistré et
+  le parent met à jour `scope.daily_activities` en place, sinon le `fetchScopeDetail` effacerait le jour
+  sélectionné.
+- **Les éditeurs relisent le statut dans un ref, pas dans la prop de montage.** `TodayActivityEditor` et
+  `InlineActivityCounters` émettent l'objet `DailyActivity` vers `onChanged` ; le statut est écrit par une
+  autre action, il peut donc changer entre deux sauvegardes sans remontage. Une closure de montage
+  émettrait une valeur périmée, et comme rien ne recharge la page, l'écran mentirait sur la base. D'où le
+  `dayStatusRef` resynchronisé par un effet.
+- **Le KO en lot passe par `BatchKoModal`, sur les lignes déjà sélectionnées du tableau jour par jour.**
+  Un seul motif pour tout le lot — une panne a une seule cause — et il reste facultatif. Le lot ne
+  recharge **rien**, contrairement à « Marquer comme terminé » qui appelle `fetchScopeDetail` : il passe
+  par `handleDayStatusChanged`, sinon le jour sélectionné dans la carte « Activité du jour » disparaîtrait.
+  Limite assumée : seules les journées **qui ont déjà une ligne** sont sélectionnables ; une journée sans
+  aucune saisie — le cas d'une panne — passe par le sélecteur de date du panneau. Le libellé du bouton
+  **porte son compte** (« Signaler les 5 jours en KO ») : sans cela il ferait doublon avec celui du panneau
+  de statut, et rien ne dirait au lecteur que l'un agit sur la sélection et l'autre sur le jour affiché.
+- **`/analyse` exclut les jours KO de ses chiffres, et en contrepartie les compte.** Sans l'exclusion,
+  une journée KO à compteurs nuls compterait comme une saisie dans `sumByLabel`, `traitees`,
+  `coverageRate` et les cellules de la heatmap — donc **améliorerait artificiellement le taux de
+  couverture** tout en aplatissant la courbe d'erreurs. La contrepartie est obligatoire :
+  `PeriodSummary.relevesKo` les compte et `AnalyticsKpiCards` les **affiche**, en ligne
+  conditionnelle sous les cartes KPI — donc seulement s'il y en a, sans quoi la couverture chuterait
+  sans que rien n'explique pourquoi. Ce n'est pas une carte : pas de delta (moins de KO n'est pas
+  forcément mieux) ni de sparkline (une tendance n'apprend rien), c'est une **explication du
+  dénominateur**. Le filtre KO vit dans `measuredActivitiesIn` (`utils/kpi.ts`), un seul endroit, pas
+  dans chaque appelant qui réadditionne des cellules.
+- **Un relevé KO est une cellule périmètre × jour, pas une journée — et le vocabulaire doit le dire.**
+  Deux périmètres bloqués le **même** jour font deux relevés : la ligne en affiche « 2 relevés KO
+  (périmètre × jour) », jamais « 2 journées », qui ferait croire à deux dates de panne. C'est
+  l'unité du dénominateur de `coverageRate` (« cellules périmètre × jour »), donc l'explication
+  rapporte au chiffre qu'elle sert à expliquer. Le champ s'appelle `relevesKo` et la fonction
+  `countKoCells` : un nom qui dit « jours » dans une grandeur qui n'en compte pas fait dériver le
+  prochain qui s'en sert. Verrouillé par `compte les relevés KO par périmètre et par jour, pas par
+  journée`, qui échoue aussi si le mot « journée » revient.
+- **L'export CSV ajoute `Statut` et `Motif KO` en fin de ligne, jamais au milieu.** `traite` et
+  `termine` restent en place et sont dérivés du statut, pour la raison déjà documentée lors de
+  `code_facturation` : un tableur configuré sur un export antérieur doit continuer de viser les bonnes
+  lettres.
 - **`InlineActivityCounters` ne rejoue pas `initialActivity`.** Ses `useState` sont initialisés au
   montage seulement, et `existsRef` (existe-t-il déjà une ligne pour ce jour ?) n'est jamais
   resynchronisé. Sans remontage, changer de jour laisse les compteurs affichés sur la journée précédente
@@ -1529,6 +1652,16 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   class="recharts-surface">`**. Le `className` passé à `<LineChart>` atterrit sur le `.recharts-wrapper`
   (`RechartsWrapper.js:347`) et ne l'atteint pas : il faut une variante arbitraire descendant
   `[&_.recharts-surface]:…` portée par notre conteneur, ou le `outline: none` est un no-op.
+- **Une carte pose `bg-white` ET `dark:bg-nord-1`, sur la même chaîne.** Dans une carte
+  sombre, un fond *enfoncé* (en-tête de tableau, ligne dépliée, pied) prend `dark:bg-nord-0`
+  avec son opacité, et doit rester plus sombre que le fond : sinon il se fond dans les lignes. Le
+  tableau du journal d'audit avait oublié son pendant sombre — **seul cas restant dans le dépôt**,
+  vérifié par contrôle croisé sur `pages/` et `components/`. Le symptôme était trompeur : le texte
+  et les en-têtes étant bien thémés, seules les lignes de données restaient claires. Et aucun
+  test jsdom ne l'attrape : `setup.ts` ne charge pas Tailwind et jsdom ne calcule aucun layout,
+  donc `getComputedStyle` renverrait `rgb(255, 255, 255)` quel que soit le `className`. D'où le
+  **garde-fou de classe** de `AuditLogPage.test.tsx`, même catégorie que `expectDoesNotClip` — il
+  échoue quand la classe disparaît, et la preuve réelle reste le coup d'œil sur la page.
 - **`outline-none` sans `outline-solid` ne remplace rien, il supprime.** `focus-visible:outline-2` compile
   en `outline-style: var(--tw-outline-style)`, et c'est `outline-none` qui met cette variable à `none` sur le
   même élément : le substitut ne serait jamais peint, et l'on perdrait l'anneau du navigateur *et* le
@@ -1678,7 +1811,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 227 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 326 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge
@@ -1816,8 +1949,14 @@ When the user types `/graphify`, use the installed graphify skill or instruction
 
 Rules:
 
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+### Keeping the graph current
+
+- Run `make graph-update` **before** committing, so the graph lands in the same commit as the code it describes. The graph is versionned for exactly this reason: a stale graph misleads the next agent more surely than an absent one, and it is cheaper to ship one current file than to rediscover the architecture.
+- A `post-commit` hook rebuilds the graph in the background as a safety net for a forgotten `make graph-update`, so a dirty `graph.json` right after a commit is expected — commit it with the next change, or run `make graph-update` and commit it alone.
+- `core.hooksPath` is **local** config that Git does not propagate, so a fresh clone has no hook. Run `make graph-hooks-install` once per clone; re-run it after upgrading graphify, since the hooks embed the parser version that wrote them.
+- The hooks are versionned in `.githooks/` (not `.git/hooks/`) so they are reviewed like any other script, and they run detached, logging to `~/.cache/graphify-rebuild.log` rather than blocking or failing a commit. The interpreter path they pin at install time is a guarded preference, not a requirement — another clone falls through to the versionned `graphify-out/.graphify_python`, then to the `graphify` launcher on `PATH`.
+- Only three generated files are tracked: `graph.json`, `GRAPH_REPORT.md`, `manifest.json`, plus three machine markers graphify writes beside them (`.graphify_root`, `.graphify_python`, `cost.json`, a few hundred bytes in total). Everything else under `graphify-out/` is ignored — the AST cache (files named by content hash, one per parser revision), the dated pre-update snapshots (2.5 MB of the old state, added by every single update), `graph.html`, the labels and their signature, and `wiki/`. That split took the tracked footprint from 27 MB to 2.8 MB and a single `graphify update` from 38 changed files to 3; the alternative was a graph too expensive to maintain, and therefore abandoned.

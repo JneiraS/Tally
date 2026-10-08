@@ -58,11 +58,12 @@ src/FrontEnd/src/
 ├── constants/routes.ts   Chemins déclarés une seule fois (API + SPA)
 ├── constants/ui.ts       Classe de case à cocher partagée
 ├── constants/nonWorkingDays.ts  Échelle ISO des jours, source unique
-├── constants/auditActions.ts     Libellés et icônes des 6 actions d'audit
+├── constants/dayStatus.ts       Les 3 statuts d'une journée, source unique
+├── constants/auditActions.ts     Libellés et icônes des 7 actions d'audit
 ├── hooks/                useTheme, useToast, useMediaQuery, useDebouncedValue
 ├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
 │                         AuditLogPage, LoginPage, NotFoundPage
-├── components/           29 composants (modales, éditeurs, graphiques, toasts)
+├── components/           32 composants (modales, éditeurs, panneaux, graphiques, toasts)
 └── utils/                kpi, date, export, validation, knowledgeBase,
                           auditStats, analytics, search
 ```
@@ -252,10 +253,79 @@ Un jour non ouvré n'a rien à afficher ni à saisir. Deux règles d'affichage
 complètent le tableau :
 
 - Un bandeau `role="status"` « N périmètres non traités » sur le dernier jour
-  ouvré : il **nomme** les périmètres concernés et filtre la liste sur eux.
+  ouvré : il **nomme** les périmètres concernés et filtre la liste sur eux. Son
+  prédicat est `!activity || !isHandled(activity.status)`, donc **une journée
+  KO n'en fait pas partie** : quelqu'un est passé dessus et a constaté le
+  blocage. Sans cette exception, un périmètre panneé remonterait chaque matin,
+  indéfiniment, sans qu'aucun travail reste à faire.
 - À défaut, une notice « aucune saisie » nommant la dernière saisie et
   proposant de l'afficher. Les deux ne doivent jamais coexister : deux
   `role="status"` simultanés rendraient l'un des deux inatteignable.
+
+Le repli suit la **même** règle que le bandeau : une journée qui porte des
+lignes n'est pas vide, même si aucune ne porte de mesure. Un jour KO est traité,
+donc `showEmptyDayNotice` teste « la journée affichée porte-t-elle au moins une
+activité », et non « porte-t-elle une mesure ». Sans cela, un utilisateur qui
+venait de remplir ses périmètres lisait « aucune saisie », parce que ce qu'il a
+rempli est précisément ce qui rend la journée invisible au calcul de la dernière
+journée saisie.
+
+Deux pièges à l'écriture d'une fixture, tous deux constatés : le jour visé doit
+être **ouvré** (un samedi est écarté par le calendrier), et la navigation doit
+partir d'un jour qui porte des saisies — sinon `latestData.day === selectedDay`
+et la notice ne s'affiche même pas, ce qui fait passer le test pour rien.
+
+### Le détail est mono-jour lui aussi
+
+`ScopeDetailPage` n'affiche plus que **deux** blocs :
+
+1. **« Saisie du {date} »** — l'éditeur en ligne, le statut de la journée et le
+   sélecteur de jour ;
+2. **« Historique des journées »** (`<details>`, replié) — **toutes** les
+   journées, jour affiché compris.
+
+Un troisième bloc, « Relevé du {date} », avait existé entre les deux : un tableau
+d'une ligne. Il faisait doublon avec l'éditeur — même écriture par deux routes,
+donc deux validations et deux boutons à faire diverger — **et** il ne bougeait
+pas quand on changeait de jour, ce qui se lisait comme un empilement de lignes.
+Les deux problèmes avaient la même cause : deux zones pour la même journée.
+
+Le sélecteur de jours vit dans l'en-tête de la carte de saisie, **pas** dans un
+tableau : c'est le seul moyen de passer d'une journée à l'autre, il doit donc
+être là où on saisit.
+
+Avant, un seul tableau listait tout l'historique alors que seul le
+`DateNavigator` de la carte du haut bougeait. Revenir de trois jours le laissait
+inchangé, et le tableau se lisait alors comme un empilement : **le symptôme était
+réel, sa cause fausse** — aucune ligne n'était jamais dupliquée, `daily_activities`
+ayant une PK `(scope_id, day)`.
+
+**Un seul éditeur de saisie sur toute la page.** Le test
+`n'expose qu'une seule zone de saisie sur toute la page` le verrouille : dupliquer
+l'éditeur — ne serait-ce que pour afficher un récapitulatif — casse quatre tests.
+
+L'**historique**, lui, garde le crayon de chaque ligne : les journées qu'il
+liste n'ont pas d'éditeur, la modale reste leur accès à la saisie. Il garde
+aussi **« Terminer »** et **« Signaler un KO »** par ligne, qui écrivent le
+*statut* — le panneau du haut ne couvre qu'un jour affiché.
+
+Deux règles à tenir si le tableau évolue :
+
+- **L'historique exclut le jour affiché.** Le montrer deux fois afficherait la
+  même donnée en double, pour la même date, dans deux blocs de l'écran.
+- **Les deux tableaux partagent `ActivityRow`.** Une ligne dupliquée divergerait
+  au premier bouton ajouté — c'est arrivé, avec la pastille KO qui n'existait
+  que dans l'historique.
+
+L'historique est replié par défaut : il sert à la période et à la sélection
+multiple (terminer, KO en lot), pas à la lecture du jour. Son pied total porte
+**toute la période**, journée affichée comprise — l'écrire « Total » sans
+préciser ferait croire qu'il ne compte que les lignes visibles.
+
+`DayStatusPanel` n'a **pas** de `key` alors que `TodayActivityEditor` en a une :
+les deux sont frères, React refuse de réconcilier deux clés identiques et
+**abandonne le rendu** — sans lever la moindre erreur. Le panneau se
+resynchronise sur `day` par effet, il n'a pas besoin d'être remonté.
 
 ### Recherche : le responsable passe avant le suppléant
 
@@ -279,7 +349,93 @@ est alors celle du serveur, intacte.
 
 ---
 
-## 7. Saisie et autosave
+## 7. Le statut d'une journée : `pending`, `completed`, `ko`
+
+`constants/dayStatus.ts` est l'unique juge de l'état d'une journée : l'énumération
+`DayStatus`, ses libellés, et les trois prédicats `isHandled` / `isCompleted` /
+`isKo`. Même arbitrage que `constants/nonWorkingDays.ts` : une valeur dupliquée
+dérive, et les questions dérivées du statut sont posées à six endroits différents
+de l'application.
+
+**Un seul champ, pas deux drapeaux.** L'API expose `status` et `ko_reason`, et
+non `handled` + `completed` comme avant. L'ancien couple était toujours égal en
+production — le seul écrivain faisait les deux dans le même `SET` — donc ajouter
+`ko` à côté aurait produit quatre états dont un interdit (« terminée et KO »)
+garanti par rien. L'énumération rend cette combinaison non exprimable.
+
+`isHandled(status)` est vrai pour `completed` **et** `ko` : c'est tout l'intérêt
+du statut, et la seule ligne à écrire pour obtenir ce comportement.
+
+### Où le statut est écrit
+
+`DayStatusPanel`, dans l'en-tête de la carte « Activité du jour » du détail — et
+**jamais** dans `TodayActivityEditor`, qui fait un autosave à 800 ms. Le faire
+porter un clic sur « Signaler un KO » mettrait deux mécanismes d'écriture en
+concurrence sur la même ligne.
+
+Le motif du KO est un **brouillon**, comme la note du périmètre : un autosave
+enverrait une requête par frappe, donc un événement d'audit par caractère tapé.
+Rien n'est écrit avant « Enregistrer ».
+
+Le panneau ne recharge rien : il renvoie le statut enregistré à son parent, qui
+met à jour `scope.daily_activities` en place. Un `fetchScopeDetail()` remettrait
+`isLoading` à vrai et effacerait le jour sélectionné.
+
+### Un piège que le ref de statut referme
+
+`TodayActivityEditor` et `InlineActivityCounters` émettent l'objet `DailyActivity`
+versé à `onChanged`. Ils lisent le statut dans un **ref** resynchronisé par un
+effet, et non dans la prop capturée au montage : le statut est écrit par une autre
+action, donc il peut changer entre deux sauvegardes sans que l'éditeur soit
+remonté. Une closure de montage émettrait alors une valeur périmée — et comme
+personne ne recharge la page, l'écran afficherait autre chose que la base.
+
+### Le lot, depuis l'historique
+
+`BatchKoModal` applique le statut aux lignes sélectionnées dans le tableau jour
+par jour. Deux particularités :
+
+- **Un seul motif pour tout le lot** : une panne de collecteur a une seule
+  cause, et la répéter sur chaque ligne n'apporterait rien. Il reste facultatif.
+- **Le lot ne recharge rien**, contrairement à « Marquer comme terminé » qui
+  appelle `fetchScopeDetail` : la mise à jour passe par `handleDayStatusChanged`,
+  donc le jour sélectionné dans la carte « Activité du jour » survit au clic.
+
+Le libellé du bouton **porte son compte** (« Signaler les 5 jours en KO »). Sans
+cela, il porterait le même texte que le bouton du panneau de statut, et rien ne
+dirait au lecteur que l'un agit sur la sélection et l'autre sur le jour affiché.
+
+Limite assumée : seules les journées **qui ont déjà une ligne** sont
+sélectionnables. Une journée sans aucune saisie — précisément le cas d'une panne
+— ne l'est pas et passe par le sélecteur de date du panneau de statut.
+
+### Les trois conséquences sur le reste de l'application
+
+- **Le bandeau des non traités** et le filtre « à traiter » ignorent les jours KO
+  (voir §6).
+- **`/analyse` les exclut des chiffres** : `sumByLabel`, `traitees`,
+  `coverageRate` et les cellules de la heatmap. Sans cela, une journée KO à
+  compteurs nuls compterait comme une saisie et **améliorerait artificiellement
+  le taux de couverture** tout en aplatissant la courbe d'erreurs. En contrepartie
+  obligatoire, `PeriodSummary.relevesKo` les compte et `AnalyticsKpiCards` les
+  affiche — **une ligne conditionnelle**, présente seulement s'il y en a :
+  « N relevés KO sur la période (périmètre × jour), exclus de la couverture et
+  des totaux ». Ce n'est pas une carte KPI : pas de delta (moins de KO n'est pas
+  forcément mieux), pas de sparkline. C'est une explication du dénominateur, et
+  une ligne permanente apprendrait au lecteur de l'ignorer.
+
+  **Un relevé est une cellule périmètre × jour, pas une journée.** Deux
+  périmètres bloqués le même jour font deux relevés — l'unité est celle du
+  dénominateur de `coverageRate`. Écrire « journées » ferait croire à deux dates
+  de panne : c'est exactement ce que l'écran affichait avant que le vocabulaire
+  ne soit aligné sur l'unité réelle.
+- **L'export CSV** ajoute `Statut` et `Motif KO` **après** les colonnes
+  existantes, `traite` et `termine` restant en place et dérivées du statut. Un
+  jour KO s'y lit « traité, non terminé », ce qui est exact.
+
+---
+
+## 8. Saisie et autosave
 
 `InlineActivityCounters` est un éditeur en ligne à autosave. Son invariant
 structurel : **ses `useState` sont initialisés au montage seulement, et
@@ -291,8 +447,8 @@ laisserait les compteurs affichés sur la journée précédente **et** l'autosav
 `PATCH` réécrirait alors la journée affichée avec ces valeurs périmées — perte de
 données silencieuse, d'autant plus grave qu'elle n'apparaît que dans le journal
 d'audit. C'est fait aujourd'hui par `key={editorDay}` dans
-`ScopeDetailPage.tsx:361`. Le flush de la saisie en cours au unmount reste ainsi
-correct.
+`ScopeDetailPage.tsx` (carte « Activité du jour »). Le flush de la saisie en
+cours au unmount reste ainsi correct.
 
 Si vous ajoutez une troisième occurrence de cet éditeur, respectez cette clé.
 
@@ -355,7 +511,7 @@ que soit l'écrivain, `curl` compris.
 
 ---
 
-## 8. La page d'analyse — `/analyse`
+## 9. La page d'analyse — `/analyse`
 
 **Toute la page dérive de `GET /scope-monitorings`.** Aucun appel supplémentaire :
 la liste renvoie déjà les périmètres avec leur historique. Un endpoint
@@ -506,7 +662,33 @@ cocher » / « Tout décocher » et « Terminé » — plus de rangée de pastil
 
 ---
 
-## 9. Graphiques et styles
+## 10. Graphiques et styles
+
+### Un fond clair a toujours son pendant sombre
+
+Une carte pose **`bg-white` et `dark:bg-nord-1`** — les deux, sur la même chaîne.
+À l'intérieur d'une carte sombre, un fond *enfoncé* (en-tête de tableau, ligne
+dépliée, pied de tableau) prend **`dark:bg-nord-0`**, avec l'opacité habituelle,
+et doit rester plus sombre que le fond de la carte, sinon il se fond dans les
+lignes.
+
+Le couple `bg-white` / `dark:bg-nord-1` est le seul motif de carte dans
+l'application ; un contrôle croisé sur `pages/` et `components/` le confirme.
+Un fond clair sans son pendant sombre laisse **le texte clair sur fond clair** :
+les lignes restent lisibles sur leurs en-têtes, et le défaut n'apparaît que sur
+les lignes de données. C'est arrivé sur le tableau du journal d'audit, seul cas
+restant dans le dépôt.
+
+Le correctif est additif — une seule classe à ajouter — mais **aucun test jsdom
+ne peut l'attraper** : `setup.ts` ne charge pas Tailwind et jsdom ne calcule
+aucun layout, donc `getComputedStyle` renverrait `rgb(255, 255, 255)` quel que
+soit le `className`. Un test de rendu passerait toujours. D'où le **garde-fou de
+classe** de `AuditLogPage.test.tsx` : c'est la chaîne qui est vérifiable, pas la
+couleur. Même catégorie que `expectDoesNotClip` (`overflowGuard.ts`) — un test
+qui échoue quand la classe disparaît, et une preuve réelle qui reste le coup
+d'œil sur la page.
+
+### Le graphique du détail
 
 La page de détail d'un périmètre (`ScopeDetailCharts.tsx`) ne porte **qu'un**
 graphique, « Tendance des erreurs et incidents », en valeurs quotidiennes. C'est
@@ -567,13 +749,13 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 
 ---
 
-## 10. Tests
+## 11. Tests
 
 ```bash
 npm test
 ```
 
-26 fichiers dans `src/test/` (218 tests). `src/test/setup.ts` importe
+35 fichiers dans `src/test/` (326 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses
@@ -598,7 +780,7 @@ Trois pièges à connaître avant d'écrire un test :
 
 ---
 
-## 11. Ce qui n'existe pas
+## 12. Ce qui n'existe pas
 
 Par honnêteté, et parce qu'un mainteneur ne doit pas les chercher :
 
@@ -613,7 +795,7 @@ Par honnêteté, et parce qu'un mainteneur ne doit pas les chercher :
 
 ---
 
-## 12. Build et déploiement
+## 13. Build et déploiement
 
 `npm run build` produit `dist/`, servi par nginx dans l'image `frontend`
 (détails dans [`docs/docker-architecture.md`](docker-architecture.md)). Les
@@ -627,7 +809,7 @@ Si vous ajoutez un type de fichier généré, pensez aux deux `.gitignore` **et*
 
 ---
 
-## 13. Documents voisins
+## 14. Documents voisins
 
 - [`docs/architecture.md`](architecture.md) — l'API consommée par ce frontend.
 - [`docs/development.md`](development.md) — commandes et variables.

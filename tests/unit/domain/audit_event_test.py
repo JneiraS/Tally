@@ -28,9 +28,9 @@ def test_build_changes_from_empty_keeps_all_fields():
 
 
 def test_build_changes_handles_removed_fields():
-    changes = build_changes({"handled": True, "completed": True}, {"handled": False})
-    assert changes["completed"] == {"old": True, "new": None}
-    assert changes["handled"] == {"old": True, "new": False}
+    changes = build_changes({"status": "completed", "ko_reason": "Panne"}, {})
+    assert changes["status"] == {"old": "completed", "new": None}
+    assert changes["ko_reason"] == {"old": "Panne", "new": None}
 
 
 def test_audit_event_defaults():

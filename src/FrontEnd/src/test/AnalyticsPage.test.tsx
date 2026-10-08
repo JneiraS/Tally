@@ -8,7 +8,7 @@ import { AnalyticsPage } from "../pages/AnalyticsPage";
 import { protabApi } from "../services/api";
 import { getTodayIsoDate } from "../utils/date";
 import type { NonWorkingDays } from "../types";
-import { makeScope } from './factories';
+import { makeActivity, makeScope } from './factories';
 
 vi.mock("../services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/api")>();
@@ -43,8 +43,8 @@ const SCOPES = [
         errors_reported: 4,
         incidents_created: 1,
         feai: [],
-        handled: true,
-        completed: true,
+        status: "pending",
+        ko_reason: null,
       },
     ],
   }),
@@ -61,8 +61,8 @@ const SCOPES = [
         errors_reported: 8,
         incidents_created: 0,
         feai: [],
-        handled: true,
-        completed: false,
+        status: "pending",
+        ko_reason: null,
       },
     ],
   }),
@@ -135,6 +135,82 @@ describe("AnalyticsPage", () => {
       screen.getByRole("img", { name: /Alpha, S39 : 4 erreurs/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/volume total d'erreurs · semaines iso/i)).toBeInTheDocument();
+  });
+
+  // Les relevés KO sont exclus de `traitees` ET de `couverture` : sans
+  // contrepartie affichée, le taux baisse sans que rien n'explique pourquoi.
+  // C'est la ligne que `PeriodSummary.relevesKo` est censée justifier.
+  it("explique la couverture quand des journées ont été signalées KO", async () => {
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValue([
+      makeScope({
+        id: "s1",
+        name: "Alpha",
+        knowledge_base_id: "KB-ANALYSE-1",
+        daily_activities: [
+          makeActivity("2026-09-22", { errors_reported: 4, incidents_created: 1 }),
+          // Le 21 septembre est un lundi, donc un jour ouvré : le calendrier du
+          // projet l'écarterait sinon et le test passerait sans rien vérifier.
+          makeActivity("2026-09-21", { status: "ko", ko_reason: "Collecteur HS" }),
+        ],
+      }),
+    ]);
+    renderPage();
+
+    const summary = await screen.findByRole("region", { name: /résumé de la période/i });
+    await waitFor(() => {
+      expect(summary).toHaveTextContent(/1 relevé KO/i);
+    });
+    // La ligne doit nommer la couverture, sans quoi elle n'explique rien.
+    expect(summary).toHaveTextContent(/couverture/i);
+    // « relevé » est masculin, donc « exclu » : l'accord sépare un texte soigné
+    // d'un texte recopié, et il était faux dans la première version.
+    expect(summary).toHaveTextContent(/exclu de la couverture/i);
+  });
+
+  // Le compteur porte sur des CELLULES périmètre × jour, pas sur des journées :
+  // une seule journée bloquée sur deux périmètres compte 2. Écrire « 2 journées »
+  // ferait croire à deux dates de panne, et c'est ce que l'écran affichait.
+  it("compte les relevés KO par périmètre et par jour, pas par journée", async () => {
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValue([
+      makeScope({
+        id: "s1",
+        name: "Alpha",
+        knowledge_base_id: "KB-ANALYSE-1",
+        daily_activities: [
+          makeActivity("2026-09-21", { status: "ko", ko_reason: "Collecteur HS" }),
+        ],
+      }),
+      makeScope({
+        id: "s2",
+        name: "Beta",
+        knowledge_base_id: "KB-ANALYSE-2",
+        official_main: "Alice",
+        official_backup: "Bob",
+        daily_activities: [
+          makeActivity("2026-09-21", { status: "ko", ko_reason: "Collecteur HS" }),
+        ],
+      }),
+    ]);
+    renderPage();
+
+    const summary = await screen.findByRole("region", { name: /résumé de la période/i });
+    await waitFor(() => {
+      expect(summary).toHaveTextContent(/2 relevés KO/i);
+    });
+    // Une seule date est bloquée : le dire en « journées » était le défaut.
+    expect(summary).not.toHaveTextContent(/journée/i);
+    expect(summary).not.toHaveTextContent(/2 journées/i);
+  });
+
+  it("n'affiche aucune mention des KO quand il n'y en a pas", async () => {
+    renderPage();
+
+    const summary = await screen.findByRole("region", { name: /résumé de la période/i });
+    await waitFor(() => {
+      expect(within(summary).getByText("12")).toBeInTheDocument();
+    });
+    // Une ligne d'explication permanente Learned à、検索も打扰 المستخدم.
+    expect(summary).not.toHaveTextContent(/KO/i);
   });
 
   it("additionne erreurs, incidents et arriéré des périmètres retenus", async () => {

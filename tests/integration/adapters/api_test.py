@@ -8,6 +8,7 @@ from protab.adapters.outbound.persistence.in_memory_scope_monitoring_repository 
     InMemoryScopeMonitoringRepository,
 )
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import KO_REASON_MAX_LENGTH, DayStatus
 from protab.domain.entities.scope_monitoring import (
     NOTE_MAX_LENGTH,
     KnowledgeBase,
@@ -192,30 +193,30 @@ def test_import_csv_business_error_returns_400(client):
     assert response.status_code == 400
 
 
-# --- Complete -------------------------------------------------------------
+# --- Status ---------------------------------------------------------------
 
 
 def test_complete_daily_activities_returns_204(client):
     http, repo = client
     make_scope_with_activity(repo)
 
-    response = http.post(
-        "/scope-monitorings/scope-001/activities/complete",
-        json={"days": ["2026-09-19"]},
+    response = http.patch(
+        "/scope-monitorings/scope-001/activities/status",
+        json={"days": ["2026-09-19"], "status": "completed"},
     )
 
     assert response.status_code == 204
     activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
-    assert activity.completed is True
-    assert activity.handled is True
+    assert activity.status is DayStatus.COMPLETED
+    assert activity.ko_reason is None
 
 
 def test_complete_unknown_scope_returns_404(client):
     http, _ = client
 
-    response = http.post(
-        "/scope-monitorings/unknown/activities/complete",
-        json={"days": ["2026-09-19"]},
+    response = http.patch(
+        "/scope-monitorings/unknown/activities/status",
+        json={"days": ["2026-09-19"], "status": "completed"},
     )
 
     assert response.status_code == 404
@@ -225,12 +226,139 @@ def test_complete_day_without_activity_returns_404(client):
     http, repo = client
     make_scope_with_activity(repo)
 
-    response = http.post(
-        "/scope-monitorings/scope-001/activities/complete",
-        json={"days": ["2026-09-20"]},
+    response = http.patch(
+        "/scope-monitorings/scope-001/activities/status",
+        json={"days": ["2026-09-20"], "status": "completed"},
     )
 
     assert response.status_code == 404
+
+
+def test_a_ko_can_be_reported_on_a_day_nobody_entered_anything_on(client):
+    """The route has to accept a KO on a day that has no row yet.
+
+    That is the situation the status exists for: the daily report could not be
+    produced, so nothing could be entered. Refusing here would leave the feature
+    with no reachable path.
+    """
+    http, repo = client
+    make_scope_with_activity(repo)
+
+    response = http.patch(
+        "/scope-monitorings/scope-001/activities/status",
+        json={
+            "days": ["2026-09-20"],
+            "status": "ko",
+            "ko_reason": "Collecteur indisponible",
+        },
+    )
+
+    assert response.status_code == 204
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 20))
+    assert activity.status is DayStatus.KO
+    assert activity.ko_reason == "Collecteur indisponible"
+    assert activity.errors_reported == 0
+
+
+def test_a_ko_reason_survives_the_round_trip(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+    http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={"days": ["2026-09-19"], "status": "ko", "ko_reason": "Panne collecteur"},
+    )
+
+    body = http.get(f"/scope-monitorings/{scope_id}/activities/2026-09-19").json()
+    assert body["status"] == "ko"
+    assert body["ko_reason"] == "Panne collecteur"
+
+
+def test_a_ko_reason_longer_than_the_domain_bound_returns_422(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={
+            "days": ["2026-09-19"],
+            "status": "ko",
+            "ko_reason": "x" * (KO_REASON_MAX_LENGTH + 1),
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_ko_reason_on_a_day_that_is_not_ko_returns_422(client):
+    http, repo = client
+    make_scope_with_activity(repo)
+
+    response = http.patch(
+        "/scope-monitorings/scope-001/activities/status",
+        json={"days": ["2026-09-19"], "status": "completed", "ko_reason": "Panne"},
+    )
+
+    assert response.status_code == 422
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.status is DayStatus.PENDING
+
+
+def test_an_unknown_status_returns_422(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={"days": ["2026-09-19"], "status": "termine"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_an_empty_day_list_returns_422(client):
+    http, _ = client
+    scope_id = create_scope_via_api(http)
+
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={"days": [], "status": "ko"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_a_blank_ko_reason_is_stored_as_no_reason(client):
+    http, repo = client
+    make_scope_with_activity(repo)
+
+    response = http.patch(
+        "/scope-monitorings/scope-001/activities/status",
+        json={"days": ["2026-09-19"], "status": "ko", "ko_reason": "   "},
+    )
+
+    assert response.status_code == 204
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.status is DayStatus.KO
+    assert activity.ko_reason is None
+
+
+def test_a_status_write_does_not_create_an_activity(client):
+    """Setting a status is not an entry: it must not insert a row on its own.
+
+    Only the KO path creates a day, and only the use case asks for it. Asserting
+    the count keeps an accidental blanket insert visible here too, where the
+    repository is in-memory and cannot prove anything about targeted writes.
+    """
+    http, repo = client
+    make_scope_with_activity(repo)
+
+    http.patch(
+        "/scope-monitorings/scope-001/activities/status",
+        json={"days": ["2026-09-19"], "status": "completed"},
+    )
+
+    saved = repo.find_by_id("scope-001")
+    assert sorted(saved.daily_activities) == [date(2026, 9, 19)]
 
 
 # --- Update ---------------------------------------------------------------
@@ -448,7 +576,8 @@ def test_list_scopes_returns_scopes_with_activities(client):
     assert body[0]["name"] == "Scope A"
     assert len(body[0]["daily_activities"]) == 1
     assert body[0]["daily_activities"][0]["day"] == "2026-09-19"
-    assert body[0]["daily_activities"][0]["completed"] is False
+    assert body[0]["daily_activities"][0]["status"] == "pending"
+    assert body[0]["daily_activities"][0]["ko_reason"] is None
 
 
 def test_list_scopes_empty(client):
@@ -595,8 +724,8 @@ def test_get_daily_activity_returns_detail(client):
     assert body["errors_reported"] == 2
     assert body["incidents_created"] == 1
     assert body["feai"] == ["INC000000001"]
-    assert body["handled"] is False
-    assert body["completed"] is False
+    assert body["status"] == "pending"
+    assert body["ko_reason"] is None
 
 
 def test_get_daily_activity_unknown_scope_returns_404(client):

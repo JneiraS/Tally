@@ -32,8 +32,8 @@ const scope = (name: string, kb: string): ScopeMonitoring =>
         errors_reported: 2,
         incidents_created: 1,
         feai: ['INC000000001'],
-        handled: false,
-        completed: false,
+        status: "pending",
+        ko_reason: null,
       },
     ],
   });
@@ -109,7 +109,7 @@ describe('ExportModal', () => {
     expect(mimeType).toBe('text/csv;charset=utf-8;');
     expect(content.charCodeAt(0)).toBe(0xfeff);
     const [, header] = content.slice(1).split('\n');
-    expect(header.split(';')).toHaveLength(11);
+    expect(header.split(';')).toHaveLength(13);
   });
 
   it('permet de choisir le séparateur virgule', async () => {
@@ -123,7 +123,7 @@ describe('ExportModal', () => {
     });
     const [content] = vi.mocked(exportUtils.downloadFile).mock.calls[0];
     const [, header] = content.slice(1).split('\n');
-    expect(header.split(',')).toHaveLength(11);
+    expect(header.split(',')).toHaveLength(13);
     expect(header.split(';')).toHaveLength(1);
   });
 

@@ -17,6 +17,8 @@ from .daily_activity import (
     IncidentsExceedErrorsError,
     InvalidFeaiReferenceError,
     DuplicateFeaiReferenceError,
+    InvalidKoReasonError,
+    KoReasonTooLongError,
 )
 from .official_code import InvalidOfficialCodeError
 
@@ -37,5 +39,7 @@ __all__ = [
     "IncidentsExceedErrorsError",
     "InvalidFeaiReferenceError",
     "DuplicateFeaiReferenceError",
+    "InvalidKoReasonError",
+    "KoReasonTooLongError",
     "InvalidOfficialCodeError",
 ]

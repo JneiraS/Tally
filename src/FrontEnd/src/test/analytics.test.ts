@@ -15,6 +15,7 @@ import {
   resolvePresetRange,
   weekLabel,
 } from "../utils/analytics";
+import type { DayStatus } from "../constants/dayStatus";
 import { DailyActivity, NonWorkingDays, ScopeMonitoring } from "../types";
 import { makeScope } from "./factories";
 
@@ -34,8 +35,8 @@ function activity(
     errors_reported,
     incidents_created,
     feai: [],
-    handled: true,
-    completed: false,
+    status: "pending" as DayStatus,
+    ko_reason: null,
     ...overrides,
   };
 }
@@ -256,7 +257,7 @@ describe("heatmap hebdomadaire des erreurs", () => {
 describe("résumé de période", () => {
   const SCOPES = [
     scope("s1", "Alpha", [
-      activity("2026-09-21", 4, 1, { completed: true }),
+      activity("2026-09-21", 4, 1, { status: "completed" }),
       activity("2026-09-22", 2, 2),
     ]),
     scope("s2", "Beta", [activity("2026-09-21", 6, 3)]),
@@ -441,5 +442,83 @@ describe("couverture par colonne", () => {
   it("gère une période vide", () => {
     expect(coverageByColumn(SCOPES, [], "jour")).toEqual([]);
     expect(coverageByColumn([], ["2026-09-21"], "jour")).toEqual([]);
+  });
+});
+
+describe("jours KO", () => {
+  const KO_SCOPES = [
+    scope("k1", "Alpha", [
+      activity(LUNDI, 4, 1, { status: "completed" }),
+      activity("2026-09-22", 0, 0, { status: "ko", ko_reason: "Collecteur HS" }),
+    ]),
+    scope("k2", "Beta", [activity(LUNDI, 6, 3)]),
+  ];
+  const DAYS = [LUNDI, "2026-09-22"];
+
+  it("n'ajoute aucune erreur d'une journée KO aux totaux", () => {
+    // Le piège serait inverse : la ligne existe, ses compteurs sont à zéro, et
+    // l'agrégat ne verrait pas la différence avec une journée réellement sans
+    // incident — alors qu'aucune mesure n'a été possible.
+    const totals = aggregateByDay(KO_SCOPES, DAYS).reduce(
+      (acc, p) => ({
+        erreurs: acc.erreurs + p.erreurs,
+        incidents: acc.incidents + p.incidents,
+      }),
+      { erreurs: 0, incidents: 0 },
+    );
+
+    expect(totals).toEqual({ erreurs: 10, incidents: 4 });
+  });
+
+  it("compte les relevés KO à part pour que la couverture reste explicable", () => {
+    const summary = computePeriodSummary(KO_SCOPES, DAYS);
+
+    expect(summary.traitees).toBe(2); // 2 lignes saisies, pas 3
+    expect(summary.couverture).toBe(50); // 2 cellules sur 4
+    expect(summary.relevesKo).toBe(1);
+  });
+
+  it("compte un relevé KO par périmètre et par jour, pas un par journée", () => {
+    // Deux périmètres bloqués le MÊME jour : une seule date de panne, deux
+    // cellules. L'unité est celle du dénominateur de la couverture — l'écrire en
+    // « journées » ferait croire à deux dates, ce que l'écran affichait.
+    const scopes = [
+      scope("c1", "Alpha", [activity(LUNDI, 4, 1, { status: "ko" })]),
+      scope("c2", "Beta", [activity(LUNDI, 6, 3, { status: "ko" })]),
+    ];
+
+    const summary = computePeriodSummary(scopes, [LUNDI]);
+
+    expect(summary.relevesKo).toBe(2);
+    // La couverture tombe à 0 : les deux cellules sont écartées.
+    expect(summary.couverture).toBe(0);
+    expect(summary.traitees).toBe(0);
+  });
+
+  it("ne gonfle pas la couverture par rapport à une journée sans saisie", () => {
+    // Sans cette exclusion, le KO améliorerait artificiellement le KPI : c'est
+    // une journée où personne n'a pu travailler.
+    const withKo = computePeriodSummary(KO_SCOPES, DAYS).couverture;
+    const withoutRow = computePeriodSummary(
+      [KO_SCOPES[0], scope("k2", "Beta", [activity(LUNDI, 6, 3)])],
+      DAYS,
+    ).couverture;
+
+    expect(withKo).toBe(withoutRow);
+  });
+
+  it("laisse une cellule KO vide dans la heatmap", () => {
+    // La peindre à 0 se lirait comme « journée sans incident ».
+    const heatmap = buildErrorHeatmap(KO_SCOPES, DAYS, "jour");
+    const alpha = heatmap.rows.find((r) => r.id === "k1");
+
+    expect(alpha?.cells.map((c) => c.errors)).toEqual([4, 0]);
+    expect(alpha?.cells[1].saisi).toBe(false);
+  });
+
+  it("exclut la journée KO du regroupement hebdomadaire", () => {
+    const byWeek = aggregateByWeek(KO_SCOPES, DAYS);
+    expect(byWeek).toHaveLength(1);
+    expect(byWeek[0].erreurs).toBe(10);
   });
 });

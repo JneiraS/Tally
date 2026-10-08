@@ -48,6 +48,14 @@ export function InlineActivityCounters({
   valuesRef.current = { errorsReported, incidentsCreated, feai };
 
   const existsRef = useRef<boolean>(!!initialActivity);
+  // Le statut n'appartient pas à cet éditeur : il est écrit par une autre action.
+  // Le lire dans la prop au moment de l'appel plutôt que dans une closure née au
+  // montage évite d'émettre une valeur périmée si le statut change entre deux
+  // sauvegardes sans que le composant soit remonté.
+  const dayStatusRef = useRef(initialActivity);
+  useEffect(() => {
+    dayStatusRef.current = initialActivity;
+  }, [initialActivity]);
   const lastSavedRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef<boolean>(false);
@@ -119,8 +127,8 @@ export function InlineActivityCounters({
           errors_reported: payload.errors_reported,
           incidents_created: payload.incidents_created,
           feai: payload.feai,
-          handled: initialActivity?.handled ?? false,
-          completed: initialActivity?.completed ?? false,
+          status: dayStatusRef.current?.status ?? "pending",
+          ko_reason: dayStatusRef.current?.ko_reason ?? null,
         });
       }
     } catch (err: unknown) {

@@ -27,7 +27,7 @@ function activity(
   incidents: number,
   feai: string[] = [],
 ): DailyActivity {
-  return { day, errors_reported: errors, incidents_created: incidents, feai, handled: false, completed: false };
+  return { day, errors_reported: errors, incidents_created: incidents, feai, status: "pending", ko_reason: null };
 }
 
 function scope(

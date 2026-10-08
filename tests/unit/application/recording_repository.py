@@ -12,6 +12,7 @@ behaviour as usual.
 from datetime import date
 
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
 
 
@@ -43,9 +44,26 @@ class RecordingScopeMonitoringRepository:
         self.calls.append(("update_daily_activity", scope_id, activity.day))
         self._inner.update_daily_activity(scope_id, activity)
 
-    def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
-        self.calls.append(("mark_activities_completed", scope_id, tuple(days)))
-        self._inner.mark_activities_completed(scope_id, days)
+    def set_activities_status(
+        self,
+        scope_id: str,
+        days: list[date],
+        status: DayStatus,
+        *,
+        ko_reason: str | None = None,
+    ) -> None:
+        self.calls.append(
+            (
+                "set_activities_status",
+                scope_id,
+                tuple(days),
+                status,
+                ko_reason,
+            )
+        )
+        self._inner.set_activities_status(
+            scope_id, days, status, ko_reason=ko_reason
+        )
 
     def update_note(self, scope_id: str, note: str | None) -> None:
         self.calls.append(("update_note", scope_id, note))

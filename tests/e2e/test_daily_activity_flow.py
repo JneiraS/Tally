@@ -46,9 +46,9 @@ def test_daily_activity_full_flow_over_http():
     )
     assert update.status_code == 204
 
-    complete = http.post(
-        f"/scope-monitorings/{scope_id}/activities/complete",
-        json={"days": ["2026-09-19"]},
+    complete = http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={"days": ["2026-09-19"], "status": "completed"},
     )
     assert complete.status_code == 204
 
@@ -66,5 +66,5 @@ def test_daily_activity_full_flow_over_http():
     assert activity["errors_reported"] == 3
     assert activity["incidents_created"] == 2
     assert activity["feai"] == ["INC000000001"]
-    assert activity["completed"] is True
-    assert activity["handled"] is True
+    assert activity["status"] == "completed"
+    assert activity["ko_reason"] is None

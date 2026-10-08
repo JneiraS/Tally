@@ -6,7 +6,6 @@
 import {
   AuditEvent,
   AuditLogQuery,
-  CompleteActivitiesInput,
   CreateActivityInput,
   CreateScopeInput,
   CreateScopeResponse,
@@ -16,6 +15,7 @@ import {
   ImportCsvResponse,
   NonWorkingDays,
   ScopeMonitoring,
+  SetActivitiesStatusInput,
   UpdateActivityInput,
   UpdateScopeNoteInput,
 } from "../types";
@@ -352,17 +352,21 @@ export const protabApi = {
   },
 
   /**
-   * POST /scope-monitorings/{id}/activities/complete
-   * Complète une ou plusieurs journées d'un coup
-   * Corps: { days: ["YYYY-MM-DD", ...] }
+   * PATCH /scope-monitorings/{id}/activities/status
+   * Fixe le statut d'une ou plusieurs journées d'un coup.
+   * Corps: { days: ["YYYY-MM-DD", ...], status: "completed" | "ko" | "pending", ko_reason?: string }
    * Réponse 204
+   *
+   * Une seule route pour les trois états : c'est ce qui garantit qu'aucun
+   * appelant ne peut combiner un statut et un motif incohérents, et qu'ajouter
+   * un état plus tard n'exige pas une seconde route.
    */
-  async completeActivities(
+  async setActivitiesStatus(
     scopeId: string,
-    payload: CompleteActivitiesInput,
+    payload: SetActivitiesStatusInput,
   ): Promise<void> {
-    await request<void>(`/scope-monitorings/${scopeId}/activities/complete`, {
-      method: "POST",
+    await request<void>(`/scope-monitorings/${scopeId}/activities/status`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     });
   },

@@ -24,8 +24,8 @@ export function makeActivity(
     errors_reported: 0,
     incidents_created: 0,
     feai: [],
-    handled: false,
-    completed: false,
+    status: "pending",
+    ko_reason: null,
     ...overrides,
   };
 }

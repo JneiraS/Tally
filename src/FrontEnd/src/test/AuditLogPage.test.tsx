@@ -245,6 +245,32 @@ describe('AuditLogPage Component', () => {
     ).toBeInTheDocument();
   });
 
+  // Garde-fou de classe, pas preuve de rendu : voir `overflowGuard.ts` pour
+  // pourquoi un test jsdom ne peut pas vérifier une couleur de fond. Le défaut
+  // était exactement l'oubli d'UNE classe — `dark:bg-nord-1` — donc c'est la
+  // seule chose qu'un test peut attraper, et il l'attrape.
+  it('donne au tableau un fond sombre au côté de son fond clair', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText('ABCD')).toBeInTheDocument());
+
+    const table = screen.getByRole('table');
+    // Le premier div est le wrapper `overflow-x-auto` ; c'est son parent qui
+    // porte le fond de carte. Un `closest('div')` attrapait le mauvais et le
+    // test échouait sur une classe qui n'a rien à voir avec le défaut.
+    const card = table.closest('div')?.parentElement;
+    const classes = (card?.getAttribute('class') ?? '').split(/\s+/);
+
+    // Le fond sombre doit être présent…
+    expect(
+      classes,
+      'le conteneur du tableau pose bg-white mais pas son pendant sombre',
+    ).toContain('dark:bg-nord-1');
+    // …et rester plus clair que les fonds enfoncés (en-tête, ligne dépliée),
+    // sinon ils se fondraient dans les lignes.
+    expect(classes).not.toContain('dark:bg-nord-0');
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });

@@ -17,11 +17,11 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 193 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 150 tests, dont **90 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 228 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 171 tests, dont **99 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
 | Typage Python | `src/protab` | `make typecheck` | `mypy`, `disallow_untyped_defs` |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 227 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 326 tests (vitest) |
 
 Trois exécutions, donc :
 
@@ -48,7 +48,8 @@ helpers explicites. Chaque module déclare ses propres doublures.
 
 | Fichier | Objet |
 | --- | --- |
-| `daily_activity_test.py` (31) | Mise à jour, clôture, contraintes et canonicalisation de `feai` |
+| `daily_activity_test.py` (39) | Mise à jour, contraintes et canonicalisation de `feai`, statut (`apply_status`), motif KO refusé hors KO, constructeur lenient |
+| `day_status_test.py` (4) | Les trois états, et une valeur illisible relue comme `pending` |
 | `official_code_test.py` (14) | Forme scalaire du quadrigramme : longueur, `/` refusé |
 | `non_working_days_test.py` (19) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
 | `scope_monitoring_test.py` (28) | Accès à une activité par jour, agrégat, note libre (`set_note`, borne, relecture) |
@@ -62,9 +63,14 @@ plus solide du dépôt, et la seule qui reste valable si l'infrastructure change
 
 Six fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
 `create_daily_activity_test.py`, `update_daily_activity_test.py`,
-`complete_daily_activity_test.py`, `update_scope_note_test.py`,
+`set_activities_status_test.py`, `update_scope_note_test.py`,
 `queries_test.py`) plus `audit_trail_test.py`. Ils utilisent
 `InMemoryScopeMonitoringRepository` et un adaptateur d'audit mémoire.
+
+`set_activities_status_test.py` verrouille l'asymétrie du domaine : un KO crée
+la journée à compteurs nuls, `completed` sur un jour absent refuse **sans écrire**,
+et l'audit porte la transition complète (`activity_ko` couvre le marquage *et*
+le démarquage, qu'il faut pouvoir distinguer).
 
 `update_scope_note_test.py` verrouille deux points qu'un adaptateur mémoire ne
 peut pas montrer seul : l'écriture **ciblée** (`update_note`, pas `save` — d'où
@@ -135,7 +141,7 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `postgres_scope_monitoring_repository_test.py` | 34 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`), traduction des violations de contrainte, isolation par projet |
+| `postgres_scope_monitoring_repository_test.py` | 42 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`), `set_activities_status` et son upsert, **migration `handled`/`completed` → `status`**, traduction des violations de contrainte, isolation par projet |
 | `postgres_auth_repository_test.py` | 33 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
 | `postgres_audit_trail_repository_test.py` | 5 | Écriture et lecture du journal d'audit, matrice de filtrage mirroring `audit_trail_filter_test.py`, **événement sans journée métier conservé par une période** |
@@ -175,7 +181,7 @@ fichiers d'intégration : c'est une doublure, pas une base.
 ## 4. Test E2E — `tests/e2e/`
 
 Un seul test, `test_daily_activity_flow.py` : création d'un périmètre, puis
-saisie d'une activité journalière, via `TestClient` et un adaptateur en
+saisie d'une activité journalière, clôture, via `TestClient` et un adaptateur en
 mémoire. Il prouve que l'API et un cas d'usage s'accordent sur un parcours
 minimal. Il ne prouve rien de la persistance, de l'authentification ni du
 multi-tenant.
@@ -222,7 +228,7 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Vingt-sept fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
+Trente-cinq fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
 qui n'en est pas un. `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
 le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et

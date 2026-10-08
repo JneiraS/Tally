@@ -1,6 +1,7 @@
 from datetime import date
 
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
@@ -44,10 +45,30 @@ class InMemoryScopeMonitoringRepository:
             feai=list(activity.feai),
         )
 
-    def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
-        resolved = [self._activity_for(scope_id, day) for day in days]
+    def set_activities_status(
+        self,
+        scope_id: str,
+        days: list[date],
+        status: DayStatus,
+        *,
+        ko_reason: str | None = None,
+    ) -> None:
+        scope = self._require(scope_id)
+        if not days:
+            raise ValueError("set_activities_status requires at least one day.")
+        # Resolve every day before mutating any of them, so the request stays
+        # all-or-none exactly as the single SQL statement is.
+        resolved: list[DailyActivity] = []
+        for day in dict.fromkeys(days):
+            activity = scope.daily_activity_for(day)
+            if activity is None:
+                activity = DailyActivity(
+                    day=day, errors_reported=0, incidents_created=0, feai=[]
+                )
+            resolved.append(activity)
         for activity in resolved:
-            activity.mark_completed()
+            activity.apply_status(status, ko_reason=ko_reason)
+            scope.daily_activities[activity.day] = activity
 
     def update_note(self, scope_id: str, note: str | None) -> None:
         self._require(scope_id).set_note(note)

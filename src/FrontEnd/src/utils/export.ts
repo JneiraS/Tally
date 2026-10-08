@@ -1,3 +1,4 @@
+import { DAY_STATUS_LABELS } from "../constants/dayStatus";
 import { ScopeMonitoring } from "../types";
 
 export type ExportFormat = "csv" | "json";
@@ -12,12 +13,15 @@ export interface ExportRow {
   erreurs: number;
   incidents: number;
   references_feai: string;
+  // Colonnes historiques, dérivées du statut et laissées en place : les
+  // tableurs et formules déjà configurés sur un export continuent de viser les
+  // bonnes lettres. Un jour KO s'y lit « traité, non terminé », ce qui est exact.
   traite: "Oui" | "Non";
   termine: "Oui" | "Non";
-  // Ajoutée en fin de ligne : les colonnes existantes ne se décalent pas, donc
-  // les tableurs et formules déjà configurés sur un export continuent de viser
-  // les bonnes lettres.
   code_facturation: string;
+  // Idem : le statut et son motif arrivent en dernier, jamais au milieu.
+  statut: string;
+  motif_ko: string;
 }
 
 const HEADERS: { key: keyof ExportRow; label: string }[] = [
@@ -32,6 +36,8 @@ const HEADERS: { key: keyof ExportRow; label: string }[] = [
   { key: "traite", label: "Traité" },
   { key: "termine", label: "Terminé" },
   { key: "code_facturation", label: "Code de facturation" },
+  { key: "statut", label: "Statut" },
+  { key: "motif_ko", label: "Motif KO" },
 ];
 
 /**
@@ -57,9 +63,11 @@ export function buildExportRows(
         erreurs: activity.errors_reported,
         incidents: activity.incidents_created,
         references_feai: activity.feai.join(" | "),
-        traite: activity.handled ? "Oui" : "Non",
-        termine: activity.completed ? "Oui" : "Non",
+        traite: activity.status !== "pending" ? "Oui" : "Non",
+        termine: activity.status === "completed" ? "Oui" : "Non",
         code_facturation: scope.billing_code ?? "",
+        statut: DAY_STATUS_LABELS[activity.status],
+        motif_ko: activity.ko_reason ?? "",
       });
     }
   }

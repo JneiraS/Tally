@@ -1,9 +1,10 @@
-import type { NonWorkingDays, ScopeMonitoring } from "../types";
+import { isKo } from "../constants/dayStatus";
 import {
   DEFAULT_NON_WORKING_DAYS,
   ISO_WEEKDAY_COUNT,
   toIsoWeekday,
 } from "../constants/nonWorkingDays";
+import type { DailyActivity, NonWorkingDays, ScopeMonitoring } from "../types";
 
 /**
  * Profondeur des deux séries fondées sur les jours ouvrés : la tendance du
@@ -215,9 +216,46 @@ export function coverageRate(
   const daySet = new Set(days);
   const cellsWithActivity = scopes.reduce(
     (acc, scope) =>
-      acc +
-      (scope.daily_activities || []).filter((a) => daySet.has(a.day)).length,
+      acc + measuredActivitiesIn(scope, daySet).length,
     0,
   );
   return Math.round((cellsWithActivity / (scopes.length * days.length)) * 100);
+}
+
+/**
+ * Les activités d'un périmètre qui portent une mesure exploitable.
+ *
+ * Un jour KO est une ligne de `daily_activities` comme une autre, donc le
+ * compter gonflerait la couverture d'une journée que personne n'a pu traiter —
+ * exactement l'inverse de ce qu'elle doit dire. Le filtre vit ici, en un seul
+ * endroit, plutôt que dans chaque appelant qui réadditionne des cellules.
+ */
+export function measuredActivitiesIn(
+  scope: ScopeMonitoring,
+  daySet: Set<string>,
+): DailyActivity[] {
+  return (scope.daily_activities || []).filter(
+    (a) => daySet.has(a.day) && a.status !== "ko",
+  );
+}
+
+/**
+ * Relevés KO — cellules périmètre × jour, **pas** un compte de journées.
+ *
+ * Deux périmètres bloqués le même jour en font deux. L'unité est celle du
+ * dénominateur de `coverageRate`, sinon l'explication ne rapporterait pas au
+ * chiffre qu'elle cherche à expliquer.
+ */
+export function countKoCells(
+  scopes: ScopeMonitoring[],
+  days: string[],
+): number {
+  const daySet = new Set(days);
+  return scopes.reduce(
+    (acc, scope) =>
+      acc +
+      (scope.daily_activities || []).filter((a) => daySet.has(a.day) && isKo(a.status))
+        .length,
+    0,
+  );
 }

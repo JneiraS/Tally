@@ -48,6 +48,14 @@ export function TodayActivityEditor({
   valuesRef.current = { errorsReported, incidentsCreated, feai };
 
   const existsRef = useRef<boolean>(!!initialActivity);
+  // Le statut n'appartient pas à cet éditeur : il est écrit par une autre action.
+  // Le lire dans la prop au moment de l'appel plutôt que dans une closure née au
+  // montage évite d'émettre une valeur périmée si le statut change entre deux
+  // sauvegardes sans que le composant soit remonté.
+  const dayStatusRef = useRef(initialActivity);
+  useEffect(() => {
+    dayStatusRef.current = initialActivity;
+  }, [initialActivity]);
   const lastSavedRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef<boolean>(false);
@@ -61,8 +69,12 @@ export function TodayActivityEditor({
     lastSavedRef.current = snapshot();
   }
 
-  const doSave = async (): Promise<void> => {
+  const doSave = async (options: { unmounting?: boolean } = {}): Promise<void> => {
     const values = valuesRef.current;
+    // Un démontage n'annule pas l'écriture : il annule seulement l'affichage.
+    // C'est la distinction qui manquait, et qui faisait perdre la saisie en
+    // cours quand on changeait de jour dans la fenêtre du debounce.
+    const isUnmounting = options.unmounting === true;
 
     const normalized = validateActivityForm(
       {
@@ -83,8 +95,8 @@ export function TodayActivityEditor({
       return;
     }
 
-    if (!mountedRef.current) return;
-    setStatus("saving");
+    if (!mountedRef.current && !isUnmounting) return;
+    if (!isUnmounting) setStatus("saving");
 
     const payload = {
       errors_reported: Number(values.errorsReported),
@@ -121,8 +133,8 @@ export function TodayActivityEditor({
           errors_reported: payload.errors_reported,
           incidents_created: payload.incidents_created,
           feai: payload.feai,
-          handled: initialActivity?.handled ?? false,
-          completed: initialActivity?.completed ?? false,
+          status: dayStatusRef.current?.status ?? "pending",
+          ko_reason: dayStatusRef.current?.ko_reason ?? null,
         });
       }
     } catch (err: unknown) {
@@ -139,13 +151,13 @@ export function TodayActivityEditor({
       const pending = needsSaveRef.current;
       needsSaveRef.current = false;
       if (pending) {
-        void doSave();
+        void doSave(options);
       }
     }
   };
 
   const performSaveRef = useRef<() => Promise<void>>(async () => {});
-  performSaveRef.current = () => doSave();
+  performSaveRef.current = () => doSave({ unmounting: true });
 
   const scheduleSave = () => {
     setSaveError(null);
@@ -159,10 +171,14 @@ export function TodayActivityEditor({
   useEffect(() => {
     mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
       if (timerRef.current) clearTimeout(timerRef.current);
-      // Flush de la dernière modification en attente
-      if (lastSavedRef.current !== snapshot()) {
+      // La saisie en attente est décidée avant le drapeau, par clarté de lecture
+      // seulement : c'est le contournement `unmounting` de `doSave` qui fait le
+      // travail. Sans lui, `if (!mountedRef.current) return` annulait le flush et
+      // la frappe partait avec le composant, sans le moindre signe à l'écran.
+      const hasPendingEdit = lastSavedRef.current !== snapshot();
+      mountedRef.current = false;
+      if (hasPendingEdit) {
         void performSaveRef.current();
       }
     };

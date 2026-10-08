@@ -2,6 +2,7 @@ from datetime import date
 from typing import Protocol
 
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
 
 
@@ -31,23 +32,49 @@ class ScopeMonitoringRepository(Protocol):
     def update_daily_activity(self, scope_id: str, activity: DailyActivity) -> None:
         """Overwrite the counters of a single day, leaving the others alone.
 
-        The completion flags are not part of the write: they are owned by
-        ``mark_activities_completed``.
+        The status is not part of the write: it is owned by
+        ``set_activities_status``, so a counters edit can never finish a day.
 
         Raises:
             DailyActivityNotFoundError: the scope has no activity for that day.
         """
         ...
 
-    def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
-        """Flag the given days as handled and completed.
+    def set_activities_status(
+        self,
+        scope_id: str,
+        days: list[date],
+        status: DayStatus,
+        *,
+        ko_reason: str | None = None,
+    ) -> None:
+        """Set the status of the given days of one scope.
 
-        Counters are never modified, and the days are written in a single
-        statement so the request stays all-or-nothing.
+        One statement for the whole list, so the request is all-or-none. A day
+        that has no activity yet is created with zeroed counters: reporting a day
+        as KO is precisely what somebody does when they could not enter anything,
+        so requiring a row first would make the status unusable exactly where it
+        is needed.
+
+        The upsert rewrites ``status`` and ``ko_reason`` and nothing else — it
+        never merges counters a caller has not re-read. Its consequence is that
+        ``rowcount`` cannot tell a missing day from an updated one, so the
+        refusal of a day that does not exist is the use case's business, not this
+        method's; what it does still raise is a scope the current project cannot
+        see.
+
+        ``ko_reason`` is written verbatim: refusing a reason on a day that is not
+        KO is the domain entity's invariant, so that every implementation rejects
+        it the same way.
 
         Raises:
-            DailyActivityNotFoundError: the scope has no activity for one of
-                the given days.
+            ScopeMonitoringNotFoundError: the scope does not exist in the current
+                project.
+            ValueError: ``days`` is empty. Stated here because it is a contract,
+                not an accident — the in-memory adapter must refuse it too, or the
+                two would stop being interchangeable (§28.1). The application
+                never triggers it: ``SetActivitiesStatusUseCase`` rejects the
+                empty list first, as ``DailyActivityNotFoundError``.
         """
         ...
 
