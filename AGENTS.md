@@ -1465,6 +1465,32 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   si elle est ouvrée, sinon le dernier jour ouvré. Un jour non ouvré n'a rien à afficher ni à saisir,
   et l'ouvrir sur la date du jour rendait un historique réimporté invisible alors qu'il était présent
   dans le détail de chaque périmètre.
+- **La page de détail l'est devenue aussi, après coup.** Elle listait l'historique complet sous la carte
+  de saisie, alors que seul le `DateNavigator` de la carte bougeait : revenir de trois jours laissait
+  le tableau inchangé et se lisait comme un empilement de lignes — le symptôme était réel, sa cause
+  fausse, et aucune ligne n'était jamais dupliquée (`daily_activities` a une PK `(scope_id, day)`).
+  Aujourd'hui : une carte « Saisie du {date} » (l'éditeur), une carte « Relevé du {date} » (une seule
+  ligne), et un `<details>` « Historique des journées » qui **exclut le jour affiché** — le montrer
+  deux fois afficherait la même donnée en double. Les deux tableaux partagent `ActivityRow`, faute de
+  quoi la ligne du jour et celle de l'historique divergeraient au premier bouton ajouté.
+- **Un seul chemin de saisie pour le jour affiché, sinon la duplication se paie deux fois.** L'éditeur
+  du dessus saisit déjà les compteurs en autosave ; garder le crayon sur la ligne du « Relevé »ouvrait
+  `ActivityFormModal` sur la même écriture — même validation, même endpoint, deux boutons et deux
+  copies des règles FEAI à faire diverger. La ligne du jour est donc un **récapitulatif** : plus de
+  crayon. Elle garde « Terminer » et « Signaler un KO », qui écrivent le **statut**, pas les compteurs —
+  le panneau du haut ne couvre qu'un jour, l'historique en a beaucoup. L'historique, lui, garde son
+  crayon : les journées qu'il liste n'ont pas d'éditeur. Verrouillé par
+  `ne propose qu'un seul chemin de saisie pour le jour affiché`.
+- **Deux clés identiques sur deux frères, c'est un bug React, pas un avertissement.** `DayStatusPanel`
+  et `TodayActivityEditor` portent tous deux `key={editorDay}` et sont frères : React refuse de les
+  réconcilier et **abandonne le rendu**, ce qui vide le tableau sans lever la moindre erreur. Seul le
+  panneau en garde une, et il se resynchronise sur `day` par effet au lieu d'être remonté.
+- **Le flush de fin de saisie n'est pas du code mort — surtout pas.** `TodayActivityEditor` annule le
+  timer au démontage puis écrit la saisie en attente ; c'est ce qui évite de perdre un compteur saisi
+  dans la fenêtre de 800 ms du debounce. Il faut que `doSave` **accepte d'écrire après le démontage**
+  (`{ unmounting: true }`) : la garde `if (!mountedRef.current) return`, qui existe pour ne pas écrire
+  dans l'état React, annulait l'écriture elle aussi. Verrouillé par
+  `enregistre la saisie en attente quand le composant se démonte`.
 - **Un état « aucune saisie » doit rester atteignable.** Si le jour affiché ne contient aucune activité
   alors qu'une autre journée en contient, un bandeau `role="status"` nomme la dernière saisie et propose
   de l'afficher. Le bandeau « N périmètres non traités » du dernier jour ouvré l'emporte : il nomme les
@@ -1488,6 +1514,14 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   autre action, il peut donc changer entre deux sauvegardes sans remontage. Une closure de montage
   émettrait une valeur périmée, et comme rien ne recharge la page, l'écran mentirait sur la base. D'où le
   `dayStatusRef` resynchronisé par un effet.
+- **Le KO en lot passe par `BatchKoModal`, sur les lignes déjà sélectionnées du tableau jour par jour.**
+  Un seul motif pour tout le lot — une panne a une seule cause — et il reste facultatif. Le lot ne
+  recharge **rien**, contrairement à « Marquer comme terminé » qui appelle `fetchScopeDetail` : il passe
+  par `handleDayStatusChanged`, sinon le jour sélectionné dans la carte « Activité du jour » disparaîtrait.
+  Limite assumée : seules les journées **qui ont déjà une ligne** sont sélectionnables ; une journée sans
+  aucune saisie — le cas d'une panne — passe par le sélecteur de date du panneau. Le libellé du bouton
+  **porte son compte** (« Signaler les 5 jours en KO ») : sans cela il ferait doublon avec celui du panneau
+  de statut, et rien ne dirait au lecteur que l'un agit sur la sélection et l'autre sur le jour affiché.
 - **`/analyse` exclut les jours KO de ses chiffres, et en contrepartie les compte.** Sans l'exclusion,
   une journée KO à compteurs nuls compterait comme une saisie dans `sumByLabel`, `traitees`,
   `coverageRate` et les cellules de la heatmap — donc **améliorerait artificiellement le taux de
@@ -1742,7 +1776,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 292 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 319 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

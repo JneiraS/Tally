@@ -21,7 +21,7 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 | Intégration Python | `tests/integration/` | `make test-db` | 170 tests, dont **98 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
 | Typage Python | `src/protab` | `make typecheck` | `mypy`, `disallow_untyped_defs` |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 292 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 319 tests (vitest) |
 
 Trois exécutions, donc :
 
@@ -228,7 +228,7 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Vingt-sept fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
+Trente-cinq fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
 qui n'en est pas un. `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
 le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et

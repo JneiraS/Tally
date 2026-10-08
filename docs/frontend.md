@@ -63,7 +63,7 @@ src/FrontEnd/src/
 ├── hooks/                useTheme, useToast, useMediaQuery, useDebouncedValue
 ├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
 │                         AuditLogPage, LoginPage, NotFoundPage
-├── components/           29 composants (modales, éditeurs, graphiques, toasts)
+├── components/           32 composants (modales, éditeurs, panneaux, graphiques, toasts)
 └── utils/                kpi, date, export, validation, knowledgeBase,
                           auditStats, analytics, search
 ```
@@ -262,6 +262,48 @@ complètent le tableau :
   proposant de l'afficher. Les deux ne doivent jamais coexister : deux
   `role="status"` simultanés rendraient l'un des deux inatteignable.
 
+### Le détail est mono-jour lui aussi
+
+`ScopeDetailPage` affiche **trois** blocs qui ne se confondent plus :
+
+1. **« Saisie du {date} »** — l'éditeur en ligne et le statut de la journée ;
+2. **« Relevé du {date} »** — une seule ligne, celle du jour affiché ;
+3. **« Historique des journées »** (`<details>`, replié) — les *autres* journées.
+
+Avant, un seul tableau listait tout l'historique alors que seul le
+`DateNavigator` de la carte du haut bougeait. Revenir de trois jours le laissait
+inchangé, et le tableau se lisait alors comme un empilement : **le symptôme était
+réel, sa cause fausse** — aucune ligne n'était jamais dupliquée, `daily_activities`
+ayant une PK `(scope_id, day)`.
+
+**Un seul chemin de saisie pour le jour affiché.** La ligne du « Relevé » ne
+porte **pas** de crayon : l'éditeur du dessus saisit déjà ces compteurs en
+autosave, et la modale lui proposerait la même écriture par une seconde route —
+donc deux validations et deux boutons divergents. Le récapitulatif saisit les
+compteurs nulle part. Il garde en revanche **« Terminer »** et **« Signaler un
+KO »**, qui écrivent le *statut* : le panneau du haut ne couvre qu'un jour, l'historique en a beaucoup.
+
+L'**historique**, lui, garde son crayon : les journées qu'il liste n'ont pas
+d'éditeur, la modale reste leur seul accès à la saisie.
+
+Deux règles à tenir si le tableau évolue :
+
+- **L'historique exclut le jour affiché.** Le montrer deux fois afficherait la
+  même donnée en double, pour la même date, dans deux blocs de l'écran.
+- **Les deux tableaux partagent `ActivityRow`.** Une ligne dupliquée divergerait
+  au premier bouton ajouté — c'est arrivé, avec la pastille KO qui n'existait
+  que dans l'historique.
+
+L'historique est replié par défaut : il sert à la période et à la sélection
+multiple (terminer, KO en lot), pas à la lecture du jour. Son pied total porte
+**toute la période**, journée affichée comprise — l'écrire « Total » sans
+préciser ferait croire qu'il ne compte que les lignes visibles.
+
+`DayStatusPanel` n'a **pas** de `key` alors que `TodayActivityEditor` en a une :
+les deux sont frères, React refuse de réconcilier deux clés identiques et
+**abandonne le rendu** — sans lever la moindre erreur. Le panneau se
+resynchronise sur `day` par effet, il n'a pas besoin d'être remonté.
+
 ### Recherche : le responsable passe avant le suppléant
 
 Une recherche par quadrigramme classe ses résultats par **où la requête a
@@ -324,6 +366,25 @@ effet, et non dans la prop capturée au montage : le statut est écrit par une a
 action, donc il peut changer entre deux sauvegardes sans que l'éditeur soit
 remonté. Une closure de montage émettrait alors une valeur périmée — et comme
 personne ne recharge la page, l'écran afficherait autre chose que la base.
+
+### Le lot, depuis l'historique
+
+`BatchKoModal` applique le statut aux lignes sélectionnées dans le tableau jour
+par jour. Deux particularités :
+
+- **Un seul motif pour tout le lot** : une panne de collecteur a une seule
+  cause, et la répéter sur chaque ligne n'apporterait rien. Il reste facultatif.
+- **Le lot ne recharge rien**, contrairement à « Marquer comme terminé » qui
+  appelle `fetchScopeDetail` : la mise à jour passe par `handleDayStatusChanged`,
+  donc le jour sélectionné dans la carte « Activité du jour » survit au clic.
+
+Le libellé du bouton **porte son compte** (« Signaler les 5 jours en KO »). Sans
+cela, il porterait le même texte que le bouton du panneau de statut, et rien ne
+dirait au lecteur que l'un agit sur la sélection et l'autre sur le jour affiché.
+
+Limite assumée : seules les journées **qui ont déjà une ligne** sont
+sélectionnables. Une journée sans aucune saisie — précisément le cas d'une panne
+— ne l'est pas et passe par le sélecteur de date du panneau de statut.
 
 ### Les trois conséquences sur le reste de l'application
 
@@ -635,7 +696,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-33 fichiers dans `src/test/` (292 tests). `src/test/setup.ts` importe
+35 fichiers dans `src/test/` (319 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

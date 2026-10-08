@@ -9,10 +9,10 @@ import {
   AlertCircle,
   Users,
   CheckSquare,
+  ChevronDown,
   Clock,
   OctagonX,
   RefreshCw,
-  Tag,
   FileCheck2,
   AlertTriangle,
 } from 'lucide-react';
@@ -21,7 +21,6 @@ import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
 import { BillingCodeBadge } from '../components/BillingCodeBadge';
-import { CHECKBOX_CLASS } from '../constants/ui';
 import { formatDateFr, formatFullDateFr, compareIsoDatesDesc, getTodayIsoDate } from '../utils/date';
 import { buildKnowledgeBaseUrl } from '../utils/knowledgeBase';
 import { ActivityFormModal } from '../components/ActivityFormModal';
@@ -30,6 +29,8 @@ import { TodayActivityEditor } from '../components/TodayActivityEditor';
 import { ScopeNoteCard } from '../components/ScopeNoteCard';
 import { DateNavigator } from '../components/DateNavigator';
 import { DayStatusPanel } from '../components/DayStatusPanel';
+import { BatchKoModal } from '../components/BatchKoModal';
+import { ActivityRow } from '../components/ActivityRow';
 import { useToast } from '../hooks/useToast';
 
 const ScopeDetailCharts = lazy(() =>
@@ -54,6 +55,11 @@ export function ScopeDetailPage() {
   // Sélection rapide pour validation par lot
   const [selectedDayCheckboxes, setSelectedDayCheckboxes] = useState<string[]>([]);
   const [isCompletingBatch, setIsCompletingBatch] = useState(false);
+  const [isKoBatchOpen, setIsKoBatchOpen] = useState(false);
+  // Les jours concernés par la modale KO : plusieurs depuis l'historique, un
+  // seul depuis la ligne du jour affiché.
+  const [koTargetDays, setKoTargetDays] = useState<string[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const todayIso = getTodayIsoDate();
 
@@ -141,6 +147,14 @@ export function ScopeDetailPage() {
     return sortedActivities.map((a) => a.day);
   }, [sortedActivities]);
 
+  // Le jour affiché a sa propre carte « Relevé » juste au-dessus : le montrer
+  // aussi dans l'historique le ferait apparaître deux fois sur l'écran, pour la
+  // même donnée. L'historique montre donc les *autres* journées.
+  const historyActivities = useMemo(
+    () => sortedActivities.filter((a) => a.day !== editorDay),
+    [sortedActivities, editorDay],
+  );
+
   const uncompletedDays = useMemo(() => {
     return sortedActivities.filter((a) => !isCompleted(a.status)).map((a) => a.day);
   }, [sortedActivities]);
@@ -223,6 +237,32 @@ export function ScopeDetailPage() {
     } finally {
       setIsCompletingBatch(false);
     }
+  };
+
+  const handleCompleteOneDay = async (day: string) => {
+    if (!id) return;
+    try {
+      await protabApi.setActivitiesStatus(id, { days: [day], status: 'completed' });
+      success('Activité complétée', `Journée du ${day} validée.`);
+      fetchScopeDetail();
+    } catch (err: unknown) {
+      toastError('Erreur', (err as Error)?.message);
+    }
+  };
+
+  const openKoBatch = (days: string[]) => {
+    setKoTargetDays(days);
+    setIsKoBatchOpen(true);
+  };
+
+  const handleBatchKoConfirmed = (days: string[], koReason: string | null) => {
+    // Mise à jour locale plutôt qu'un rechargement, contrairement à
+    // `handleBatchComplete` : `fetchScopeDetail` remettrait `isLoading` à vrai et
+    // effacerait le jour sélectionné dans la carte « Activité du jour ». La
+    // modale renvoie ce qu'elle a enregistré, donc l'écran reste d'accord avec la
+    // base sans rien recharger.
+    days.forEach((day) => handleDayStatusChanged(day, 'ko', koReason));
+    setSelectedDayCheckboxes([]);
   };
 
   const hasActivityToday = existingDays.includes(todayIso);
@@ -411,21 +451,19 @@ export function ScopeDetailPage() {
           <div>
             <h2 className="text-base font-bold text-slate-900 dark:text-nord-6 flex items-center gap-2">
               <FileCheck2 className="w-4 h-4 text-blue-600 dark:text-nord-8" />
-              Activité du jour
+              Saisie du {formatFullDateFr(editorDay)}
             </h2>
             <p className="text-xs text-slate-500 dark:text-nord-4">
-              Saisie en ligne — sauvegarde automatique de l'activité quotidienne
+              Compteurs et références FEAI — sauvegarde automatique
             </p>
           </div>
-          <DateNavigator
-            value={editorDay}
-            today={todayIso}
-            onChange={setEditorDay}
-          />
         </div>
 
+        {/* Pas de `key` ici : le panneau se resynchronise sur `day` par effet, il
+            n'a pas besoin d'être remonté — et une clé identique à celle de
+            `TodayActivityEditor` ci-dessous en ferait deux frères homonymes, que
+            React refuse de réconcilier. */}
         <DayStatusPanel
-          key={editorDay}
           scopeId={scope.id}
           day={editorDay}
           status={editorActivity?.status ?? "pending"}
@@ -473,6 +511,23 @@ export function ScopeDetailPage() {
             >
               Désélectionner
             </button>
+            {/* Le KO et la complétion ne s'excluent pas : une journée KO reste
+                sélectionnable, et la terminer est légitime quand la panne est
+                rattrapée. Cela efface son motif — règle du domaine, journalisée. */}
+            <button
+              type="button"
+              onClick={() => openKoBatch(selectedDayCheckboxes)}
+              disabled={isCompletingBatch}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1 text-xs sm:text-sm font-semibold text-rose-900 bg-rose-50 dark:bg-nord-11 hover:bg-rose-100 dark:hover:bg-nord-11/20 rounded-lg shadow-xs transition-colors"
+            >
+              <OctagonX className="w-4 h-4 text-rose-600 dark:text-nord-11" />
+              {/* Le libellé porte le compte : sans lui, ce bouton et celui du
+                  panneau de statut portent le même texte, et rien ne dit au lecteur
+                  que l'un porte sur la sélection et l'autre sur le jour affiché. */}
+              <span>
+                Signaler {selectedDayCheckboxes.length > 1 ? 'les ' + selectedDayCheckboxes.length + ' jours' : 'le jour'} en KO
+              </span>
+            </button>
             <button
               type="button"
               onClick={handleBatchComplete}
@@ -492,54 +547,125 @@ export function ScopeDetailPage() {
         </div>
       )}
 
-      {/* Calendrier & Liste des activités quotidiennes */}
+      {/* Activité de la journée affichée — la page de détail est mono-jour, comme
+          la page principale. L'historique complet est plus bas, dans un panneau
+          déroulant : sans lui, la navigation des jours semblait empiler des
+          lignes alors que le tableau ne bougeait simplement pas. */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-nord-6 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-blue-600 dark:text-nord-8" />
-              Activités quotidiennes par jour
+              Relevé du {formatFullDateFr(editorDay)}
             </h2>
             <p className="text-xs text-slate-500 dark:text-nord-4">
-              Historique des erreurs, incidents créés et fiches FEAI (1 seule activité par jour)
+              {editorActivity
+                ? 'Erreurs, incidents créés et fiches FEAI de cette journée'
+                : "Aucune saisie sur cette journée — l'éditeur ci-dessus permet d'en créer une"}
             </p>
           </div>
+          <DateNavigator
+            value={editorDay}
+            today={todayIso}
+            onChange={setEditorDay}
+          />
+        </div>
 
+        {editorActivity ? (
+          <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600 dark:text-nord-5">
+                <thead className="bg-slate-50/80 dark:bg-nord-0/60 border-b border-slate-200 dark:border-nord-2 text-xs font-semibold text-slate-700 dark:text-nord-4 uppercase tracking-wider">
+                  <tr>
+                    <th scope="col" className="px-4 py-3">
+                      Jour (Date)
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-center">
+                      Erreurs signalées
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-center">
+                      Incidents créés
+                    </th>
+                    <th scope="col" className="px-4 py-3">
+                      Fiches FEAI
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-center">
+                      Statut
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-right">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
+                  {/* Pas de `onEdit` : l'éditeur du dessus est le seul chemin de
+                      saisie des compteurs de ce jour. Le garder ici proposerait la
+                      même écriture par deux routes — l'autosave en ligne et la
+                      modale — donc deux validations et deux boutons divergents. */}
+                  <ActivityRow
+                    key={`jour-${editorActivity.day}`}
+                    activity={editorActivity}
+                    isToday={editorDay === todayIso}
+                    onComplete={handleCompleteOneDay}
+                    onKo={(day) => openKoBatch([day])}
+                  />
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-10 text-center shadow-2xs">
+            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-nord-0 text-slate-500 dark:text-nord-4 flex items-center justify-center mx-auto">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-semibold text-slate-800 dark:text-nord-6">
+              Aucune activité le {formatDateFr(editorDay)}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-nord-4 mt-1 max-w-sm mx-auto">
+              Saisissez les compteurs dans l'éditeur ci-dessus, ou signalez un KO
+              si le traitement était impossible pour un problème technique.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Historique complet — replié par défaut, il est là pour la période et la
+          sélection multiple, pas pour le jour affiché. */}
+      <details
+        className="group bg-white dark:bg-nord-1 rounded-2xl border border-slate-200 dark:border-nord-2 shadow-2xs"
+        open={isHistoryOpen}
+        onToggle={(e) => setIsHistoryOpen(e.currentTarget.open)}
+      >
+        <summary className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-5 sm:p-6 cursor-pointer list-none hover:bg-slate-50/70 dark:hover:bg-nord-2/40 transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:focus-visible:outline-nord-8 rounded-2xl">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-nord-6 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-slate-400 dark:text-nord-4" />
+              Historique des journées
+              <span className="text-sm font-semibold text-slate-400 dark:text-nord-4">
+                ({historyActivities.length})
+              </span>
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-nord-4">
+              Toutes les journées saisies — pour la période et la validation par lot
+            </p>
+          </div>
+          <ChevronDown className="w-5 h-5 text-slate-400 dark:text-nord-4 shrink-0 transition-transform group-open:rotate-180" />
+        </summary>
+
+        <div className="space-y-3 px-5 sm:px-6 pb-5 sm:pb-6">
           {uncompletedDays.length > 0 && (
             <button
               type="button"
               onClick={handleSelectAllUncompleted}
-              className="text-xs font-medium text-blue-600 dark:text-nord-8 hover:text-blue-700 dark:hover:text-nord-7 hover:underline self-start sm:self-auto"
+              className="text-xs font-medium text-blue-600 dark:text-nord-8 hover:text-blue-700 dark:hover:text-nord-7 hover:underline"
             >
               {selectedDayCheckboxes.length === uncompletedDays.length
                 ? 'Tout désélectionner'
                 : `Sélectionner les non terminés (${uncompletedDays.length})`}
             </button>
           )}
-        </div>
 
-        {sortedActivities.length === 0 ? (
-          <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 p-12 text-center shadow-2xs space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-nord-0 text-slate-500 dark:text-nord-4 flex items-center justify-center mx-auto">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-semibold text-slate-800 dark:text-nord-6">
-              Aucune activité enregistrée
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-nord-4 max-w-sm mx-auto">
-              Ce périmètre ne dispose pas encore de relevé d'activité quotidienne.
-            </p>
-            <button
-              type="button"
-              onClick={handleOpenCreateActivity}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 dark:bg-nord-10 dark:hover:bg-nord-9 rounded-lg shadow-xs transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Créer la première activité
-            </button>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-nord-1 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs overflow-hidden">
+          <div className="rounded-xl border border-slate-200 dark:border-nord-2 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-600 dark:text-nord-5">
                 <thead className="bg-slate-50/80 dark:bg-nord-0/60 border-b border-slate-200 dark:border-nord-2 text-xs font-semibold text-slate-700 dark:text-nord-4 uppercase tracking-wider">
@@ -560,7 +686,7 @@ export function ScopeDetailPage() {
                       Fiches FEAI
                     </th>
                     <th scope="col" className="px-4 py-3 text-center">
-                      Statuts (Traité / Terminé)
+                      Statut
                     </th>
                     <th scope="col" className="px-4 py-3 text-right">
                       Actions
@@ -568,177 +694,30 @@ export function ScopeDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-nord-2">
-                  {sortedActivities.map((activity) => {
-                    const isToday = activity.day === todayIso;
-                    const isSelected = selectedDayCheckboxes.includes(activity.day);
-
-                    return (
-                      <tr
-                        key={activity.day}
-                        className={`hover:bg-slate-50/70 dark:hover:bg-nord-2/50 transition-colors ${
-                          isSelected
-                            ? 'bg-blue-50/40 dark:bg-nord-9/20'
-                            : isToday
-                            ? 'bg-amber-50/20 dark:bg-nord-13/10'
-                            : ''
-                        }`}
-                      >
-                        {/* Checkbox de sélection pour complétion */}
-                        <td className="px-4 py-3.5 text-center">
-                          {!isCompleted(activity.status) ? (
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleSelectDay(activity.day)}
-                              aria-label={`Sélectionner le jour ${activity.day}`}
-                              className={CHECKBOX_CLASS}
-                            />
-                          ) : (
-                            <ShieldCheck className="w-4 h-4 text-emerald-500 dark:text-nord-14 mx-auto" />
-                          )}
-                        </td>
-
-                        {/* Jour / Date */}
-                        <td className="px-4 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <div>
-                              <span className="font-semibold text-slate-900 dark:text-nord-6 block">
-                                {formatDateFr(activity.day)}
-                              </span>
-                              <span className="text-xs text-slate-500 dark:text-nord-4 font-mono">
-                                {activity.day}
-                              </span>
-                            </div>
-                            {isToday && (
-                              <span className="text-[10px] font-bold bg-amber-100 dark:bg-nord-13/20 text-amber-800 dark:text-nord-13 px-1.5 py-0.5 rounded border border-amber-200 dark:border-nord-13/40">
-                                Aujourd'hui
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Erreurs signalées */}
-                        <td className="px-4 py-3.5 text-center">
-                          <span
-                            className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${
-                              activity.errors_reported > 0
-                                ? 'bg-amber-100 dark:bg-nord-13/20 text-amber-900 dark:text-nord-13'
-                                : 'bg-slate-100 dark:bg-nord-0 text-slate-600 dark:text-nord-4'
-                            }`}
-                          >
-                            {activity.errors_reported}
-                          </span>
-                        </td>
-
-                        {/* Incidents créés */}
-                        <td className="px-4 py-3.5 text-center">
-                          <span
-                            className={`inline-flex px-2 py-0.5 rounded text-xs font-semibold ${
-                              activity.incidents_created > 0
-                                ? 'bg-rose-100 dark:bg-nord-11/20 text-rose-900 dark:text-nord-11'
-                                : 'bg-slate-100 dark:bg-nord-0 text-slate-600 dark:text-nord-4'
-                            }`}
-                          >
-                            {activity.incidents_created}
-                          </span>
-                        </td>
-
-                        {/* FEAI */}
-                        <td className="px-4 py-3.5">
-                          {activity.feai && activity.feai.length > 0 ? (
-                            <div className="flex flex-wrap gap-1 max-w-xs">
-                              {activity.feai.map((code) => (
-                                <span
-                                  key={code}
-                                  className="inline-flex items-center gap-1 text-[11px] font-mono bg-slate-100 dark:bg-nord-0 text-slate-800 dark:text-nord-5 px-1.5 py-0.5 rounded border border-slate-200 dark:border-nord-2"
-                                >
-                                  <Tag className="w-2.5 h-2.5 text-slate-400 dark:text-nord-3" />
-                                  {code}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 dark:text-nord-3 italic">Aucune</span>
-                          )}
-                        </td>
-
-                        {/* Statut de la journée, et son motif s'il y en a un */}
-                        <td className="px-4 py-3.5 text-center">
-                          <div className="inline-flex flex-col items-center gap-1.5">
-                            {isCompleted(activity.status) ? (
-                              <Badge type="completed" label="Terminé" />
-                            ) : isKo(activity.status) ? (
-                              <Badge type="ko" label="KO" />
-                            ) : (
-                              <Badge type="in_progress" label="En cours" />
-                            )}
-                            {activity.ko_reason && (
-                              <span className="max-w-48 text-xs text-slate-500 dark:text-nord-4">
-                                {activity.ko_reason}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Actions par jour */}
-                        <td className="px-4 py-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Modifier l'activité (PATCH) */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditActivity(activity.day)}
-                              className="p-1.5 text-slate-500 dark:text-nord-4 hover:text-blue-600 dark:hover:text-nord-8 hover:bg-blue-50 dark:hover:bg-nord-2 rounded-lg transition-colors"
-                              title={`Modifier l'activité du ${activity.day} (PATCH)`}
-                              aria-label={`Modifier l'activité du ${activity.day}`}
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-
-                            {/* Compléter l'activité individuellement (PATCH status) */}
-                            {!isCompleted(activity.status) && (
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (!id) return;
-                                  try {
-                                    await protabApi.setActivitiesStatus(id, {
-                                      days: [activity.day],
-                                      status: "completed",
-                                    });
-                                    success('Activité complétée', `Journée du ${activity.day} validée.`);
-                                    fetchScopeDetail();
-                                  } catch (err) {
-                                    toastError('Erreur', (err as Error)?.message);
-                                  }
-                                }}
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-nord-14 bg-emerald-50 dark:bg-nord-14/15 hover:bg-emerald-100 dark:hover:bg-nord-14/25 border border-emerald-200 dark:border-nord-14/30 rounded-lg transition-colors"
-                                title="Marquer cette journée comme terminée"
-                              >
-                                <ShieldCheck className="w-3.5 h-3.5" />
-                                <span className="hidden md:inline">Terminer</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {historyActivities.map((activity) => (
+                    <ActivityRow
+                      key={activity.day}
+                      activity={activity}
+                      isToday={activity.day === todayIso}
+                      onSelectDay={handleToggleSelectDay}
+                      isSelected={selectedDayCheckboxes.includes(activity.day)}
+                      onEdit={handleOpenEditActivity}
+                      onComplete={handleCompleteOneDay}
+                      onKo={(day) => openKoBatch([day])}
+                    />
+                  ))}
                 </tbody>
               </table>
             </div>
-
-            <div className="px-5 py-3 border-t border-slate-100 dark:border-nord-2 bg-slate-50/50 dark:bg-nord-0/40 text-xs text-slate-500 dark:text-nord-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-              <span>
-                Total : {sortedActivities.length} relevé(s) d'activité • {totalErrors} erreur(s) •{' '}
-                {totalIncidents} incident(s) • {totalFeai} réf(s) FEAI
-              </span>
-              <span className="text-slate-400 dark:text-nord-3">
-                Règle : Un jour complété (completed) est forcément traité (handled)
-              </span>
-            </div>
           </div>
-        )}
-      </div>
+
+          <p className="px-1 text-xs text-slate-500 dark:text-nord-4">
+            Total du périmètre, journée affichée comprise : {sortedActivities.length}{' '}
+            relevé(s) • {totalErrors} erreur(s) • {totalIncidents} incident(s) •{' '}
+            {totalFeai} réf(s) FEAI
+          </p>
+        </div>
+      </details>
 
       {/* Modale de création / modification d'activité */}
       <ActivityFormModal
@@ -755,6 +734,15 @@ export function ScopeDetailPage() {
       />
 
       {/* Modale de complétion par lot */}
+      <BatchKoModal
+        isOpen={isKoBatchOpen}
+        onClose={() => setIsKoBatchOpen(false)}
+        scopeId={scope.id}
+        scopeName={scope.name}
+        days={koTargetDays}
+        onConfirmed={handleBatchKoConfirmed}
+      />
+
       <CompleteActivitiesModal
         isOpen={isCompleteModalOpen}
         onClose={() => setIsCompleteModalOpen(false)}

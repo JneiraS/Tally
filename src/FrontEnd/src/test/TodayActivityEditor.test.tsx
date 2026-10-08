@@ -168,4 +168,47 @@ describe("TodayActivityEditor", () => {
 
     await expectCalledAfterDebounce(mockedUpdate);
   });
+
+  it("enregistre la saisie en attente quand le composant se démonte", async () => {
+    // Le flush du démontage posait `mountedRef = false` *avant* d'appeler doSave,
+    // qui sortait alors sur `if (!mountedRef.current) return`. La saisie en
+    // cours disparaissait donc si l'on changeait de jour dans les 800 ms du
+    // debounce — et sans le moindre signe à l'écran.
+    const { unmount } = renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: null,
+    });
+
+    fireEvent.change(screen.getByLabelText("Erreurs signalées du jour"), {
+      target: { value: "7" },
+    });
+    unmount();
+
+    await waitFor(() => {
+      expect(mockedCreate).toHaveBeenCalledWith("scope-1", {
+        day: "2026-09-19",
+        errors_reported: 7,
+        incidents_created: 0,
+        feai: [],
+      });
+    });
+  });
+
+  it("n'écrit rien au démontage quand rien n'a été saisi", async () => {
+    // Le corollaire du précédent : sans frappe, changer de jour ne doit pas
+    // créer une ligne vide. C'est ce qui ferait apparaître une ligne à compteurs
+    // nuls pour chaque jour simplement consulté.
+    const { unmount } = renderEditor({
+      scopeId: "scope-1",
+      day: "2026-09-19",
+      initialActivity: null,
+    });
+
+    unmount();
+
+    // Le debounce n'a pas eu lieu de s'écouler : rien ne doit partir.
+    expect(mockedCreate).not.toHaveBeenCalled();
+    expect(mockedUpdate).not.toHaveBeenCalled();
+  });
 });
