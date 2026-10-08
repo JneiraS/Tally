@@ -243,11 +243,12 @@ def test_list_audit_events_applies_filters():
 
     query = ListAuditEventsUseCase(audit)
     assert len(query.execute(AuditEventQuery())) == 2
-    assert len(query.execute(AuditEventQuery(scope_id=ids[0]))) == 1
-    assert query.execute(AuditEventQuery(scope_id=ids[0]))[0].scope_id == ids[0]
+    assert len(query.execute(AuditEventQuery(scope_ids=(ids[0],)))) == 1
+    assert query.execute(AuditEventQuery(scope_ids=(ids[0],)))[0].scope_id == ids[0]
     assert len(query.execute(AuditEventQuery(action="scope_created"))) == 2
     assert len(query.execute(AuditEventQuery(action="activity_created"))) == 0
     assert len(query.execute(AuditEventQuery(limit=1))) == 1
 
-    # Le paramètre actor est typé mais non filtré ici (pas de set_current_actor)
+    # Le use case ne filtre pas : il délègue au port. La sémantique du filtrage
+    # acteur est verrouillée par tests/unit/adapters/audit_trail_filter_test.py.
     assert len(query.execute(AuditEventQuery(actor=None))) == 2

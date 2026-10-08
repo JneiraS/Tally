@@ -197,7 +197,7 @@ make project-admin ARGS="list-admins protab"             # dans le conteneur api
 | `PATCH /scope-monitorings/{id}`                                                                              | `{note}` (2000 caractères max)                                                              | `204`                                                                      | `404` périmètre inconnu, `422` note trop longue                           |
 | `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
 | `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
-| `GET /api/audit-log`                                                                  | query : `scope_id`, `actor`, `action`, `from_date`, `to_date`, `limit` (1–1000, défaut 100) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
+| `GET /api/audit-log`                                                                  | query : `scope_id` (répété), `actor` (préfixe, insensible à la casse), `action`, `from_created_at`, `to_created_at` (instants ISO, bornes inclusives/exclusives sur `created_at`), `limit` (1–1000, défaut 200) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
 | `GET /project/settings`                                                                                     | —                                                                                           | `200` réglages du projet courant                                           | `401` session absente                                                      |
 | `PUT /project/settings`                                                                                     | `{excluded_weekdays: [1..7], excluded_dates: ["YYYY-MM-DD"]}`                               | `200` réglages mis à jour                                                  | `401` session absente, `422` payload invalide                              |
 
@@ -267,7 +267,9 @@ même origine, aucun CORS requis.
 
 L'architecture elle-même — réseau, ports publiés, ordre de démarrage encodé par les healthchecks, chaîne
 de construction des deux images et flux de requêtes à travers nginx — est décrite dans
-**[`docs/docker-architecture.md`](docs/docker-architecture.md)**.
+**[`docs/docker-architecture.md`](docs/docker-architecture.md)**. La consommation de la stack — poids des
+images, RAM, CPU, débit, dimensionnement serveur — est mesurée dans
+**[`docs/ressources.md`](docs/ressources.md)**.
 
 ```bash
 make docker-up    # docker compose up -d --build
@@ -282,6 +284,7 @@ make docker-up    # docker compose up -d --build
 | `db-shell`                  | Shell `psql` dans le conteneur Postgres                                        |
 | `test-db`                   | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
 | `project-admin`             | Lance `protab-project` dans le conteneur `api` (`make project-admin ARGS="…"`)  |
+| `resources`                 | Mesure poids des images, RAM, CPU et volume de données (stack démarrée)         |
 
 Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
 via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).

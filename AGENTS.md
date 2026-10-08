@@ -1332,10 +1332,10 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   évolution de `docker-compose.yml`, d'un `Dockerfile` ou de `nginx.conf` s'y répercute.
 - `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
-- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `project-admin`, `test-db`.
-  `project-admin` est un relais vers `docker compose exec api protab-project $(ARGS)` : **sans `-T`**, car
-  `getpass` exige un terminal, et **sans dépendance** à `docker-up`, qui déclencherait une reconstruction
-  complète de la stack à chaque appel d'administration.
+- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `project-admin`, `test-db`,
+  `resources`. `project-admin` est un relais vers `docker compose exec api protab-project $(ARGS)` :
+  **sans `-T`**, car `getpass` exige un terminal, et **sans dépendance** à `docker-up`, qui déclencherait
+  une reconstruction complète de la stack à chaque appel d'administration.
 - Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
@@ -1345,6 +1345,24 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - **`src/FrontEnd/.dockerignore` est distinct de celui de la racine** : le contexte de build de l'image
   `frontend` est `./src/FrontEnd` (`docker-compose.yml`), donc seul ce fichier filtre ce que `COPY . .`
   embarque. Un artefact absent du `.gitignore` racine peut malgré tout entrer dans l'image.
+- **Un motif `.dockerignore` sans `/` initial ne correspond qu'à la racine du contexte.** `node_modules/`
+  exclut `./node_modules` et laisse passer `./src/FrontEnd/node_modules`. La règle est donc `**/` pour tout
+  motif imbriqué, dans les deux fichiers. Ce n'est pas une précaution théorique : c'était **220 Mio de
+  `node_modules` dans l'image de l'API**, qui n'exécute aucun JavaScript, soit 420.7 → 188.8 Mio
+  décompressés et 100.6 → 55.8 Mio sur disque — sans toucher au `Dockerfile`, et un contexte de build
+  passé de ~236 Mio à ~16 Mio. La sémantique est expliquée dans `docs/docker-architecture.md` §3, avec le
+  motif d'un `Dockerfile` de test qui prouve la sémantique par l'image construite.
+- **`make resources` est le garde-fou de ce défaut, pas un simple relevé** (`scripts/measure-usage.sh`) :
+  il liste les répertoires de développement présents dans les images **en service**, donc un
+  `node_modules` revenu se lit comme un chiffre non nul et non comme une dérive de taille qu'on ne voit
+  pas. Il distingue aussi les deux métriques de poids, qui diffèrent d'un facteur 5 : `docker images`
+  raisonne en décompressé (564 Mio pour la stack) alors que seule la taille des blobs compressés
+  (193 Mio) est ce qui occupe le disque d'un serveur. Chiffres, méthode et dimensionnement :
+  `docs/ressources.md`.
+- **La stack n'a aucun `mem_limit` ni `cpus`.** Ce n'est pas un oubli mais une décision de déploiement
+  assumée, à trancher avec les valeurs d'un `make resources` pris sur le serveur cible : un `mem_limit`
+  trop bas sur PostgreSQL provoque un échec au démarrage plutôt qu'une dégradation progressive. Conséquence
+  immédiate à connaître : la colonne mémoire de `docker stats` affiche la RAM de l'hôte, pas un plafond.
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
 
@@ -1681,7 +1699,72 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   l'API renvoyant `ORDER BY name`, chaque groupe reste alphabétique. Requête vide ⇒ tous les rangs égaux
   ⇒ liste du serveur intacte.
 
-## 28.7 Références FEAI : une graphie stockée, une saisie tolérante
+## 28.7 Journal d'audit : trois filtres qui ont été cassés, et pourquoi
+
+  Les trois défauts ci-dessous ont coexisté sans qu'aucun test ne les voie : ils vivaient dans
+  l'angle mort entre l'adaptateur SQL et l'écran. Toute règle de filtre nouvelle doit se poser la
+  question « qu'est-ce que l'utilisateur tape, et que le serveur lui rend-il ? ».
+
+- **Le champ périmètre demandait un UUID.** La saisie brute partait en `scope_id`, comparé par
+  égalité : filtrer par le nom d'un périmètre renvoyait zéro ligne, et le placeholder affichait
+  `(scope_id)` pour le rappeler. Le paramètre est désormais `scope_ids` (un tuple, liste vide = pas
+  de filtre) et l'écran passe par `ScopePicker`, donc par les **noms**. Le nom du périmètre est résolu
+  par la route (`find_all_scope_names`), jamais dénormalisé dans `audit_log` : le journal ne doit pas
+  garder une copie d'un nom que `scope_monitorings` porte déjà.
+- **L'acteur comparait l'égalité d'un code stocké en majuscules.** `actor = %s` sur une colonne
+  alimentée par `create_session` (`quadrigramme.strip().upper()`) renvoyait zéro ligne pour `abcd`
+  comme pour le partiel `AB`. C'est désormais `ILIKE 'préfixe%'`. **Conséquence assumée** : un
+  préfixe *élargit*, donc on ne peut pas isoler exactement un acteur dont le code est un préfixe d'un
+  autre — sans effet sur des quadrigrammes de même longueur, qui est le cas réel. La normalisation
+  (`.strip().upper()`, blanc = aucun filtre) est faite **une seule fois à la frontière entrante**
+  (`app.py`), sinon les deux adaptateurs la redéclarent et divergent. `ILIKE` n'utilise pas
+  `idx_audit_log_actor` (un btree ne sert pas un `ILIKE`) : acceptable à l'échelle d'un journal, et
+  préféré à un `LIKE` pré-majusculé parce que l'insensibilité à la casse ne doit pas dépendre de la
+  façon dont la colonne est stockée aujourd'hui.
+- **La période filtrait `day`, la colonne qui est `NULL` sur un tiers du journal.** `day` est la
+  journée *métier concernée* ; les créations de périmètre, imports CSV et notes de périmètre n'en ont
+  pas. Brancher l'existant `from_date`/`to_date` sur des champs date aurait fait disparaître ces
+  événements sans le moindre signe. La période filtre donc **`created_at`** — « quand le changement a
+  été enregistré », ce que la promesse de la page annonce — et `from_date`/`to_date` ont disparu,
+  personne ne les envoyant. Verrouillé par
+  `tests/integration/adapters/postgres_audit_trail_repository_test.py::test_list_period_keeps_events_without_a_business_day`
+  et son écho `audit_log_api_test.py::test_get_audit_log_period_keeps_events_without_a_business_day`.
+
+  - **La fenêtre est semi-ouverte** (`from_created_at` inclusif, `to_created_at` exclusif) et les
+    bornes sont des **instants**, pas des dates. Le serveur n'a aucun fuseau, donc le front résout les
+    minuits locaux (`isoDateToLocalDayStart` / `isoDateToNextLocalDayStart`, `utils/date.ts`) — le même
+    fuseau qui affiche les horodatages et indexe la heatmap, sinon le filtre et l'affichage se
+    contrediraient. `new Date("2026-09-19")` est lu en UTC par `Date` et décalerait la journée à
+    l'heure d'été ; la borne haute est le **lendemain**, car `23:59:59` perd la dernière seconde.
+- **Le debounce doit observer la valeur différée, pas l'objet d'état.** Une frappe produit un objet
+  `filters` neuf ; un effet indexé sur son identité déclenche une requête par caractère et rend le
+  debounce inerte tout en ayant l'air posé. D'où le `useMemo` sur les champs (`AuditLogPage.tsx`),
+  chaque champ listé par identité. Complété par un `requestIdRef` : sans lui, la réponse lente de
+  `AB` peut atterrir après celle de `ABCD`. `useDeferredValue` ne conviendrait pas — il garde la valeur
+  périmée interactive.
+- **`ScopePicker` est partagé entre `/analyse` et le journal**, et prend donc un `label` : hériter du
+  « Périmètres analysés » nommerait la mauvaise chose à un lecteur d'écran. Toute page qui filtre par
+  périmètre récupère le composant, pas une copie.
+- **Le plafond de 500 est annoncé seulement quand il est atteint** (`events.length === 500`). Le pied
+  de page affirmait « sur les 500 plus récents » sur un journal de trois événements ; une limite
+  affichée en permanence est une limite invisible. La page n'a pas de pagination — c'est un choix
+  assumé, pas une dette : le filtre par période rend le plafond moins contraignant.
+- **Une carte qui abrite un popover ne doit pas le rogner.** Les deux cartes de filtres
+  (`AuditLogFilterBar`, `AnalyticsFilterBar`) portaient `overflow-hidden`, et le popover de
+  `ScopePicker` est en `position: absolute` **à l'intérieur** d'elles : il était donc coupé à leur bord
+  bas, sans le moindre symptôme en console. Sur le journal, le sélecteur étant le 2ᵉ fieldset sur 3,
+  environ 150px d'un popover de ~448px restaient visibles — la recherche et une ligne, puis plus rien.
+  Le `rounded-t-xl` de l'en-tête remplace le rognage, qui n'existait que pour arrondir les coins
+  supérieurs. **`overflow-hidden` sur le popover lui-même reste correct** (il le découpe sur ses propres
+  coins, cf. `Navbar.tsx:137`) : c'est l'ancêtre qui pose problème.
+  Verrouillé par `expectDoesNotClip` (`src/test/overflowGuard.ts`), appelé dans les deux tests de barre
+  de filtres. C'est un **garde-fou de classe, pas une preuve de rendu** : jsdom ne calcule aucun layout
+  *et* ne charge pas Tailwind, donc `getComputedStyle(...).overflow` renverrait `visible` quel que soit
+  le `className` — une assertion sur le style calculé passerait toujours. Le coup d'œil sur la page
+  reste la seule preuve. Le chemin mobile est immunisé : le `Modal` est en `position: fixed`, dont le
+  bloc conteneur est le viewport, donc un `overflow-hidden` d'un ancêtre ne le rogne pas.
+
+## 28.8 Références FEAI : une graphie stockée, une saisie tolérante
 
 - **La forme canonique est `[PREFIXE-]INC\d{9}`, préfixe facultatif de 2 à 5 lettres**
   (`FE-INC000000001`). `FEAI` et `FEAI-` désignent la même famille : le préfixe est

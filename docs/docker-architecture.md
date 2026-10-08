@@ -144,9 +144,29 @@ flowchart TB
 ### Pourquoi deux stages
 
 Le premier stage ne sert qu'à **résoudre les dépendances** ; le second ne reçoit que le résultat, jamais
-l'outillage. L'image finale ne contient donc ni `uv`, ni `node_modules`, ni les sources, ni les caches de
-paquets : elle ne transporte que le `.venv` Python exécutable et le bundle Vite compilé. C'est ce qui
-explique que les deux images finales restent minces malgré des chaînes de construction longues.
+l'outillage. L'image `frontend` ne contient donc ni `node_modules`, ni les sources TypeScript : elle ne
+transporte que le bundle Vite compilé et la config nginx, ce qui explique qu'elle tienne en 25 Mio sur
+le disque.
+
+L'image `api` est un cas différent, et la distinction mérite d'être posée : elle transporte bien
+l'outillage de construction Python (`.venv` complet, 54 Mio), parce que `COPY --from=build /app /app`
+recopie le répertoire `/app` en entier. C'est un choix assumé — l'API exécute directement ces
+interpréteurs — mais il rend le `.dockerignore` racine critique : c'est lui qui empêche les sources
+frontend d'entrer dans l'image.
+
+**Un motif sans `/` initial ne correspond qu'à la racine du contexte.** `node_modules/` exclut
+`./node_modules` mais laisse passer `./src/FrontEnd/node_modules` : le motif est évalué contre le
+chemin relatif complet, or `src/FrontEnd/node_modules` ne commence pas par `node_modules`. Il faut
+`**/node_modules/`.
+
+C'est ce qui faisait entrer **220 Mio de dépendances JavaScript dans l'image de l'API**, qui
+n'exécute aucun JavaScript. Le gain après correction : 420.7 → 188.8 Mio décompressés, 100.6 → 55.8 Mio
+sur disque, sans toucher au `Dockerfile`. Le contexte de build passait de ~236 Mio à ~16 Mio, donc la
+correction sert aussi au temps de build, pas seulement au poids livré.
+
+Le motif `**/` est donc la règle dans les deux `.dockerignore`. `make resources` liste les répertoires
+de développement présents dans les images en service, ce qui fait de la régression un défaut visible
+plutôt qu'un chiffre que personne ne regarde. Mesures et dimensionnement : [`ressources.md`](ressources.md).
 
 ### Pourquoi le découplage des `COPY`
 
@@ -163,8 +183,10 @@ Sur le frontend, c'est le découpage classique : `npm ci` sur les manifestes seu
 Les deux images n'ont pas le même contexte — `api` part de la racine, `frontend` de `./src/FrontEnd` — donc
 chacune a son `.dockerignore` :
 
-- **racine** : exclut `.venv/`, `__pycache__/`, `node_modules/`, `dist/`, `.git/`, `.env`.
-- **`src/FrontEnd/`** : exclut `node_modules`, `dist`, `.git`, `*.log`, `*.tsbuildinfo`.
+- **racine** : exclut `.venv/`, `__pycache__/`, `node_modules/`, `dist/`, `.git/`, `.env` — tous
+  préfixés par `**/`, pour la raison ci-dessus.
+- **`src/FrontEnd/`** : exclut `node_modules`, `dist`, `.git`, `*.log`, `*.tsbuildinfo`. Le motif
+  `**/` n'y est pas nécessaire, ce contexte n'ayant qu'un seul niveau — mais il est sans coût.
 
 Ils ne sont pas redondants. Le contexte de `frontend` est `./src/FrontEnd`, et c'est **son** `.dockerignore`
 qui filtre ce que `COPY . .` embarque : un artefact absent du `.gitignore` racine peut malgré tout entrer
@@ -291,12 +313,16 @@ make db-up            # uniquement db (développement hors container)
 make db-shell         # psql dans le conteneur
 make project-admin ARGS="add-admin protab MLOZ"   # protab-project dans le conteneur api
 make test-db          # crée protab_test si absente, puis lance les tests d'intégration
+make resources        # poids des images, RAM, CPU, volume pgdata (stack démarrée)
 ```
 
 `make project-admin` est un relais vers `docker compose exec api protab-project`, **sans `-T`** : `getpass`
 exige un terminal, et l'allocation d'un pseudo-TTY est la seule façon que la saisie du mot de passe
 fonctionne. La cible n'a pas non plus de dépendance à `docker-up`, qui déclencherait une reconstruction
 complète de la stack à chaque appel d'administration.
+
+`make resources` appelle `scripts/measure-usage.sh` : c'est l'instrument de mesure du footprint de la
+stack, et les chiffres de dimensionnement serveur sont dans [`ressources.md`](ressources.md).
 
 L'inventaire des commandes de `protab-project` et le dépannage d'un projet verrouillé sont dans
 [`cli.md`](cli.md).

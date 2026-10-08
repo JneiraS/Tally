@@ -5,17 +5,25 @@ import type { ScopeMonitoring } from "../types";
 import { BillingCodeBadge } from "./BillingCodeBadge";
 import { Modal } from "./Modal";
 
-interface AnalyticsScopePickerProps {
+interface ScopePickerProps {
   scopes: ScopeMonitoring[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  /**
+   * What the selection is *for*, e.g. "Périmètres analysés" or
+   * "Périmètres du journal". It names the list, its dialog and the trigger's
+   * accessible name: reusing the picker on another page with "analysés" baked
+   * in would name the wrong thing to a screen reader.
+   */
+  label?: string;
 }
 
-export function AnalyticsScopePicker({
+export function ScopePicker({
   scopes,
   selectedIds,
   onChange,
-}: AnalyticsScopePickerProps) {
+  label = "Périmètres",
+}: ScopePickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [mobile, setMobile] = useState(false);
@@ -136,7 +144,7 @@ export function AnalyticsScopePicker({
 
       <ul
         id={listId}
-        aria-label="Périmètres analysés"
+        aria-label={label}
         className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-slate-100 p-1 dark:border-nord-2"
       >
         {filteredScopes.map((scope) => {
@@ -193,7 +201,7 @@ export function AnalyticsScopePicker({
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        aria-label={`Sélectionner les périmètres analysés (${selectedScopeCount} sélectionnés sur ${scopes.length})`}
+        aria-label={`Sélectionner les ${label.toLowerCase()} (${selectedScopeCount} sélectionnés sur ${scopes.length})`}
         className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 shadow-2xs transition-colors hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-nord-3 dark:bg-nord-0 dark:text-nord-5 dark:hover:border-nord-8 dark:focus:ring-nord-8"
       >
         <span className="flex min-w-0 items-center gap-2">
@@ -210,7 +218,7 @@ export function AnalyticsScopePicker({
         <Modal
           isOpen
           onClose={close}
-          title="Périmètres analysés"
+          title={label}
           subtitle={`${selectedScopeCount} sélectionné${selectedScopeCount === 1 ? "" : "s"} sur ${scopes.length}`}
           maxWidth="lg"
         >
@@ -220,7 +228,7 @@ export function AnalyticsScopePicker({
       {open && !mobile && (
         <div
           role="dialog"
-          aria-label="Sélection des périmètres analysés"
+          aria-label={`Sélection des ${label.toLowerCase()}`}
           className="absolute left-0 top-full z-50 mt-2 w-full min-w-[20rem] rounded-xl border border-slate-200 bg-white p-4 shadow-xl dark:border-nord-2 dark:bg-nord-1"
         >
           {pickerContent}

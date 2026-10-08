@@ -80,15 +80,24 @@ de prouver qu'une mise à jour d'activité ne réécrit pas un périmètre entie
 
 ### Adaptateurs — `tests/unit/adapters/`
 
-Six modules qui testent de la logique d'adaptateur **sans base** :
+Sept modules qui testent de la logique d'adaptateur **sans base** :
 `api_config_test.py` (14 : résolution hôte/port, `Secure`), `official_codes_test.py`
 (5 : parseur de la liste séparée par `/`), `postgres_auth_bootstrap_test.py`
 (8 : résolution fail-closed des secrets d'amorçage), `postgres_pool_test.py` (1),
 `project_context_guard_test.py` (2 : le contexte projet ne doit jamais être un
-repli) et `scope_monitoring_repository_save_test.py` (4 : l'adapter mémoire doit
-refuser ce que le SQL refuse, avec les mêmes exceptions).
+repli), `scope_monitoring_repository_save_test.py` (4 : l'adapter mémoire doit
+refuser ce que le SQL refuse, avec les mêmes exceptions) et
+`audit_trail_filter_test.py` (10 : les deux adaptateurs d'audit doivent
+sélectionner les mêmes événements).
 
-Un septième module de logique d'adaptateur vit à côté, sans base lui non plus :
+Ce dernier est **la spécification** de `AuditEventQuery`, pas une
+réimplémentation : il s'exécute sans base, et
+`postgres_audit_trail_repository_test.py` en est le miroir SQL. Y figurent les
+trois pièges qu'un filtre peut endurer sans base — le préfixe acteur insensible
+à la casse, la fenêtre semi-ouverte, et l'événement `day IS NULL` qu'une période
+ne doit pas perdre.
+
+Un huitième module de logique d'adaptateur vit à côté, sans base lui non plus :
 `tests/unit/project_admin_cli_test.py` (9 : validation d'arguments de la CLI,
 pas d'accès base).
 
@@ -129,7 +138,7 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 | `postgres_scope_monitoring_repository_test.py` | 34 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`), traduction des violations de contrainte, isolation par projet |
 | `postgres_auth_repository_test.py` | 33 | Authentification, sessions, administrateurs, rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
-| `postgres_audit_trail_repository_test.py` | 4 | Écriture et lecture du journal d'audit |
+| `postgres_audit_trail_repository_test.py` | 5 | Écriture et lecture du journal d'audit, matrice de filtrage mirroring `audit_trail_filter_test.py`, **événement sans journée métier conservé par une période** |
 
 Deux détails qui font gagner du temps :
 
@@ -148,7 +157,7 @@ Deux détails qui font gagner du temps :
 | --- | --- | --- |
 | `api_test.py` | 36 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI, note du périmètre |
 | `auth_api_test.py` | 11 | Login, session, cookie `Secure`, expiration du cookie alignée sur la session |
-| `audit_log_api_test.py` | 4 | Journal d'audit et sa pagination |
+| `audit_log_api_test.py` | 7 | Journal d'audit, `limit`, et les trois défauts du filtre : `actor` en préfixe insensible à la casse, `scope_id` répété, période `[from, to)` qui **conserve** un événement `day IS NULL` |
 | `scope_monitoring_csv_reader_test.py` | 6 | Lecture et rejet de CSV |
 | `route_authorization_test.py` | 3 | **Polarité inversée** sur l'authentification |
 
@@ -234,14 +243,20 @@ n'a jamais renvoyé. Les défauts de la factory sont donc réalistes
 mentir sur la forme d'une réponse, et un test qui asserte sur un officiel doit
 surcharger le champ explicitement.
 
+`makeAuditEvent` suit la même règle : `actor: 'ABCD'` en majuscules comme la
+colonne qui le stocke, `scope_name` renseigné, `changes` non vide.
+
 Les tests se répartissent entre logique pure (`kpi.test.ts`, `export.test.ts`,
 `validation.test.ts`, `knowledgeBase.test.ts`, `auditStats.test.ts`,
-`analytics.test.ts`, `nonWorkingDays.test.ts`, `search.test.ts`) et rendu de
-composants (`ScopeListPage`, `TodayActivityEditor`, `AuditLogPage`,
-`FeaiTagInput`, `ActivityFormModal`, `ScopeNoteCard`, `ExportModal`, `DateNavigator`, `LoginBackground`,
-`AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`, `AuditActivityHeatmap`,
-`AuditShortcut`, `apiUnauthorized`, `AnalyticsPage`, `AnalyticsFilterBar`,
-`AnalyticsScopePicker`, `PageNav`, `PageShortcuts`).
+`analytics.test.ts`, `nonWorkingDays.test.ts`, `search.test.ts`),
+sérialisation de requête (`auditLogQuery.test.ts`), bornes de journée locale
+(`auditDateBounds.test.ts`) et invariant de rognage (`overflowGuard.ts`, appelé dans
+`AuditLogFilterBar.test.tsx` et `AnalyticsFilterBar.test.tsx`), et composants (`ScopeListPage`,
+`TodayActivityEditor`, `AuditLogPage`, `AuditLogFilterBar`, `FeaiTagInput`,
+`ActivityFormModal`, `ScopeNoteCard`, `ExportModal`, `DateNavigator`,
+`LoginBackground`, `AppSessionLoss`, `DashboardCharts`, `ScopeDetailCharts`,
+`AuditActivityHeatmap`, `AuditShortcut`, `apiUnauthorized`, `AnalyticsPage`,
+`AnalyticsFilterBar`, `ScopePicker`, `PageNav`, `PageShortcuts`).
 
 ### Pièges propres à cette suite
 

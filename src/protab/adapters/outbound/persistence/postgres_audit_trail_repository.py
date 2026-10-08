@@ -100,21 +100,30 @@ class PostgresAuditTrailRepository:
         clauses = ["project_id = %s"]
         params: list = [require_current_project()]
 
-        if query.scope_id:
-            clauses.append("scope_id = %s")
-            params.append(query.scope_id)
+        if query.scope_ids:
+            clauses.append("scope_id = ANY(%s)")
+            params.append(list(query.scope_ids))
         if query.actor:
-            clauses.append("actor = %s")
-            params.append(query.actor)
+            # Uppercased prefix, not an equality: `actor` holds
+            # quadrigramme.strip().upper(), so `abcd` and `AB` must widen the
+            # result rather than empty the table. ILIKE is deliberate over a
+            # `LIKE` on a pre-uppercased term, so case-insensitivity does not
+            # depend on how the column happens to be stored today.
+            #
+            # This does not use idx_audit_log_actor (a plain btree cannot serve
+            # a leading-wildcard-free ILIKE), which is acceptable at audit-trail
+            # scale and cheaper than maintaining a pattern-ops index for it.
+            clauses.append("actor ILIKE %s")
+            params.append(f"{query.actor.strip()}%")
         if query.action:
             clauses.append("action = %s")
             params.append(query.action)
-        if query.from_date:
-            clauses.append("day >= %s")
-            params.append(query.from_date)
-        if query.to_date:
-            clauses.append("day <= %s")
-            params.append(query.to_date)
+        if query.from_created_at:
+            clauses.append("created_at >= %s")
+            params.append(query.from_created_at)
+        if query.to_created_at:
+            clauses.append("created_at < %s")
+            params.append(query.to_created_at)
         params.append(query.limit)
 
         with self._pool.connection() as conn:

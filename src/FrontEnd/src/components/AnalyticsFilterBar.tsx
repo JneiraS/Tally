@@ -5,7 +5,7 @@ import { firstActivityDay, resolvePresetRange } from "../utils/analytics";
 import { getTodayIsoDate } from "../utils/date";
 import type { NonWorkingDays, ScopeMonitoring } from "../types";
 import type { Granularity, RangePreset } from "../utils/analytics";
-import { AnalyticsScopePicker } from "./AnalyticsScopePicker";
+import { ScopePicker } from "./ScopePicker";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 
 export const SCOPE_LIST_PATH = "/";
@@ -107,10 +107,13 @@ export function AnalyticsFilterBar({
   return (
     <section
       aria-labelledby={titleId}
-      className="rounded-xl border border-slate-200 bg-white shadow-2xs dark:border-nord-2 dark:bg-nord-1 overflow-hidden"
+      // Pas de `overflow-*` : `ScopePicker` ouvre son popover en `absolute`
+      // dans cette carte, et un rognage le couperait à son bord bas — sans
+      // trace en console. Vérifié par `expectDoesNotClip`.
+      className="rounded-xl border border-slate-200 bg-white shadow-2xs dark:border-nord-2 dark:bg-nord-1"
     >
       <div
-        className="flex flex-wrap items-center justify-between gap-2 p-4 sm:p-5 border-b border-slate-200 dark:border-nord-2"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl border-b border-slate-200 p-4 sm:p-5 dark:border-nord-2"
       >
         <div>
           <h2 id={titleId} className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-nord-6">
@@ -231,10 +234,11 @@ export function AnalyticsFilterBar({
             <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-nord-4">
               Périmètres analysés
             </legend>
-            <AnalyticsScopePicker
+            <ScopePicker
               scopes={visibleScopes}
               selectedIds={filters.scopeIds}
               onChange={(scopeIds) => onChange({ scopeIds })}
+              label="Périmètres analysés"
             />
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <span className="font-medium text-slate-700 dark:text-nord-3">

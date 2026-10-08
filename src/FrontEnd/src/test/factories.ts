@@ -12,7 +12,7 @@
  * est surchargé.
  */
 
-import type { DailyActivity, ScopeMonitoring } from "../types";
+import type { AuditEvent, DailyActivity, ScopeMonitoring } from "../types";
 
 /** Activité d'une journée, telle que la renvoie l'API. */
 export function makeActivity(
@@ -26,6 +26,32 @@ export function makeActivity(
     feai: [],
     handled: false,
     completed: false,
+    ...overrides,
+  };
+}
+
+/**
+ * Événement du journal d'audit, tel que la liste le renvoie.
+ *
+ * Les défauts sont réalistes : `scope_name` renseigné, `actor` en majuscules
+ * comme la colonne qui le stocke, `changes` non vide. Un test qui veut
+ * l'absence de note ou d'acteur le dit explicitement.
+ */
+export function makeAuditEvent(
+  overrides: Partial<AuditEvent> = {},
+): AuditEvent {
+  return {
+    id: "evt-0001",
+    actor: "ABCD",
+    action: "activity_updated",
+    scope_id: "scope-1",
+    scope_name: "Périmètre Alpha",
+    day: "2026-09-19",
+    created_at: "2026-09-19T14:32:00Z",
+    changes: {
+      errors_reported: { old: 2, new: 5 },
+      feai: { old: ["INC000000001"], new: ["INC000000001", "INC000000002"] },
+    },
     ...overrides,
   };
 }

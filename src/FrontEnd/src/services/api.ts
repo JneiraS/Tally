@@ -385,14 +385,26 @@ export const protabApi = {
   /**
    * GET /api/audit-log
    * Liste les événements du journal d'audit, du plus récent au plus ancien.
-   * Paramètres filtres optionnels : scope_id, actor, action, from_date, to_date, limit.
+   *
+   * Paramètres filtres optionnels : `scope_ids` (répété, une occurrence par
+   * périmètre), `actor` (préfixe insensible à la casse), `action`,
+   * `from_created_at` / `to_created_at` (bornes inclusives/exclusives sur
+   * `created_at`) et `limit`.
    */
   async getAuditLog(params: AuditLogQuery = {}): Promise<AuditEvent[]> {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        qs.set(key, String(value));
+      if (value === undefined || value === null || value === "") return;
+      // The plural field name is front-end vocabulary; the wire keeps the
+      // singular REST parameter, repeated once per scope.
+      const wireKey = key === "scope_ids" ? "scope_id" : key;
+      // Repeated, not joined: a comma-separated list would be read as a single
+      // id by the server and silently match nothing.
+      if (Array.isArray(value)) {
+        value.forEach((item) => qs.append(wireKey, String(item)));
+        return;
       }
+      qs.set(wireKey, String(value));
     });
     const query = qs.toString();
     return request<AuditEvent[]>(

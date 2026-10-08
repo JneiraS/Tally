@@ -1,16 +1,23 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.venv/
-.uv/
-.pytest_cache/
-.coverage
-htmlcov/
+# ⚠️ Les motifs imbriqués doivent être préfixés par `**/`.
+# Docker n'ancre un motif qu'à la racine du contexte : `node_modules/` exclut
+# ./node_modules mais laisse passer ./src/FrontEnd/node_modules. Sans `**/`, les
+# 220 Mo de dépendances Node entraient dans le contexte de build de l'API puis
+# dans son image finale, alors que l'API n'exécute aucun JavaScript.
 
-# Node / frontend (built in a separate stage when needed)
-node_modules/
-dist/
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.venv/
+**/.uv/
+**/.pytest_cache/
+**/.coverage
+**/htmlcov/
+
+# Node / frontend (construit dans un stage séparé)
+**/node_modules/
+**/dist/
+**/*.tsbuildinfo
 
 # Divers
 .git/

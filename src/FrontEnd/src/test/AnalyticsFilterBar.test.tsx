@@ -7,6 +7,7 @@ import { AnalyticsFilterBar, type AnalyticsFilters } from "../components/Analyti
 import { CHECKBOX_CLASS } from "../constants/ui";
 import type { ScopeMonitoring } from "../types";
 import { makeScope } from "./factories";
+import { expectDoesNotClip } from "./overflowGuard";
 
 function scope(id: string, name: string, billing_code: string | null = null): ScopeMonitoring {
   return makeScope({ id, name, knowledge_base_id: `KB-${id}`, billing_code });
@@ -113,6 +114,14 @@ describe("AnalyticsFilterBar", () => {
     renderBar(MANY, { ...FILTERS, preset: "perso" });
     expect(screen.getByLabelText("Période : début")).toBeInTheDocument();
     expect(screen.getByLabelText("Période : fin")).toBeInTheDocument();
+  });
+
+  it("ne rogne pas le popover du sélecteur de périmètres", () => {
+    renderBar();
+    // Même défaut latent que sur le journal : le popover de `ScopePicker` est
+    // en `absolute` dans cette carte. Ici le sélecteur est le 3e fieldset sur
+    // 5, donc ~250px des ~448px du popover restaient visibles.
+    expectDoesNotClip(screen.getByRole("region", { name: /filtres d'analyse/i }));
   });
 
   it("garde le même style pour les options checkbox", () => {

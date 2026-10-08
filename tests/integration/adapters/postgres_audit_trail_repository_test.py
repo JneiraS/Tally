@@ -106,16 +106,111 @@ def test_list_orders_most_recent_first(repo, project):
 
 
 def test_list_filters_by_scope_actor_action_and_dates(repo, project):
-    repo.record(make_event(action="activity_created", scope_id="s1", day=date(2026, 9, 18)))
-    repo.record(make_event(action="activity_updated", scope_id="s2", day=date(2026, 9, 19)))
-    repo.record(make_event(action="activity_completed", scope_id="s1", day=date(2026, 9, 20)))
+    """Mirrors tests/unit/adapters/audit_trail_filter_test.py against real SQL."""
+    base = datetime(2026, 9, 19, 8, 0, tzinfo=timezone.utc)
+    repo.record(
+        AuditEvent(
+            action="activity_created",
+            actor="ABCD",
+            scope_id="s1",
+            day=date(2026, 9, 18),
+            changes={},
+            created_at=base,
+        )
+    )
+    repo.record(
+        AuditEvent(
+            action="activity_updated",
+            actor="ABEF",
+            scope_id="s2",
+            day=date(2026, 9, 19),
+            changes={},
+            created_at=base + timedelta(hours=1),
+        )
+    )
+    repo.record(
+        AuditEvent(
+            action="activity_completed",
+            actor="XYZW",
+            scope_id="s1",
+            day=date(2026, 9, 20),
+            changes={},
+            created_at=base + timedelta(hours=2),
+        )
+    )
 
-    assert len(repo.list(AuditEventQuery(scope_id="s1"))) == 2
+    assert len(repo.list(AuditEventQuery(scope_ids=("s1",)))) == 2
+    assert len(repo.list(AuditEventQuery(scope_ids=("s1", "s2")))) == 3
+    assert len(repo.list(AuditEventQuery(scope_ids=()))) == 3
+    assert repo.list(AuditEventQuery(scope_ids=("s2",)))[0].scope_id == "s2"
     assert len(repo.list(AuditEventQuery(action="activity_updated"))) == 1
-    assert len(repo.list(AuditEventQuery(from_date=date(2026, 9, 19)))) == 2
-    assert len(repo.list(AuditEventQuery(to_date=date(2026, 9, 18)))) == 1
     assert len(repo.list(AuditEventQuery(limit=1))) == 1
+
+    # Actor: uppercased prefix, case-insensitive. The exact comparison this
+    # replaced returned nothing for "abcd" or for the partial "AB".
+    assert len(repo.list(AuditEventQuery(actor="ABCD"))) == 1
+    assert len(repo.list(AuditEventQuery(actor="abcd"))) == 1
+    assert len(repo.list(AuditEventQuery(actor="AB"))) == 2
     assert len(repo.list(AuditEventQuery(actor="ZZZZ"))) == 0
+
+    # Period: half-open [from, to) on created_at.
+    assert (
+        len(
+            repo.list(
+                AuditEventQuery(
+                    from_created_at=base + timedelta(hours=1),
+                    to_created_at=base + timedelta(hours=2),
+                )
+            )
+        )
+        == 1
+    )
+    assert len(repo.list(AuditEventQuery(from_created_at=base))) == 3
+    assert len(repo.list(AuditEventQuery(to_created_at=base))) == 0
+
+    # Conjunction.
+    assert len(repo.list(AuditEventQuery(actor="AB", scope_ids=("s2",)))) == 1
+
+
+def test_list_period_keeps_events_without_a_business_day(repo, project):
+    """``day`` is NULL for scope_created/scope_imported/scope_note_updated.
+
+    Filtering on ``day`` silently dropped a third of the journal the moment a
+    period was set; the period must read ``created_at`` and keep them.
+    """
+    base = datetime(2026, 9, 19, 8, 0, tzinfo=timezone.utc)
+    repo.record(
+        AuditEvent(
+            action="scope_created",
+            actor="ABCD",
+            scope_id="s1",
+            day=None,
+            changes={},
+            created_at=base,
+        )
+    )
+    repo.record(
+        AuditEvent(
+            action="scope_note_updated",
+            actor="ABCD",
+            scope_id="s1",
+            day=None,
+            changes={},
+            created_at=base + timedelta(hours=1),
+        )
+    )
+
+    found = repo.list(
+        AuditEventQuery(
+            from_created_at=base,
+            to_created_at=base + timedelta(hours=2),
+        )
+    )
+
+    assert sorted(event.action for event in found) == [
+        "scope_created",
+        "scope_note_updated",
+    ]
 
 
 def test_list_isolated_by_project(repo, project):
