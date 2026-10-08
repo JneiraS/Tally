@@ -1,4 +1,4 @@
-.PHONY: help install test test-v test-failed typecheck run frontend db-up db-down db-shell docker-up docker-down project-admin test-db clean
+.PHONY: help install test test-v test-failed typecheck run frontend db-up db-down db-shell docker-up docker-down project-admin test-db resources clean
 
 # URL de la base dédiée aux tests d'intégration PostgreSQL
 TEST_DATABASE_URL ?= postgresql://protab:protab@localhost:5432/protab_test
@@ -67,6 +67,13 @@ test-db: db-up
 # au conteneur par docker-compose.yml.
 project-admin:
 	docker compose exec api protab-project $(ARGS)
+
+## resources: Mesure le footprint de la stack (images, RAM, CPU, volume pgdata)
+# La stack doit être démarrée (make docker-up). Pour ne relever que le poids
+# disque : ./scripts/measure-usage.sh --images
+# Le rapport et son interprétation : docs/ressources.md
+resources:
+	./scripts/measure-usage.sh
 
 ## clean: Supprime l'environnement virtuel et les caches de test/python
 clean:

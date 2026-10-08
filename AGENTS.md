@@ -1332,10 +1332,10 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   évolution de `docker-compose.yml`, d'un `Dockerfile` ou de `nginx.conf` s'y répercute.
 - `docker-compose.yml` : `db` (postgres:17-alpine, volume `pgdata`, healthcheck), `api` (Dockerfile backend
   multi-stage uv), `frontend` (Dockerfile node → nginx, proxy `/scope-monitorings` → `api`, même origine).
-- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `project-admin`, `test-db`.
-  `project-admin` est un relais vers `docker compose exec api protab-project $(ARGS)` : **sans `-T`**, car
-  `getpass` exige un terminal, et **sans dépendance** à `docker-up`, qui déclencherait une reconstruction
-  complète de la stack à chaque appel d'administration.
+- Cibles Makefile : `db-up`, `db-down`, `db-shell`, `docker-up`, `docker-down`, `project-admin`, `test-db`,
+  `resources`. `project-admin` est un relais vers `docker compose exec api protab-project $(ARGS)` :
+  **sans `-T`**, car `getpass` exige un terminal, et **sans dépendance** à `docker-up`, qui déclencherait
+  une reconstruction complète de la stack à chaque appel d'administration.
 - Dépendances runtime ajoutées pour la persistance : `psycopg[binary]`, `psycopg-pool`.
 - La configuration des pools PostgreSQL est centralisée dans `adapters/outbound/persistence/postgres_pool.py` :
   `min_size=2`, `max_size=10`, timeout de 30 s, recyclage `max_lifetime=1800 s` et pré-ping `SELECT 1`.
@@ -1345,6 +1345,24 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
 - **`src/FrontEnd/.dockerignore` est distinct de celui de la racine** : le contexte de build de l'image
   `frontend` est `./src/FrontEnd` (`docker-compose.yml`), donc seul ce fichier filtre ce que `COPY . .`
   embarque. Un artefact absent du `.gitignore` racine peut malgré tout entrer dans l'image.
+- **Un motif `.dockerignore` sans `/` initial ne correspond qu'à la racine du contexte.** `node_modules/`
+  exclut `./node_modules` et laisse passer `./src/FrontEnd/node_modules`. La règle est donc `**/` pour tout
+  motif imbriqué, dans les deux fichiers. Ce n'est pas une précaution théorique : c'était **220 Mio de
+  `node_modules` dans l'image de l'API**, qui n'exécute aucun JavaScript, soit 420.7 → 188.8 Mio
+  décompressés et 100.6 → 55.8 Mio sur disque — sans toucher au `Dockerfile`, et un contexte de build
+  passé de ~236 Mio à ~16 Mio. La sémantique est expliquée dans `docs/docker-architecture.md` §3, avec le
+  motif d'un `Dockerfile` de test qui prouve la sémantique par l'image construite.
+- **`make resources` est le garde-fou de ce défaut, pas un simple relevé** (`scripts/measure-usage.sh`) :
+  il liste les répertoires de développement présents dans les images **en service**, donc un
+  `node_modules` revenu se lit comme un chiffre non nul et non comme une dérive de taille qu'on ne voit
+  pas. Il distingue aussi les deux métriques de poids, qui diffèrent d'un facteur 5 : `docker images`
+  raisonne en décompressé (564 Mio pour la stack) alors que seule la taille des blobs compressés
+  (193 Mio) est ce qui occupe le disque d'un serveur. Chiffres, méthode et dimensionnement :
+  `docs/ressources.md`.
+- **La stack n'a aucun `mem_limit` ni `cpus`.** Ce n'est pas un oubli mais une décision de déploiement
+  assumée, à trancher avec les valeurs d'un `make resources` pris sur le serveur cible : un `mem_limit`
+  trop bas sur PostgreSQL provoque un échec au démarrage plutôt qu'une dégradation progressive. Conséquence
+  immédiate à connaître : la colonne mémoire de `docker stats` affiche la RAM de l'hôte, pas un plafond.
 
 ## 28.6 FrontEnd : vue mono-jour et état local des saisies
 

@@ -267,7 +267,9 @@ même origine, aucun CORS requis.
 
 L'architecture elle-même — réseau, ports publiés, ordre de démarrage encodé par les healthchecks, chaîne
 de construction des deux images et flux de requêtes à travers nginx — est décrite dans
-**[`docs/docker-architecture.md`](docs/docker-architecture.md)**.
+**[`docs/docker-architecture.md`](docs/docker-architecture.md)**. La consommation de la stack — poids des
+images, RAM, CPU, débit, dimensionnement serveur — est mesurée dans
+**[`docs/ressources.md`](docs/ressources.md)**.
 
 ```bash
 make docker-up    # docker compose up -d --build
@@ -282,6 +284,7 @@ make docker-up    # docker compose up -d --build
 | `db-shell`                  | Shell `psql` dans le conteneur Postgres                                        |
 | `test-db`                   | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
 | `project-admin`             | Lance `protab-project` dans le conteneur `api` (`make project-admin ARGS="…"`)  |
+| `resources`                 | Mesure poids des images, RAM, CPU et volume de données (stack démarrée)         |
 
 Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
 via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).
