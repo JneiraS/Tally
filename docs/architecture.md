@@ -115,7 +115,8 @@ table SQL. C'est la partie la plus facile à tester et la moins volatile.
 | Élément | Fichier | Rôle |
 | --- | --- | --- |
 | `ScopeMonitoring`, `Officials`, `KnowledgeBase` | `entities/scope_monitoring.py` | Agrégat racine d'un périmètre ; `daily_activity_for(day)` sert de point d'accès à un jour |
-| `DailyActivity` | `entities/daily_activity.py` | Valeurs d'une journée, mutable, avec `update()` et `mark_completed()` |
+| `DailyActivity` | `entities/daily_activity.py` | Valeurs d'une journée, mutable, avec `update()` (compteurs) et `apply_status()` (statut) — deux propriétaires distincts |
+| `DayStatus` | `entities/day_status.py` | Les trois états d'une journée (`pending`, `completed`, `ko`) ; `from_raw()` relit la colonne `TEXT` de façon lenient, `KO_REASON_MAX_LENGTH` y est déclaré |
 | `AuditEvent`, `build_changes()` | `entities/audit_event.py` | Événement immuable ; `build_changes` ne retient que les champs réellement modifiés |
 | `OfficialCode` | `value_objects/official_code.py` | Forme scalaire d'un quadrigramme administrateur (2–20 caractères, refuse `/`) |
 | `NonWorkingDays`, `IsoWeekday` | `value_objects/non_working_days.py` | Calendrier ouvré d'un projet ; l'échelle ISO (1 = lundi) et le défaut « week-end exclu » y sont déclarés, `from_raw()` reconstruit la colonne JSONB de façon lenient |
@@ -134,10 +135,19 @@ n'a été nécessaire pour l'heure.
 `Protocol` synchrone de neuf méthodes :
 
 - `save(scope)` — **création seule**, refuse un id déjà pris ;
-- `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed` —
-  écritures ciblées d'une journée ;
+- `insert_daily_activity`, `update_daily_activity` — écritures ciblées des
+  compteurs d'une journée ;
+- `set_activities_status(scope_id, days, status, *, ko_reason=None)` — écriture
+  ciblée du statut d'un lot de jours. Seul upsert du dépôt : voir §8 ;
 - `update_note(scope_id, note)` — écriture ciblée de la note du périmètre ;
 - `find_by_id`, `find_by_name`, `find_all`, `find_all_scope_names` — lectures.
+
+`set_activities_status` est aussi la seule méthode dont l'upsert est légitime :
+la clause `ON CONFLICT DO UPDATE` n'y réécrit que `status` et `ko_reason` de
+lignes nommées, donc elle ne fusionne jamais des compteurs qu'un appelant n'a
+pas relus — c'était précisément l'objection qui a retiré la clause de `save()`.
+Un jour sans ligne est créé à compteurs nuls, ce qui rend le KO atteignable là
+où il est utile : une journée que personne n'a pu traiter.
 
 La distinction entre `save` et les écritures ciblées est une décision
 d'architecture, pas un détail : ses raisons sont dans `AGENTS.md` §28.1.
@@ -194,9 +204,9 @@ domaine, comme la durée de session (`SESSION_DURATION`), dont le cookie dérive
 `src/protab/application/` orchestre, sans jamais toucher à la base.
 
 - **Cas d'usage** (`use_cases/`) : `CreateScopeMonitoring`,
-  `CreateDailyActivity`, `UpdateDailyActivity`, `CompleteDailyActivity`. Chacun
-  prend ses ports par constructeur et un `audit_trail` optionnel ; aucun ne
-  construit de connexion.
+  `CreateDailyActivity`, `UpdateDailyActivity`, `SetActivitiesStatus`,
+  `UpdateScopeNote`. Chacun prend ses ports par constructeur et un
+  `audit_trail` optionnel ; aucun ne construit de connexion.
 - **Commandes** (`commands/`) : dataclasses d'entrée
   (`create_scope_monitoring.py`, `daily_activity.py`).
 - **Requêtes** (`queries/`) : `ListScopes`, `GetScope`, `GetDailyActivity`,
@@ -208,8 +218,13 @@ domaine, comme la durée de session (`SESSION_DURATION`), dont le cookie dérive
 
 Deux comportements méritent d'être connus avant de modifier un cas d'usage :
 
-- `CompleteDailyActivityUseCase` résout **tous** les jours avant d'en muter
-  aucun (`complete_daily_activity.py:31-43`) : la commande est tout ou rien.
+- `SetActivitiesStatusUseCase` résout **tous** les jours avant d'en muter aucun
+  (`set_activities_status.py`) : la commande est tout ou rien. Il porte aussi la
+  seule règle d'asymétrie du dépôt — **une journée peut être signalée KO sans
+  saisie, mais pas être terminée sans**. Le KO crée donc le jour à compteurs
+  nuls ; `completed` sur un jour absent lève `DailyActivityNotFoundError`. Cette
+  règle est ici et pas dans l'adapter parce que `rowcount` ne distingue plus un
+  jour absent d'un jour mis à jour.
 - `UpdateDailyActivityUseCase` n'écrit un événement d'audit que si
   `build_changes` est non vide : un `PATCH` sans changement réel ne pollue pas
   le journal.
@@ -247,7 +262,7 @@ Table des routes :
 | GET | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Compteurs d'un jour |
 | POST | `/scope-monitorings/{scope_id}/activities` | oui | Création d'une activité |
 | PATCH | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Mise à jour des compteurs |
-| POST | `/scope-monitorings/{scope_id}/activities/complete` | oui | Clôture d'un lot de jours |
+| PATCH | `/scope-monitorings/{scope_id}/activities/status` | oui | Statut d'un lot de jours (`completed`, `ko`, `pending`) |
 | GET | `/api/audit-log` | oui | Journal d'audit |
 
 \* `/auth/me` et `/auth/logout` figurent dans `PUBLIC_ROUTES` **parce qu'ils
@@ -405,8 +420,8 @@ erDiagram
         integer errors_reported
         integer incidents_created
         text_array feai
-        boolean handled
-        boolean completed
+        text status "pending | completed | ko"
+        text ko_reason
     }
     auth_sessions {
         text token_hash PK

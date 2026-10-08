@@ -15,6 +15,7 @@ import {
   Download,
   CalendarClock,
 } from "lucide-react";
+import { isCompleted, isHandled, isKo } from "../constants/dayStatus";
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
 import { protabApi, ApiError } from "../services/api";
 import { Badge } from "../components/Badge";
@@ -55,7 +56,11 @@ interface EnrichedScope extends ScopeMonitoring {
   selectedActivity?: DailyActivity;
   hasSelectedDay: boolean;
   selectedDayCompleted: boolean;
-  status: "completed" | "in_progress" | "none";
+  selectedDayKo: boolean;
+  // `ko` est son propre état et non un « en cours » : un périmètre bloqué par
+  // une panne ne sera pas traité aujourd'hui, et l'afficher comme un travail en
+  // cours le ferait remonter dans le filtre « à traiter ».
+  status: "completed" | "ko" | "in_progress" | "none";
   selectedDayErrors: number;
   selectedDayIncidents: number;
 }
@@ -99,7 +104,10 @@ export function ScopeListPage({
       const activity = (scope.daily_activities || []).find(
         (item) => item.day === lastWorkingDay,
       );
-      return !activity || !activity.handled;
+      // Un jour KO est traité : quelqu'un est passé dessus et a constaté le
+      // blocage. Le compter ici le ferait remonter indéfiniment, alors qu'il
+      // n'y a plus rien à faire dessus aujourd'hui.
+      return !activity || !isHandled(activity.status);
     }).length;
   }, [scopes, lastWorkingDay]);
 
@@ -167,16 +175,19 @@ export function ScopeListPage({
           feai: [],
         });
       }
-      await protabApi.completeActivities(scope.id, { days: [selectedDay] });
+      await protabApi.setActivitiesStatus(scope.id, {
+        days: [selectedDay],
+        status: "completed",
+      });
       const completedActivity: DailyActivity = selectedActivity
-        ? { ...selectedActivity, completed: true, handled: true }
+        ? { ...selectedActivity, status: "completed", ko_reason: null }
         : {
             day: selectedDay,
             errors_reported: 0,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           };
       handleActivityChanged(scope.id, completedActivity);
       toastSuccess(
@@ -223,11 +234,16 @@ export function ScopeListPage({
       const activities = scope.daily_activities || [];
       const selectedActivity = activities.find((a) => a.day === selectedDay);
       const hasSelectedDay = !!selectedActivity;
-      const selectedDayCompleted = selectedActivity?.completed ?? false;
+      const selectedDayCompleted = selectedActivity
+        ? isCompleted(selectedActivity.status)
+        : false;
+      const selectedDayKo = selectedActivity ? isKo(selectedActivity.status) : false;
 
-      let status: "completed" | "in_progress" | "none" = "none";
+      let status: "completed" | "ko" | "in_progress" | "none" = "none";
       if (selectedActivity) {
-        status = selectedDayCompleted ? "completed" : "in_progress";
+        if (selectedDayCompleted) status = "completed";
+        else if (selectedDayKo) status = "ko";
+        else status = "in_progress";
       }
 
       return {
@@ -235,6 +251,7 @@ export function ScopeListPage({
         selectedActivity,
         hasSelectedDay,
         selectedDayCompleted,
+        selectedDayKo,
         status,
         selectedDayErrors: selectedActivity?.errors_reported || 0,
         selectedDayIncidents: selectedActivity?.incidents_created || 0,
@@ -251,7 +268,9 @@ export function ScopeListPage({
 
       switch (quickFilter) {
         case "to_process":
-          return scope.status !== "completed";
+          // Le KO est traité : le lister ici le reproposerait comme un travail
+          // à faire, ce qui est exactement ce que le statut sert à éviter.
+          return scope.status !== "completed" && scope.status !== "ko";
         case "errors":
           return scope.selectedDayErrors > 0;
         case "incidents":
@@ -272,6 +291,7 @@ export function ScopeListPage({
     const completedCount = enrichedScopes.filter(
       (s) => s.selectedDayCompleted,
     ).length;
+    const koCount = enrichedScopes.filter((s) => s.status === "ko").length;
     const inProgressCount = enrichedScopes.filter(
       (s) => s.status === "in_progress",
     ).length;
@@ -755,6 +775,8 @@ export function ScopeListPage({
                         <div className="flex flex-col items-center gap-1.5">
                           {scope.selectedDayCompleted ? (
                             <Badge type="completed" label="Terminé" />
+                          ) : scope.selectedDayKo ? (
+                            <Badge type="ko" label="KO" />
                           ) : (
                             <>
                               {scope.hasSelectedDay ? (
@@ -852,6 +874,8 @@ export function ScopeListPage({
                   </div>
                   {scope.selectedDayCompleted ? (
                     <Badge type="completed" label="Terminé" />
+                  ) : scope.selectedDayKo ? (
+                    <Badge type="ko" label="KO" />
                   ) : scope.hasSelectedDay ? (
                     <Badge type="in_progress" label="En cours" />
                   ) : (
@@ -882,6 +906,10 @@ export function ScopeListPage({
                   {scope.selectedDayCompleted ? (
                     <span className="text-xs text-slate-400 dark:text-nord-3">
                       Complété
+                    </span>
+                  ) : scope.selectedDayKo ? (
+                    <span className="text-xs text-rose-600 dark:text-nord-11">
+                      Signalé KO
                     </span>
                   ) : (
                     <CompleteTodayButton

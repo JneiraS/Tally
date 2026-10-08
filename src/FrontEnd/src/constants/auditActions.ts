@@ -1,6 +1,7 @@
 import {
   CheckCircle2,
   FileText,
+  OctagonX,
   Pencil,
   Plus,
   StickyNote,
@@ -10,7 +11,7 @@ import {
 import type { AuditAction } from "../types";
 
 /**
- * The six audit actions, their French labels and their icons.
+ * The seven audit actions, their French labels and their icons.
  *
  * Both maps are exhaustive `Record<AuditAction, …>`: adding a variant to the
  * union is a compile error here, so a new action cannot reach the table
@@ -23,6 +24,7 @@ export const AUDIT_ACTIONS: { value: AuditAction; label: string }[] = [
   { value: "activity_created", label: "Saisie d'activité" },
   { value: "activity_updated", label: "Modification d'activité" },
   { value: "activity_completed", label: "Validation d'activité" },
+  { value: "activity_ko", label: "Journée signalée KO" },
   { value: "scope_note_updated", label: "Note du périmètre" },
 ];
 
@@ -36,5 +38,6 @@ export const ACTION_ICONS: Record<AuditAction, LucideIcon> = {
   activity_created: FileText,
   activity_updated: Pencil,
   activity_completed: CheckCircle2,
+  activity_ko: OctagonX,
   scope_note_updated: StickyNote,
 };

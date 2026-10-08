@@ -20,6 +20,7 @@ from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository i
     set_current_project,
 )
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
@@ -91,6 +92,17 @@ def truncate_all() -> None:
         )
 
 
+def count_activity_rows(
+    repo: "PostgresScopeMonitoringRepository", scope_id: str, day: date
+) -> int:
+    """Count the stored rows for one day, without going through the aggregate."""
+    with repo._pool.connection() as conn:  # noqa: SLF001 - test-only introspection
+        return conn.execute(
+            "SELECT count(*) FROM daily_activities WHERE scope_id = %s AND day = %s",
+            (scope_id, day),
+        ).fetchone()[0]
+
+
 @pytest.fixture
 def repo():
     assert TEST_DATABASE_URL is not None
@@ -124,8 +136,7 @@ def test_save_and_find_by_id_roundtrip(repo):
         errors_reported=1,
         incidents_created=0,
         feai=[],
-        handled=True,
-        completed=True,
+        status=DayStatus.COMPLETED,
     )
     repo.save(scope)
 
@@ -142,8 +153,8 @@ def test_save_and_find_by_id_roundtrip(repo):
     assert activity.errors_reported == 2
     assert activity.incidents_created == 1
     assert activity.feai == ["INC000000001"]
-    assert activity.handled is False
-    assert activity.completed is False
+    assert activity.status is DayStatus.PENDING
+    assert activity.ko_reason is None
 
 
 def test_scope_without_billing_code_roundtrips_as_none(repo):
@@ -258,9 +269,9 @@ def test_update_daily_activity_leaves_other_days_untouched(repo):
         assert activity.incidents_created == errors - 1
 
 
-def test_update_daily_activity_preserves_the_completion_flags(repo):
+def test_update_daily_activity_preserves_the_status(repo):
     scope = make_scope(day=date(2026, 9, 19))
-    scope.daily_activity_for(date(2026, 9, 19)).mark_completed()
+    scope.daily_activity_for(date(2026, 9, 19)).apply_status(DayStatus.KO)
     repo.save(scope)
 
     repo.update_daily_activity(
@@ -275,8 +286,7 @@ def test_update_daily_activity_preserves_the_completion_flags(repo):
 
     activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
     assert activity.errors_reported == 9
-    assert activity.handled is True
-    assert activity.completed is True
+    assert activity.status is DayStatus.KO
 
 
 def test_update_daily_activity_on_missing_day_raises(repo):
@@ -332,20 +342,110 @@ def test_insert_daily_activity_on_duplicate_day_translates_to_domain_error(repo)
         )
 
 
-def test_mark_activities_completed_flips_only_the_named_days(repo):
+def test_set_activities_status_flips_only_the_named_days(repo):
     seed_three_days(repo)
 
-    repo.mark_activities_completed(
-        "scope-001", [date(2026, 9, 19), date(2026, 9, 25)]
+    repo.set_activities_status(
+        "scope-001", [date(2026, 9, 19), date(2026, 9, 25)], DayStatus.COMPLETED
     )
 
     loaded = repo.find_by_id("scope-001")
-    assert loaded.daily_activity_for(date(2026, 9, 19)).completed is True
-    assert loaded.daily_activity_for(date(2026, 9, 25)).handled is True
+    assert loaded.daily_activity_for(date(2026, 9, 19)).status is DayStatus.COMPLETED
+    assert loaded.daily_activity_for(date(2026, 9, 25)).status is DayStatus.COMPLETED
     untouched = loaded.daily_activity_for(date(2026, 9, 18))
-    assert untouched.completed is False
-    assert untouched.handled is False
+    assert untouched.status is DayStatus.PENDING
+    assert untouched.ko_reason is None
     assert untouched.errors_reported == 1
+
+
+def test_set_activities_status_creates_a_ko_day_without_touching_the_counters(repo):
+    """The upsert writes two columns; the counters of a stored row are not read.
+
+    A day that had already been entered keeps its figures when it is later marked
+    as KO — that is what makes lifting the KO lossless, and it is the property an
+    ``ON CONFLICT DO UPDATE SET *`` would silently break.
+    """
+    seed_three_days(repo)
+
+    repo.set_activities_status(
+        "scope-001",
+        [date(2026, 9, 19)],
+        DayStatus.KO,
+        ko_reason="Collecteur indisponible",
+    )
+
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.status is DayStatus.KO
+    assert activity.ko_reason == "Collecteur indisponible"
+    # seed_three_days gives this day two errors and one incident.
+    assert activity.errors_reported == 2
+    assert activity.incidents_created == 1
+    assert activity.feai == ["INC190000000"]
+
+
+def test_set_activities_status_creates_a_missing_day_at_zero(repo):
+    seed_three_days(repo)
+
+    repo.set_activities_status(
+        "scope-001", [date(2026, 9, 30)], DayStatus.KO, ko_reason="Panne"
+    )
+
+    created = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 30))
+    assert created.status is DayStatus.KO
+    assert created.errors_reported == 0
+    assert created.incidents_created == 0
+    assert created.feai == []
+
+
+def test_completing_a_ko_day_clears_its_reason_in_the_database(repo):
+    seed_three_days(repo)
+    repo.set_activities_status(
+        "scope-001", [date(2026, 9, 19)], DayStatus.KO, ko_reason="Panne"
+    )
+
+    repo.set_activities_status("scope-001", [date(2026, 9, 19)], DayStatus.COMPLETED)
+
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.status is DayStatus.COMPLETED
+    assert activity.ko_reason is None
+
+
+def test_the_status_write_creates_a_day_once_per_day(repo):
+    """A duplicated day must not create a second row.
+
+    The use case de-duplicates the command, but the adapter owns the SQL and has
+    to be idempotent on its own: the port is callable without the use case.
+    """
+    seed_three_days(repo)
+
+    repo.set_activities_status(
+        "scope-001",
+        [date(2026, 9, 30), date(2026, 9, 30)],
+        DayStatus.KO,
+    )
+    repo.set_activities_status(
+        "scope-001",
+        [date(2026, 9, 30), date(2026, 9, 30)],
+        DayStatus.KO,
+    )
+
+    rows = count_activity_rows(repo, "scope-001", date(2026, 9, 30))
+    assert rows == 1
+
+
+def test_set_activities_status_refuses_a_scope_of_another_project(repo):
+    """The tenant filter is not optional, even on a targeted write.
+
+    ``daily_activities`` carries no ``project_id`` of its own, so a statement
+    that does not join ``scope_monitorings`` would happily write on a scope
+    belonging to a different tenant — a defect even when the row it targets
+    belongs to the caller.
+    """
+    seed_three_days(repo)
+    set_current_project("other-project")
+
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.set_activities_status("scope-001", [date(2026, 9, 19)], DayStatus.KO)
 
 
 def test_activity_writes_are_tenant_scoped(repo):
@@ -476,6 +576,76 @@ def test_connect_is_idempotent_for_project_name_index(repo):
     assert count == 1
 
 
+def test_the_status_migration_carries_completed_days_over(repo):
+    """A database written by the previous schema must keep its completed days.
+
+    The migration runs on every ``connect``, so its order is load-bearing: the
+    backfill reads ``completed`` and must therefore precede the ``DROP``. The
+    legacy shape is rebuilt here on purpose, because a fresh database never
+    exercises that path at all.
+    """
+    seed_three_days(repo)
+    with repo._pool.connection() as conn:
+        conn.execute(
+            "ALTER TABLE daily_activities ADD COLUMN handled BOOLEAN NOT NULL "
+            "DEFAULT FALSE"
+        )
+        conn.execute(
+            "ALTER TABLE daily_activities ADD COLUMN completed BOOLEAN NOT NULL "
+            "DEFAULT FALSE"
+        )
+        conn.execute(
+            "UPDATE daily_activities SET handled = TRUE, completed = TRUE "
+            "WHERE day = DATE '2026-09-19'"
+        )
+        conn.execute("ALTER TABLE daily_activities DROP COLUMN status")
+        conn.execute("ALTER TABLE daily_activities DROP COLUMN ko_reason")
+        conn.commit()
+
+        repo._migrate_activity_status(conn)  # noqa: SLF001 - the migration is the subject
+        conn.commit()
+
+        columns = {
+            row[0]
+            for row in conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'daily_activities'"
+            ).fetchall()
+        }
+        statuses = dict(
+            conn.execute(
+                "SELECT day, status FROM daily_activities ORDER BY day"
+            ).fetchall()
+        )
+
+    assert "handled" not in columns
+    assert "completed" not in columns
+    assert "status" in columns
+    assert "ko_reason" in columns
+    assert statuses[date(2026, 9, 19)] == "completed"
+    assert statuses[date(2026, 9, 18)] == "pending"
+    assert statuses[date(2026, 9, 25)] == "pending"
+
+
+def test_the_status_migration_is_idempotent(repo):
+    seed_three_days(repo)
+    repo.set_activities_status(
+        "scope-001", [date(2026, 9, 19)], DayStatus.COMPLETED
+    )
+
+    for _ in range(2):
+        with repo._pool.connection() as conn:  # noqa: SLF001
+            repo._migrate_activity_status(conn)  # noqa: SLF001
+            conn.commit()
+
+    assert (
+        repo.find_by_id("scope-001")
+        .daily_activity_for(date(2026, 9, 19))
+        .status
+        is DayStatus.COMPLETED
+    )
+
+
 def test_pool_applies_tuned_parameters(repo):
     assert repo._pool.min_size == 2
     assert repo._pool.max_size == 10
@@ -551,16 +721,16 @@ def test_api_flow_persists_in_postgres(repo):
     )
     assert added.status_code == 201
 
-    completed = http.post(
-        f"/scope-monitorings/{scope_id}/activities/complete",
-        json={"days": ["2026-09-19"]},
+    completed = http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={"days": ["2026-09-19"], "status": "completed"},
     )
     assert completed.status_code == 204
 
     scope = repo.find_by_id(scope_id)
     activity = scope.daily_activity_for(date(2026, 9, 19))
-    assert activity.completed is True
-    assert activity.handled is True
+    assert activity.status is DayStatus.COMPLETED
+    assert activity.ko_reason is None
     assert scope.billing_code == "FACT-2026-PAI"
 
     listing = http.get("/scope-monitorings").json()
@@ -584,14 +754,14 @@ def test_complete_unknown_day_does_not_partially_persist(repo):
         },
     )
 
-    response = http.post(
-        f"/scope-monitorings/{scope_id}/activities/complete",
-        json={"days": ["2026-09-19", "2026-09-20"]},
+    response = http.patch(
+        f"/scope-monitorings/{scope_id}/activities/status",
+        json={"days": ["2026-09-19", "2026-09-20"], "status": "completed"},
     )
     assert response.status_code == 404
 
     scope = repo.find_by_id(scope_id)
-    assert scope.daily_activity_for(date(2026, 9, 19)).completed is False
+    assert scope.daily_activity_for(date(2026, 9, 19)).status is DayStatus.PENDING
 
 
 def test_duplicate_name_via_api_returns_409(repo):

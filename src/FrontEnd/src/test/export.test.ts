@@ -9,6 +9,7 @@ import {
   exportFilename,
   downloadFile,
 } from '../utils/export';
+import type { DayStatus } from '../constants/dayStatus';
 import { ScopeMonitoring, DailyActivity } from '../types';
 import { makeScope } from './factories';
 
@@ -17,15 +18,15 @@ const activity = (
   errors = 0,
   incidents = 0,
   feai: string[] = [],
-  handled = false,
-  completed = false,
+  status: DayStatus = "pending",
+  ko_reason: string | null = null,
 ): DailyActivity => ({
   day,
   errors_reported: errors,
   incidents_created: incidents,
   feai,
-  handled,
-  completed,
+  status,
+  ko_reason,
 });
 
 const scope = (
@@ -59,10 +60,10 @@ describe('buildExportRows', () => {
     expect(rows[0].incidents).toBe(1);
   });
 
-  it('mappe les champs métier (FEAI jointes, Oui/Non)', () => {
+  it('mappe les champs métier (FEAI jointes, statut)', () => {
     const scopes = [
       scope('Périmètre A', 'KB-A-0001', [
-        activity('2026-01-20', 2, 1, ['INC000000001', 'INC000000002'], true, false),
+        activity('2026-01-20', 2, 1, ['INC000000001', 'INC000000002'], 'completed'),
       ]),
     ];
 
@@ -73,8 +74,27 @@ describe('buildExportRows', () => {
     expect(rows[0].responsable_suppleant).toBe('Bob');
     expect(rows[0].references_feai).toBe('INC000000001 | INC000000002');
     expect(rows[0].traite).toBe('Oui');
-    expect(rows[0].termine).toBe('Non');
+    expect(rows[0].termine).toBe('Oui');
     expect(rows[0].code_facturation).toBe('FACT-2026-PAI');
+    expect(rows[0].statut).toBe('Terminée');
+    expect(rows[0].motif_ko).toBe('');
+  });
+
+  it('exporte une journée KO comme traitée, non terminée, avec son motif', () => {
+    // Un KO n'est pas terminé, et « traité » est exact : quelqu'un est passé
+    // dessus. C'est ce qui permet à un tableur de distinguer une panne d'une
+    // saisie en cours.
+    const scopes = [
+      scope('Périmètre A', 'KB-A-0001', [
+        activity('2026-01-20', 0, 0, [], 'ko', 'Collecteur indisponible'),
+      ]),
+    ];
+
+    const row = buildExportRows(scopes, '2026-01-01', '2026-01-31')[0];
+    expect(row.traite).toBe('Oui');
+    expect(row.termine).toBe('Non');
+    expect(row.statut).toBe('KO');
+    expect(row.motif_ko).toBe('Collecteur indisponible');
   });
 
   it('laisse vide le code de facturation d\'un périmètre qui n\'en porte pas', () => {
@@ -119,7 +139,7 @@ describe('toCsv', () => {
   const rows = buildExportRows(
     [
       scope('Périmètre A', 'KB-A-0001', [
-        activity('2026-01-20', 2, 1, ['INC000000001'], true, true),
+        activity('2026-01-20', 2, 1, ['INC000000001'], 'completed'),
       ]),
     ],
     '2026-01-01',
@@ -141,14 +161,19 @@ describe('toCsv', () => {
       'Références FEAI',
       'Traité',
       'Terminé',
+      // Le code de facturation puis le statut arrivent **après** les colonnes
+      // historiques : les tableurs déjà configurés sur un export continuent de
+      // viser les bonnes lettres.
       'Code de facturation',
+      'Statut',
+      'Motif KO',
     ]);
   });
 
   it('honore le séparateur choisi', () => {
     const csv = toCsv(rows, ',');
     const [header] = csv.slice(1).split('\n');
-    expect(header.split(',')).toHaveLength(11);
+    expect(header.split(',')).toHaveLength(13);
     expect(header.split(';')).toHaveLength(1);
   });
 

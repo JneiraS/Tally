@@ -1,7 +1,7 @@
-import { Check, Clock, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Check, Clock, AlertTriangle, OctagonX, ShieldCheck } from 'lucide-react';
 
 interface BadgeProps {
-  type: 'handled' | 'completed' | 'in_progress' | 'incident' | 'error' | 'none' | 'neutral';
+  type: 'handled' | 'completed' | 'in_progress' | 'ko' | 'incident' | 'error' | 'none' | 'neutral';
   label?: string;
   size?: 'sm' | 'md';
 }
@@ -38,6 +38,20 @@ export function Badge({ type, label, size = 'sm' }: BadgeProps) {
       >
         <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-nord-13" />
         <span>{label || 'En cours'}</span>
+      </span>
+    );
+  }
+
+  if (type === 'ko') {
+    // Volontairement dans le rouge des incidents, pas dans l'ambre de « en
+    // cours » : un blocage n'est pas un travail commencé, et l'ambiguïté se paie
+    // chaque matin sur le bandeau des non traités.
+    return (
+      <span
+        className={`inline-flex items-center gap-1 font-medium rounded-full bg-rose-100 dark:bg-nord-11/20 text-rose-800 dark:text-nord-11 border border-rose-200 dark:border-nord-11/30 ${sizeClasses}`}
+      >
+        <OctagonX className="w-3.5 h-3.5 text-rose-600 dark:text-nord-11" />
+        <span>{label || 'KO'}</span>
       </span>
     );
   }

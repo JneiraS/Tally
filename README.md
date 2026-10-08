@@ -12,8 +12,8 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
 ├── name: str                                         ├── errors_reported: int ← >= 0
 ├── knowledge: KnowledgeBase                          ├── incidents_created: int ← >= 0 et <= errors_reported
 ├── officials: Officials                              ├── feai: list[str]      ← format (PREFIXE-)?INC\d{9}, sans doublon
-├── billing_code: str | None                          ├── handled: bool
-└── daily_activities: dict[date, DailyActivity]       └── completed: bool      ← completed ⇒ handled
+├── billing_code: str | None                          ├── status: DayStatus    ← pending | completed | ko
+└── daily_activities: dict[date, DailyActivity]       └── ko_reason: str | None ← motif, uniquement si status = ko
      └── clé = jour → une seule activité par jour
 ```
 
@@ -33,7 +33,16 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
   lettres (`^(?:[A-Z]{2,5}-)?INC\d{9}$`, ex. `INC000000001` ou `FE-INC000000001`), aucun doublon. La saisie
   tolère une espace, un slash ou un préfixe collé au code ; la forme stockée porte toujours le tiret.
 - Une seule `DailyActivity` par `ScopeMonitoring` et par jour.
-- `mark_completed()` force `handled = True` (`completed` ⇒ `handled`).
+- `status` est un **enum fermé à trois valeurs** (`DayStatus`) et non deux drapeaux : l'ancien couple
+  `handled` + `completed` était toujours égal en production, et ajouter `ko` à côté aurait produit quatre
+  états dont un interdit — « terminée et KO » — garanti par rien. L'énumération rend cette combinaison
+  non exprimable au lieu de la laisser à désamorcer. `apply_status(status, *, ko_reason=None)` est le seul
+  point d'écriture.
+- `status = ko` signifie « cette journée a été regardée et n'a pas pu être traitée pour un problème
+  technique ». Ce n'est **pas** « non traité » : c'est précisément ce qui la sort du bandeau des non traités.
+- `ko_reason` n'existe que sur un jour KO. `apply_status()` **refuse** un motif fourni pour un autre statut
+  (`InvalidKoReasonError`) plutôt que de l'ignorer, et le complète d'une journée efface le motif de la
+  ligne — l'information survit dans `audit_log.changes`, ce qui est précisément quand on la consultera.
 - Un `ScopeMonitoring` **créé** porte un `billing_code` non vide, de format libre : c'est
   `ScopeMonitoring.create()` qui l'exige, via `EmptyBillingCodeError`. Le constructeur direct, que les
   repositories utilisent pour réhydrater, accepte l'absence : le champ a été introduit après les
@@ -51,7 +60,7 @@ Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
 | ------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup, billing_code)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté.               |
 | `CreateDailyActivityUseCase`   | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`.                                               |
-| `CompleteDailyActivityUseCase` | `CompleteDailyActivityCommand(scope_id, days)`                                          | Marque `completed` (et `handled`) pour une ou plusieurs journées d'un périmètre ; jour sans activité ⇒ `DailyActivityNotFoundError`. |
+| `SetActivitiesStatusUseCase` | `SetActivitiesStatusCommand(scope_id, days, status, ko_reason=None)`                  | Fixe le statut d'une ou plusieurs journées. **Une journée peut être signalée KO sans saisie, pas être terminée sans** : le KO crée la ligne à compteurs nuls, `completed` sur un jour absent ⇒ `DailyActivityNotFoundError`. |
 | `UpdateDailyActivityUseCase`   | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués.                                               |
 | `UpdateScopeNoteUseCase`       | `UpdateScopeNoteCommand(scope_id, note)`                                                 | Remplace la note libre du périmètre (texte blanc ⇒ `None`) ; écriture ciblée, sans toucher aux activités.                            |
 
@@ -191,7 +200,7 @@ make project-admin ARGS="list-admins protab"             # dans le conteneur api
 | `POST /scope-monitorings`                                                                                   | `[{name, knowledge_base_id, official_main, official_backup, billing_code}]`                               | `201 {ids: [...]}`                                                         | `409` nom existant, `400` validation domaine                               |
 | `POST /scope-monitorings/import-csv`                                                                        | multipart, champ `csv_file`                                                                 | `201 {ids: [...]}`                                                         | `400` CSV invalide ou ligne non conforme                                   |
 | `POST /scope-monitorings/{id}/activities`                                                                   | `{day, errors_reported, incidents_created, feai}`                                           | `201`                                                                      | `404` périmètre inconnu, `409` jour déjà enregistré, `400` invariant violé |
-| `POST /scope-monitorings/{id}/activities/complete`                                                          | `{days: ["YYYY-MM-DD"]}`                                                                    | `204`                                                                      | `404` périmètre ou jour inconnu                                            |
+| `PATCH /scope-monitorings/{id}/activities/status`                                                           | `{days, status, ko_reason?}`                                                                | `204`                                                                      | `404` périmètre ou jour inconnu · `422` motif hors KO, motif trop long, statut inconnu |
 | `PATCH /scope-monitorings/{id}/activities/{day}`                                                            | `{errors_reported, incidents_created, feai}`                                                | `204`                                                                      | `404` périmètre ou jour inconnu, `400` invariant violé                     |
 | `GET /scope-monitorings`                                                                                    | —                                                                                           | `200` liste des périmètres (id, name, knowledge, officials, activities)    | —                                                                          |
 | `PATCH /scope-monitorings/{id}`                                                                              | `{note}` (2000 caractères max)                                                              | `204`                                                                      | `404` périmètre inconnu, `422` note trop longue                           |
@@ -227,14 +236,19 @@ L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables 
 `scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`,
 `billing_code` **nullable**) et
 `daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
-`feai TEXT[]`, `handled`, `completed`). Le schéma est créé de façon **idempotente au démarrage**
+`feai TEXT[]`, `status`, `ko_reason`). Le schéma est créé de façon **idempotente au démarrage**
 (`CREATE TABLE IF NOT EXISTS`, index `scope_monitorings(project_id, name)`, aucun outil de migration).
 L'index couvre le filtrage par projet et l'ordre par nom des listes de périmètres. Les contraintes DB
 (nom unique, jour unique) traduisent les erreurs en exceptions de domaine (→ `409`).
 
 L'écriture d'une activité est **ciblée** : `insert_daily_activity`, `update_daily_activity` et
-`mark_activities_completed` ne touchent que les lignes nommées, et `rowcount == 0` devient
-`DailyActivityNotFoundError`. `save()` **crée** et ne réécrit rien : son insertion est en
+`set_activities_status` ne touchent que les lignes nommées, et `rowcount == 0` devient
+`DailyActivityNotFoundError`. `set_activities_status` est le seul upsert du dépôt, et la clause
+`ON CONFLICT DO UPDATE` y est légitime : elle ne réécrit que `status` et `ko_reason` de lignes nommées,
+jamais des compteurs qu'un appelant n'a pas relus — c'était l'objection qui a retiré la clause de
+`save()`. Sa conséquence est que `rowcount` ne distingue plus un jour absent d'un jour mis à jour, donc
+**le refus de terminer un jour inexistant vit dans le use case**, pas dans l'adapter.
+`save()` **crée** et ne réécrit rien : son insertion est en
 `ON CONFLICT (id) DO NOTHING`, donc un id déjà pris lève `ScopeMonitoringAlreadyExistsError` (`409`)
 avant toute écriture. Les deux adapters sont d'ailleurs interchangeables, pas seulement compatibles :
 l'in-memory refuse les mêmes collisions avec les mêmes exceptions. Comme

@@ -10,11 +10,13 @@ import {
   Users,
   CheckSquare,
   Clock,
+  OctagonX,
   RefreshCw,
   Tag,
   FileCheck2,
   AlertTriangle,
 } from 'lucide-react';
+import { isCompleted, isKo, type DayStatus } from '../constants/dayStatus';
 import { DailyActivity, ScopeMonitoring } from '../types';
 import { protabApi, ApiError } from '../services/api';
 import { Badge } from '../components/Badge';
@@ -27,6 +29,7 @@ import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
 import { TodayActivityEditor } from '../components/TodayActivityEditor';
 import { ScopeNoteCard } from '../components/ScopeNoteCard';
 import { DateNavigator } from '../components/DateNavigator';
+import { DayStatusPanel } from '../components/DayStatusPanel';
 import { useToast } from '../hooks/useToast';
 
 const ScopeDetailCharts = lazy(() =>
@@ -72,6 +75,32 @@ export function ScopeDetailPage() {
     });
   };
 
+  // Le statut n'est pas rechargé : `fetchScopeDetail` remettrait `isLoading` à
+  // vrai et effacerait le jour sélectionné. Le panneau renvoie ce qu'il a
+  // enregistré, donc l'état local et l'écran restent d'accord.
+  const handleDayStatusChanged = (
+    day: string,
+    status: DayStatus,
+    koReason: string | null,
+  ) => {
+    setScope((prev) => {
+      if (!prev) return prev;
+      const existing = prev.daily_activities.find((a) => a.day === day);
+      const others = prev.daily_activities.filter((a) => a.day !== day);
+      const updated: DailyActivity = existing
+        ? { ...existing, status, ko_reason: koReason }
+        : {
+            day,
+            errors_reported: 0,
+            incidents_created: 0,
+            feai: [],
+            status,
+            ko_reason: koReason,
+          };
+      return { ...prev, daily_activities: [...others, updated] };
+    });
+  };
+
   const handleNoteSaved = (note: string | null) => {
     // La carte renvoie la note enregistrée : la page se met à jour sans
     // recharger le détail, sinon le changement de jour en cours serait perdu.
@@ -113,7 +142,7 @@ export function ScopeDetailPage() {
   }, [sortedActivities]);
 
   const uncompletedDays = useMemo(() => {
-    return sortedActivities.filter((a) => !a.completed).map((a) => a.day);
+    return sortedActivities.filter((a) => !isCompleted(a.status)).map((a) => a.day);
   }, [sortedActivities]);
 
   // Statistiques de synthèse
@@ -130,7 +159,11 @@ export function ScopeDetailPage() {
   }, [sortedActivities]);
 
   const completedActivitiesCount = useMemo(() => {
-    return sortedActivities.filter((a) => a.completed).length;
+    return sortedActivities.filter((a) => isCompleted(a.status)).length;
+  }, [sortedActivities]);
+
+  const koActivitiesCount = useMemo(() => {
+    return sortedActivities.filter((a) => isKo(a.status)).length;
   }, [sortedActivities]);
 
   const handleOpenCreateActivity = () => {
@@ -175,7 +208,10 @@ export function ScopeDetailPage() {
     if (!id || selectedDayCheckboxes.length === 0) return;
     setIsCompletingBatch(true);
     try {
-      await protabApi.completeActivities(id, { days: selectedDayCheckboxes });
+      await protabApi.setActivitiesStatus(id, {
+        days: selectedDayCheckboxes,
+        status: "completed",
+      });
       success(
         'Journées complétées !',
         `${selectedDayCheckboxes.length} journée(s) marquée(s) comme terminée(s).`
@@ -190,6 +226,8 @@ export function ScopeDetailPage() {
   };
 
   const hasActivityToday = existingDays.includes(todayIso);
+  const todayStatus: DayStatus =
+    scope?.daily_activities.find((a) => a.day === todayIso)?.status ?? "pending";
 
   if (isLoading) {
     return (
@@ -326,7 +364,12 @@ export function ScopeDetailPage() {
             <span className="text-xs text-slate-500 dark:text-nord-4 font-medium block mb-1">
               Statut du jour ({todayIso})
             </span>
-            {hasActivityToday ? (
+            {todayStatus === "ko" ? (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 dark:text-nord-11 bg-rose-100/60 dark:bg-nord-11/20 px-2 py-0.5 rounded">
+                <OctagonX className="w-3.5 h-3.5 text-rose-600 dark:text-nord-11" />
+                Journée KO
+              </span>
+            ) : hasActivityToday ? (
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-nord-14 bg-emerald-100/60 dark:bg-nord-14/20 px-2 py-0.5 rounded">
                 <FileCheck2 className="w-3.5 h-3.5 text-emerald-600 dark:text-nord-14" />
                 Activité saisie
@@ -346,6 +389,11 @@ export function ScopeDetailPage() {
             <p className="text-sm font-semibold text-slate-900 dark:text-nord-6">
               {completedActivitiesCount} / {sortedActivities.length} terminée(s)
             </p>
+            {koActivitiesCount > 0 && (
+              <p className="text-xs text-rose-600 dark:text-nord-11">
+                dont {koActivitiesCount} journée(s) signalée(s) KO
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -375,6 +423,15 @@ export function ScopeDetailPage() {
             onChange={setEditorDay}
           />
         </div>
+
+        <DayStatusPanel
+          key={editorDay}
+          scopeId={scope.id}
+          day={editorDay}
+          status={editorActivity?.status ?? "pending"}
+          koReason={editorActivity?.ko_reason ?? null}
+          onChanged={handleDayStatusChanged}
+        />
 
         <TodayActivityEditor
           key={editorDay}
@@ -528,7 +585,7 @@ export function ScopeDetailPage() {
                       >
                         {/* Checkbox de sélection pour complétion */}
                         <td className="px-4 py-3.5 text-center">
-                          {!activity.completed ? (
+                          {!isCompleted(activity.status) ? (
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -605,19 +662,20 @@ export function ScopeDetailPage() {
                           )}
                         </td>
 
-                        {/* Badges Handled & Completed */}
+                        {/* Statut de la journée, et son motif s'il y en a un */}
                         <td className="px-4 py-3.5 text-center">
-                          <div className="inline-flex flex-wrap justify-center gap-1.5">
-                            {activity.completed ? (
+                          <div className="inline-flex flex-col items-center gap-1.5">
+                            {isCompleted(activity.status) ? (
                               <Badge type="completed" label="Terminé" />
+                            ) : isKo(activity.status) ? (
+                              <Badge type="ko" label="KO" />
                             ) : (
                               <Badge type="in_progress" label="En cours" />
                             )}
-
-                            {activity.handled ? (
-                              <Badge type="handled" label="Traité" />
-                            ) : (
-                              <span className="text-xs text-slate-400 dark:text-nord-3 italic">Non traité</span>
+                            {activity.ko_reason && (
+                              <span className="max-w-48 text-xs text-slate-500 dark:text-nord-4">
+                                {activity.ko_reason}
+                              </span>
                             )}
                           </div>
                         </td>
@@ -636,15 +694,16 @@ export function ScopeDetailPage() {
                               <Edit2 className="w-4 h-4" />
                             </button>
 
-                            {/* Compléter l'activité individuellement (POST complete) */}
-                            {!activity.completed && (
+                            {/* Compléter l'activité individuellement (PATCH status) */}
+                            {!isCompleted(activity.status) && (
                               <button
                                 type="button"
                                 onClick={async () => {
                                   if (!id) return;
                                   try {
-                                    await protabApi.completeActivities(id, {
+                                    await protabApi.setActivitiesStatus(id, {
                                       days: [activity.day],
+                                      status: "completed",
                                     });
                                     success('Activité complétée', `Journée du ${activity.day} validée.`);
                                     fetchScopeDetail();

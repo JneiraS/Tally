@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import date
 
+from protab.domain.entities.day_status import DayStatus
+
 
 @dataclass(frozen=True)
 class UpdateDailyActivityCommand:
@@ -21,6 +23,8 @@ class CreateDailyActivityCommand:
 
 
 @dataclass(frozen=True)
-class CompleteDailyActivityCommand:
+class SetActivitiesStatusCommand:
     scope_id: str
     days: list[date]
+    status: DayStatus
+    ko_reason: str | None = None

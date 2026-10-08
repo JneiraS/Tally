@@ -1094,13 +1094,35 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   de fusionner. L'ancien `ON CONFLICT DO UPDATE` + `DELETE` des activités attendait là un cas
   d'usage qui mute un périmètre existant : cet usage est interdit, car il réécrit des jours qu'il
   n'a pas relus après une édition concurrente. Les mutations passent donc par des écritures ciblées du
-  port — `insert_daily_activity`, `update_daily_activity`, `mark_activities_completed`, `update_note` —
+  port — `insert_daily_activity`, `update_daily_activity`, `set_activities_status`, `update_note` —
   chacune ne touchant que les lignes nommées, avec `rowcount == 0` traduit en
   `DailyActivityNotFoundError` ou `ScopeMonitoringNotFoundError`. Le refus a supprimé le cas
   particulier de la note (§28.1) : il n'y a plus de `DO UPDATE` auquel il faille l'exclure, donc plus
   d'asymétrie à documenter. Verrouillé par `test_save_refuses_an_existing_scope`,
   `test_a_refused_save_leaves_a_concurrent_note_intact` et
   `tests/unit/adapters/scope_monitoring_repository_save_test.py`.
+- **`set_activities_status` est le seul upsert du dépôt, et le seul endroit où un `ON CONFLICT DO UPDATE`
+  est légitime.** La clause n'y réécrit que `status` et `ko_reason` de lignes nommées : elle ne fusionne
+  jamais des compteurs qu'un appelant n'a pas relus, ce qui était l'objection qui a retiré la clause de
+  `save()`. Un jour sans ligne est créé **à compteurs nuls**, sans quoi le KO serait inatteignable là où
+  il est utile — une journée que personne n'a pu traiter. Conséquence à tenir : **`rowcount` ne distingue
+  plus un jour absent d'un jour mis à jour** (PostgreSQL compte un `UPDATE` même sans changement), donc le
+  refus de terminer un jour inexistant **vit dans le use case** (`SetActivitiesStatusUseCase`), pas dans
+  l'adapter. Verrouillé par `test_set_activities_status_creates_a_missing_day_at_zero` et
+  `test_complete_unknown_day_does_not_partially_persist`.
+- **`daily_activities.status` remplace deux booléens, `handled` et `completed`.** Une seule colonne
+  `TEXT` à trois valeurs (`pending` / `completed` / `ko`), plus `ko_reason`. Les deux drapeaux étaient
+  **toujours égaux** en production — le seul écrivain faisait les deux dans le même `SET` — donc rien n'est
+  perdu en les supprimant. Ajouter `ko` à côté aurait produit quatre états dont un **interdit**
+  (« terminée et KO ») et garanti par rien, c'est-à-dire exactement le piège absorbé en silence de
+  `incidents ⊆ erreurs` ci-dessous. L'énumération rend la combinaison non exprimable.
+  La migration est un `ADD COLUMN IF NOT EXISTS` + `UPDATE` de backfill + `DROP COLUMN`, le tout dans un
+  **`DO $$` gardé sur l'existence de `completed`** : sans ce garde, le **premier redémarrage** échoue,
+  car le deuxième démarrage lit une colonne que le premier a supprimée — une migration qui ne marche
+  qu'une fois casse tous les déploiement suivant sa mise à niveau. **Aucun `CHECK`** sur `status` : même
+  piège que `billing_code`, un `ALTER TABLE ADD CONSTRAINT` bloquerait le démarrage sur une ligne écrite
+  à la main. Verrouillé par `test_the_status_migration_carries_completed_days_over` et
+  `test_the_status_migration_is_idempotent`.
 - **`scope_monitorings.note` est un texte libre nullable, et la première route qui modifie un périmètre.**
   `PATCH /scope-monitorings/{id}` avec `{note}` ne touche qu'à elle — ni `name`, ni `billing_code`, ni les
   activités. La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
@@ -1110,6 +1132,19 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   ligne dégénérée viderait la liste des périmètres, cf. `billing_code` ci-dessus), la validation est un
   invariant d'écriture. Une note blanche est normalisée en `None` partout — domaine, API et TypeScript
   (`ScopeMonitoring.note` : `string | null`) — donc « pas de note » n'a qu'un état, pas deux.
+- **`daily_activities.ko_reason` est un texte libre nullable, qui n'existe que sur un jour KO.** La borne
+  `KO_REASON_MAX_LENGTH = 500` est déclarée **dans le domaine** et reprise par le schéma Pydantic, comme
+  `NOTE_MAX_LENGTH`. **Trois portes, dont deux à contre-courant**, et c'est délibéré :
+  - *écriture* — `DailyActivity.apply_status()` **refuse** un motif fourni pour un statut ≠ `ko`
+    (`InvalidKoReasonError`). L'ignorer silencieusement laisserait l'appelant croire le motif enregistré.
+    Le schéma `SetStatusRequest` refuse la même chose en `422` pour les appelants HTTP ;
+  - *relecture* — `__post_init__` **normalise sans refuser** (motif résiduel sur un jour terminé ⇒ `None`).
+    Le constructeur est le chemin de réhydratation des deux adapters ; une ligne dégénérée qui lèverait
+    viderait la liste des périmètres de l'instance. Même arbitrage que `billing_code` et `from_raw()` ;
+  - *effacement* — compléter une journée KO **efface le motif de la ligne**, sinon une journée terminée
+    porterait un motif de blocage, soit deux états pour une chose. L'information n'est pas perdue : elle
+    est dans `audit_log.changes`, ce qui est précisément le moment où on la consultera. Verrouillé par
+    `test_the_reason_a_completion_erased_stays_in_the_audit_trail`.
 - **`daily_activities` n'a pas de `project_id`**, la tenancy passe par `scope_monitorings`. Les écritures
   ciblées sur un périmètre joignent donc `scope_monitorings` et filtrent `s.project_id` ; l'insert est en
   plus conditionné à l'existence du périmètre dans le projet courant, sans quoi la clé étrangère
@@ -1435,6 +1470,35 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   de l'afficher. Le bandeau « N périmètres non traités » du dernier jour ouvré l'emporte : il nomme les
   périmètres concernés et filtre la liste sur eux, la notice « aucune saisie » n'est qu'un repli. Deux
   `role="status"` simultanés rendraient l'un des deux inatteignable.
+- **Un jour KO est traité, et cette définition est dans `constants/dayStatus.ts`.** `isHandled(status)`
+  vaut vrai pour `completed` **et** pour `ko`, et c'est la seule ligne à écrire pour l'obtenir. Le
+  prédicat des non traités (`ScopeListPage.tsx:102`) et le filtre « à traiter » l'utilisent : sans cette
+  exception, un périmètre bloqué par une panne remonterait chaque matin, indéfiniment, sans qu'aucun
+  travail reste à faire — le statut n'aurait alors aucune utilité. Verrouillé par
+  `ne compte pas une journée KO parmi les périmètres non traités`.
+- **Le statut est écrit par `DayStatusPanel`, dans l'en-tête de la carte « Activité du jour », jamais dans
+  `TodayActivityEditor`.** L'éditeur fait un autosave à 800 ms : lui faire porter un clic sur « Signaler
+  un KO » mettrait deux mécanismes d'écriture en concurrence sur la même ligne. Le motif est un
+  **brouillon**, comme la note du périmètre — un autosave enverrait un `PATCH` par frappe, donc un
+  événement d'audit par caractère tapé. Le panneau ne recharge rien : il renvoie le statut enregistré et
+  le parent met à jour `scope.daily_activities` en place, sinon le `fetchScopeDetail` effacerait le jour
+  sélectionné.
+- **Les éditeurs relisent le statut dans un ref, pas dans la prop de montage.** `TodayActivityEditor` et
+  `InlineActivityCounters` émettent l'objet `DailyActivity` vers `onChanged` ; le statut est écrit par une
+  autre action, il peut donc changer entre deux sauvegardes sans remontage. Une closure de montage
+  émettrait une valeur périmée, et comme rien ne recharge la page, l'écran mentirait sur la base. D'où le
+  `dayStatusRef` resynchronisé par un effet.
+- **`/analyse` exclut les jours KO de ses chiffres, et en contrepartie les compte.** Sans l'exclusion,
+  une journée KO à compteurs nuls compterait comme une saisie dans `sumByLabel`, `traitees`,
+  `coverageRate` et les cellules de la heatmap — donc **améliorerait artificiellement le taux de
+  couverture** tout en aplatissant la courbe d'erreurs. La contrepartie est obligatoire :
+  `PeriodSummary.joursKo` compte ces journées, sinon la couverture chuterait sans que rien n'explique
+  pourquoi. Le filtre KO vit dans `measuredActivitiesIn` (`utils/kpi.ts`), un seul endroit, pas dans
+  chaque appelant qui réadditionne des cellules.
+- **L'export CSV ajoute `Statut` et `Motif KO` en fin de ligne, jamais au milieu.** `traite` et
+  `termine` restent en place et sont dérivés du statut, pour la raison déjà documentée lors de
+  `code_facturation` : un tableur configuré sur un export antérieur doit continuer de viser les bonnes
+  lettres.
 - **`InlineActivityCounters` ne rejoue pas `initialActivity`.** Ses `useState` sont initialisés au
   montage seulement, et `existsRef` (existe-t-il déjà une ligne pour ce jour ?) n'est jamais
   resynchronisé. Sans remontage, changer de jour laisse les compteurs affichés sur la journée précédente
@@ -1678,7 +1742,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 227 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 292 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

@@ -53,7 +53,7 @@ def test_the_port_declares_the_methods_the_application_calls():
         "save",
         "insert_daily_activity",
         "update_daily_activity",
-        "mark_activities_completed",
+        "set_activities_status",
         "update_note",
         "find_by_id",
         "find_by_name",

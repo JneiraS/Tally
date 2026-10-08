@@ -1,7 +1,8 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from protab.domain.entities.day_status import KO_REASON_MAX_LENGTH, DayStatus
 from protab.domain.entities.scope_monitoring import NOTE_MAX_LENGTH
 from protab.domain.value_objects.non_working_days import (
     ISO_WEEKDAY_COUNT,
@@ -25,8 +26,29 @@ class UpdateScopeNoteRequest(BaseModel):
     note: str | None = Field(default=None, max_length=NOTE_MAX_LENGTH)
 
 
-class CompleteRequest(BaseModel):
+class SetStatusRequest(BaseModel):
+    # The bound is the domain's own constant, like the note's: re-declaring it
+    # here would let the two drift, and this is the one entry point where an
+    # oversized reason is refused before it reaches the entity.
     days: list[date] = Field(min_length=1)
+    status: DayStatus
+    ko_reason: str | None = Field(default=None, max_length=KO_REASON_MAX_LENGTH)
+
+    @model_validator(mode="after")
+    def validate_ko_reason(self) -> "SetStatusRequest":
+        # Refused at the boundary rather than only in the entity, so a caller that
+        # does not go through HTTP is not the only one protected: the invariant is
+        # the same, only the layer differs. A blank reason is no reason, so it is
+        # normalised away instead of being turned into an error the domain would
+        # have accepted.
+        if self.ko_reason is not None and self.status is not DayStatus.KO:
+            raise ValueError(
+                "ko_reason ne peut être fourni que pour une journée KO, pas pour "
+                f"le statut {self.status.value!r}."
+            )
+        if self.ko_reason is not None and not self.ko_reason.strip():
+            self.ko_reason = None
+        return self
 
 
 class UpdateRequest(BaseModel):
@@ -98,8 +120,8 @@ class ActivityResponse(BaseModel):
     errors_reported: int
     incidents_created: int
     feai: list[str]
-    handled: bool
-    completed: bool
+    status: DayStatus
+    ko_reason: str | None
 
 
 class ScopeResponse(BaseModel):

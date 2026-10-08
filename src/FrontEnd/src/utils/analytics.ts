@@ -1,13 +1,16 @@
-import { NonWorkingDays, ScopeMonitoring } from "../types";
+import { isKo } from "../constants/dayStatus";
 import {
   DEFAULT_NON_WORKING_DAYS,
   toMondayFirstIndex,
 } from "../constants/nonWorkingDays";
+import { NonWorkingDays, ScopeMonitoring } from "../types";
 import { addDaysIso, isValidIsoDate } from "./date";
 import {
+  countKoDays,
   coverageRate,
   isWorkingDay,
   lastWorkingDays,
+  measuredActivitiesIn,
   transformationRate,
   trailingErrors,
 } from "./kpi";
@@ -59,6 +62,15 @@ export interface PeriodSummary {
   couverture: number;
   /** Cellules effectivement saisies, tous périmètres confondus. */
   traitees: number;
+  /**
+   * Journées signalées KO sur la période.
+   *
+   * Elles ne comptent ni dans `couverture` ni dans `traitees` — une journée que
+   * personne n'a pu traiter n'est pas une saisie — donc sans ce compteur la
+   * couverture chuterait sans que rien n'explique pourquoi. C'est la
+   * contrepartie obligatoire de l'exclusion.
+   */
+  joursKo: number;
 }
 
 export interface PeriodDelta {
@@ -223,6 +235,9 @@ export function buildErrorHeatmap(
     (scope.daily_activities || []).forEach((activity) => {
       if (!daySet.has(activity.day)) return;
       const column = labelOf(activity.day);
+      // Une cellule KO reste une case vide de la heatmap : elle n'a pas d'erreur à
+      // afficher, et la peindre à 0 se lirait comme « journée sans incident ».
+      if (isKo(activity.status)) return;
       saisiByColumn.add(column);
       errorsByColumn.set(
         column,
@@ -281,7 +296,12 @@ function sumByLabel(
   });
 
   scopes.forEach((scope) => {
+    // Les journées KO sont écartées des sommes : une journée bloquée par une panne
+    // n'a produit aucune mesure, et l'y compter ajouterait des zéros
+    // indiscernables d'une journée réellement sans erreur. Le compteur `joursKo`
+    // du résumé de période dit où elles sont passées.
     (scope.daily_activities || []).forEach((activity) => {
+      if (isKo(activity.status)) return;
       const entry = totals.get(labelOf(activity.day));
       if (!entry) return;
       entry.erreurs += activity.errors_reported;
@@ -311,9 +331,7 @@ export function computePeriodSummary(
 
   const daySet = new Set(days);
   const traitees = scopes.reduce(
-    (acc, scope) =>
-      acc +
-      (scope.daily_activities || []).filter((a) => daySet.has(a.day)).length,
+    (acc, scope) => acc + measuredActivitiesIn(scope, daySet).length,
     0,
   );
 
@@ -326,6 +344,7 @@ export function computePeriodSummary(
     transformation: transformationRate(totals.incidents, totals.erreurs),
     couverture: coverageRate(scopes, days),
     traitees,
+    joursKo: countKoDays(scopes, days),
   };
 }
 

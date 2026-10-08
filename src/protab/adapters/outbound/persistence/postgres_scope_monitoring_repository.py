@@ -7,9 +7,13 @@ The aggregate ``ScopeMonitoring`` is persisted across two tables:
 ``save`` inserts a whole new aggregate inside one transaction and refuses an id
 that is already taken, so it cannot rewrite an existing scope. Mutating one goes
 through the targeted ``insert_daily_activity`` / ``update_daily_activity`` /
-``mark_activities_completed`` / ``update_note`` methods, which touch only the
+``set_activities_status`` / ``update_note`` methods, which touch only the
 rows they name: a full rewrite would persist every day read before the call and
 silently drop a concurrent edit to another day of the same scope.
+
+``set_activities_status`` is the one targeted write that upserts, because
+reporting a day as KO has to work on a day nobody could enter anything on. It
+still rewrites two named columns and nothing else.
 
 ``daily_activities`` carries no ``project_id`` of its own, so every targeted
 write joins ``scope_monitorings`` and filters on the current project without
@@ -27,6 +31,7 @@ from protab.adapters.outbound.persistence.postgres_pool import (
     build_connection_pool,
 )
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
@@ -70,8 +75,8 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         errors_reported INTEGER NOT NULL,
         incidents_created INTEGER NOT NULL,
         feai TEXT[] NOT NULL DEFAULT '{}',
-        handled BOOLEAN NOT NULL DEFAULT FALSE,
-        completed BOOLEAN NOT NULL DEFAULT FALSE,
+        status TEXT NOT NULL DEFAULT 'pending',
+        ko_reason TEXT,
         PRIMARY KEY (scope_id, day)
     )
     """,
@@ -121,13 +126,13 @@ _SCOPE_SELECT = (
 )
 
 _ACTIVITIES_SELECT = (
-    "SELECT day, errors_reported, incidents_created, feai, handled, completed "
+    "SELECT day, errors_reported, incidents_created, feai, status, ko_reason "
     "FROM daily_activities"
 )
 
 _ACTIVITIES_BATCH_SELECT = (
-    "SELECT scope_id, day, errors_reported, incidents_created, feai, handled, completed "
-    "FROM daily_activities"
+    "SELECT scope_id, day, errors_reported, incidents_created, feai, status, "
+    "ko_reason FROM daily_activities"
 )
 
 
@@ -210,6 +215,50 @@ class PostgresScopeMonitoringRepository:
             "CREATE INDEX IF NOT EXISTS idx_scope_monitorings_project_name "
             "ON scope_monitorings (project_id, name)"
         )
+        self._migrate_activity_status(conn)
+
+    @staticmethod
+    def _migrate_activity_status(conn: psycopg.Connection) -> None:
+        """Replace the two completion booleans by the single ``status`` column.
+
+        ``handled`` and ``completed`` were always equal in production — the only
+        writer set both in one statement — so nothing is lost by dropping them
+        once the value has been carried over. The order matters: the backfill
+        reads ``completed`` and must therefore run before the ``DROP``.
+
+        Every step is idempotent, like the rest of the startup schema, and no
+        ``CHECK`` is added on ``status``: a constraint would have to be created by
+        an ``ALTER TABLE`` that fails to start up against a row written by hand,
+        which is the same trap ``billing_code`` avoids by leaving the constraint
+        to the domain.
+
+        The backfill and the drops share one guard on ``completed`` still being
+        there. Without it the very first restart would fail — the second start
+        reads a column the first start dropped — so a migration that only works
+        once is a migration that breaks every deployment after its upgrade.
+        """
+        conn.execute(
+            "ALTER TABLE daily_activities "
+            "ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending'"
+        )
+        conn.execute(
+            "ALTER TABLE daily_activities ADD COLUMN IF NOT EXISTS ko_reason TEXT"
+        )
+        conn.execute(
+            "DO $$\n"
+            "BEGIN\n"
+            "    IF EXISTS (\n"
+            "        SELECT 1 FROM information_schema.columns\n"
+            "        WHERE table_name = 'daily_activities'\n"
+            "          AND column_name = 'completed'\n"
+            "    ) THEN\n"
+            "        UPDATE daily_activities SET status = 'completed'\n"
+            "        WHERE completed AND status = 'pending';\n"
+            "        ALTER TABLE daily_activities DROP COLUMN IF EXISTS handled;\n"
+            "        ALTER TABLE daily_activities DROP COLUMN IF EXISTS completed;\n"
+            "    END IF;\n"
+            "END $$"
+        )
 
     @staticmethod
     def _scope_from_row(
@@ -241,10 +290,17 @@ class PostgresScopeMonitoringRepository:
                 errors_reported=errors_reported,
                 incidents_created=incidents_created,
                 feai=feai,
-                handled=handled,
-                completed=completed,
+                status=DayStatus.from_raw(status),
+                ko_reason=ko_reason,
             )
-            for day, errors_reported, incidents_created, feai, handled, completed in rows
+            for (
+                day,
+                errors_reported,
+                incidents_created,
+                feai,
+                status,
+                ko_reason,
+            ) in rows
         }
 
     def _load_activities_batched(
@@ -266,16 +322,16 @@ class PostgresScopeMonitoringRepository:
             errors_reported,
             incidents_created,
             feai,
-            handled,
-            completed,
+            status,
+            ko_reason,
         ) in rows:
             activities_by_scope[scope_id][day] = DailyActivity(
                 day=day,
                 errors_reported=errors_reported,
                 incidents_created=incidents_created,
                 feai=feai,
-                handled=handled,
-                completed=completed,
+                status=DayStatus.from_raw(status),
+                ko_reason=ko_reason,
             )
         return activities_by_scope
 
@@ -314,7 +370,7 @@ class PostgresScopeMonitoringRepository:
                     for activity in scope.daily_activities.values():
                         conn.execute(
                             f"""
-                            INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, handled, completed"})
+                            INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, status, ko_reason"})
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
                             """,
                             (
@@ -323,8 +379,8 @@ class PostgresScopeMonitoringRepository:
                                 activity.errors_reported,
                                 activity.incidents_created,
                                 activity.feai,
-                                activity.handled,
-                                activity.completed,
+                                activity.status.value,
+                                activity.ko_reason,
                             ),
                         )
             except psycopg.errors.UniqueViolation as exc:
@@ -353,7 +409,7 @@ class PostgresScopeMonitoringRepository:
                     # visible in the current project.
                     cursor = conn.execute(
                         f"""
-                        INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, handled, completed"})
+                        INSERT INTO daily_activities ({"scope_id, day, errors_reported, incidents_created, feai, status, ko_reason"})
                         SELECT %s, %s, %s, %s, %s, %s, %s
                         WHERE EXISTS (
                             SELECT 1 FROM scope_monitorings
@@ -366,8 +422,8 @@ class PostgresScopeMonitoringRepository:
                             activity.errors_reported,
                             activity.incidents_created,
                             activity.feai,
-                            activity.handled,
-                            activity.completed,
+                            activity.status.value,
+                            activity.ko_reason,
                             scope_id,
                             project_id,
                         ),
@@ -409,24 +465,62 @@ class PostgresScopeMonitoringRepository:
                     f"No DailyActivity for day {activity.day!r} on scope {scope_id!r}."
                 )
 
-    def mark_activities_completed(self, scope_id: str, days: list[date]) -> None:
+    def set_activities_status(
+        self,
+        scope_id: str,
+        days: list[date],
+        status: DayStatus,
+        *,
+        ko_reason: str | None = None,
+    ) -> None:
         project_id = require_current_project()
+        wanted = list(dict.fromkeys(days))
+        if not wanted:
+            raise ValueError("set_activities_status requires at least one day.")
         with self._pool.connection() as conn, conn.transaction():
+            # ``ON CONFLICT DO UPDATE`` belongs here and not on ``save``, because
+            # this statement rewrites two named columns of named rows and nothing
+            # else: it never merges counters a caller has not re-read, which was
+            # the objection that removed the clause from ``save``. A day that has
+            # no row yet is created with zeroed counters, which is what lets a day
+            # be reported as KO without anybody having entered anything.
             cursor = conn.execute(
                 """
-                UPDATE daily_activities AS a
-                SET handled = TRUE, completed = TRUE
-                FROM scope_monitorings AS s
-                WHERE a.scope_id = s.id
-                  AND s.project_id = %s
-                  AND a.scope_id = %s
-                  AND a.day = ANY(%s)
+                INSERT INTO daily_activities
+                    (scope_id, day, errors_reported, incidents_created, feai,
+                     status, ko_reason)
+                SELECT %s, requested.day, 0, 0, '{}', %s, %s
+                FROM unnest(%s::date[]) AS requested(day)
+                WHERE EXISTS (
+                    SELECT 1 FROM scope_monitorings
+                    WHERE id = %s AND project_id = %s
+                )
+                ON CONFLICT (scope_id, day) DO UPDATE
+                    SET status = EXCLUDED.status, ko_reason = EXCLUDED.ko_reason
                 """,
-                (project_id, scope_id, list(days)),
+                (
+                    scope_id,
+                    status.value,
+                    ko_reason,
+                    wanted,
+                    scope_id,
+                    project_id,
+                ),
             )
-            if cursor.rowcount != len(set(days)):
-                raise DailyActivityNotFoundError(
-                    f"No DailyActivity for every requested day on scope {scope_id!r}."
+            if cursor.rowcount == 0:
+                # The scope is the only thing that can make the whole SELECT
+                # produce nothing — the gate is on the statement, not per row. The
+                # separate lookup exists only to tell a foreign scope from an
+                # empty day list, which now raises above; without it the message
+                # would name the wrong cause.
+                visible = conn.execute(
+                    "SELECT 1 FROM scope_monitorings WHERE id = %s AND project_id = %s",
+                    (scope_id, project_id),
+                ).fetchone()
+                raise ScopeMonitoringNotFoundError(
+                    f"ScopeMonitoring {scope_id!r} not found."
+                    if visible is None
+                    else f"ScopeMonitoring {scope_id!r} received no day to update."
                 )
 
     def update_note(self, scope_id: str, note: str | None) -> None:

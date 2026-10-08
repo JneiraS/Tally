@@ -10,6 +10,7 @@ from protab.application.use_cases.create_daily_activity import (
     CreateDailyActivityUseCase,
 )
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
@@ -62,8 +63,8 @@ def test_create_daily_activity():
     assert activity.errors_reported == 2
     assert activity.incidents_created == 1
     assert activity.feai == ["INC000000001"]
-    assert activity.handled is False
-    assert activity.completed is False
+    assert activity.status is DayStatus.PENDING
+    assert activity.ko_reason is None
 
 
 def test_create_inserts_a_single_row_instead_of_rewriting_the_scope():

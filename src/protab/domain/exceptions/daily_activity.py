@@ -21,10 +21,20 @@ class DuplicateFeaiReferenceError(DomainError):
     """Raised when a FEAI reference is duplicated within the same activity."""
 
 
+class InvalidKoReasonError(DomainError):
+    """Raised when a KO reason is given for a day that is not marked as KO."""
+
+
+class KoReasonTooLongError(DomainError):
+    """Raised when a KO reason exceeds the domain's own bound."""
+
+
 __all__ = [
     "NegativeErrorsCountError",
     "NegativeIncidentsCountError",
     "IncidentsExceedErrorsError",
     "InvalidFeaiReferenceError",
     "DuplicateFeaiReferenceError",
+    "InvalidKoReasonError",
+    "KoReasonTooLongError",
 ]

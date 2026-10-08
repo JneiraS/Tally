@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ShieldCheck, CheckSquare, Square, AlertCircle } from 'lucide-react';
 import { Modal } from './Modal';
+import { isCompleted } from '../constants/dayStatus';
 import { CHECKBOX_CLASS } from '../constants/ui';
 import { DailyActivity } from '../types';
 import { formatDateFr } from '../utils/date';
@@ -26,7 +27,7 @@ export function CompleteActivitiesModal({
 }: CompleteActivitiesModalProps) {
   const { success, error: toastError } = useToast();
   // Filtrer uniquement les journées non encore complétées
-  const uncompletedActivities = activities.filter((a) => !a.completed);
+  const uncompletedActivities = activities.filter((a) => !isCompleted(a.status));
 
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,7 +58,10 @@ export function CompleteActivitiesModal({
     setErrorMessage(null);
 
     try {
-      await protabApi.completeActivities(scopeId, { days: selectedDays });
+      await protabApi.setActivitiesStatus(scopeId, {
+        days: selectedDays,
+        status: "completed",
+      });
       success(
         'Journées marquées comme terminées !',
         `${selectedDays.length} journée(s) d'activité validée(s) pour ${scopeName}.`
@@ -82,7 +86,7 @@ export function CompleteActivitiesModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Compléter des journées d'activité"
-      subtitle={`Périmètre : ${scopeName} (POST /scope-monitorings/{id}/activities/complete)`}
+      subtitle={`Périmètre : ${scopeName} (PATCH /scope-monitorings/{id}/activities/status)`}
       maxWidth="md"
     >
       <form onSubmit={handleSubmit} className="space-y-4">

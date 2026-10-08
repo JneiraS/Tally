@@ -151,9 +151,9 @@ def test_activity_flow_records_audit_via_api(env):
 
     # Complétion d'un jour
     assert (
-        http.post(
-            "/scope-monitorings/scope-001/activities/complete",
-            json={"days": ["2026-09-19"]},
+        http.patch(
+            "/scope-monitorings/scope-001/activities/status",
+            json={"days": ["2026-09-19"], "status": "completed"},
         ).status_code
         == 204
     )

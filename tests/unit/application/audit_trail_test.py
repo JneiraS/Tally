@@ -13,13 +13,13 @@ from protab.application.commands.create_scope_monitoring import (
     CreateScopeMonitoringCommand,
 )
 from protab.application.commands.daily_activity import (
-    CompleteDailyActivityCommand,
+    SetActivitiesStatusCommand,
     CreateDailyActivityCommand,
     UpdateDailyActivityCommand,
 )
 from protab.application.queries.list_audit_events import ListAuditEventsUseCase
-from protab.application.use_cases.complete_daily_activity import (
-    CompleteDailyActivityUseCase,
+from protab.application.use_cases.set_activities_status import (
+    SetActivitiesStatusUseCase,
 )
 from protab.application.use_cases.create_daily_activity import (
     CreateDailyActivityUseCase,
@@ -31,6 +31,7 @@ from protab.application.use_cases.update_daily_activity import (
     UpdateDailyActivityUseCase,
 )
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import (
     KnowledgeBase,
     Officials,
@@ -184,10 +185,11 @@ def test_complete_activity_records_audit_event_per_day():
     )
     audit = InMemoryAuditTrailRepository()
 
-    CompleteDailyActivityUseCase(repo, audit).execute(
-        CompleteDailyActivityCommand(
+    SetActivitiesStatusUseCase(repo, audit).execute(
+        SetActivitiesStatusCommand(
             scope_id="scope-001",
             days=[date(2026, 9, 19), date(2026, 9, 20)],
+            status=DayStatus.COMPLETED,
         )
     )
 
@@ -198,7 +200,130 @@ def test_complete_activity_records_audit_event_per_day():
         date(2026, 9, 19),
         date(2026, 9, 20),
     }
-    assert events[0].changes["completed"] == {"old": False, "new": True}
+    assert events[0].changes["status"] == {"old": "pending", "new": "completed"}
+
+
+def test_marking_a_ko_records_the_reason_it_erased_completion_kept():
+    repo = make_scope_with_activity()
+    audit = InMemoryAuditTrailRepository()
+
+    SetActivitiesStatusUseCase(repo, audit).execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.KO,
+            ko_reason="Collecteur indisponible",
+        )
+    )
+
+    events = audit.list(AuditEventQuery())
+    assert len(events) == 1
+    assert events[0].action == "activity_ko"
+    assert events[0].changes == {
+        "status": {"old": "pending", "new": "ko"},
+        "ko_reason": {"old": None, "new": "Collecteur indisponible"},
+    }
+
+
+def test_lifting_a_ko_is_audited_as_the_transition_it_is():
+    """``activity_ko`` covers both directions, and ``changes`` disambiguates.
+
+    A separate action name for lifting would give two rows for one couple of
+    values and leave a reader guessing which of them unblocked the day.
+    """
+    repo = make_scope_with_activity()
+    audit = InMemoryAuditTrailRepository()
+    use_case = SetActivitiesStatusUseCase(repo, audit)
+
+    use_case.execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.KO,
+            ko_reason="Collecteur indisponible",
+        )
+    )
+    use_case.execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.PENDING,
+        )
+    )
+
+    events = audit.list(AuditEventQuery())
+    # The trail returns the newest event first, so index 0 is the lift and index 1
+    # the marking — which is also why the assertion is written in that order.
+    assert [event.action for event in events] == ["activity_ko", "activity_ko"]
+    assert events[0].changes == {
+        "status": {"old": "ko", "new": "pending"},
+        "ko_reason": {"old": "Collecteur indisponible", "new": None},
+    }
+    assert events[1].changes == {
+        "status": {"old": "pending", "new": "ko"},
+        "ko_reason": {"old": None, "new": "Collecteur indisponible"},
+    }
+
+
+def test_the_reason_a_completion_erased_stays_in_the_audit_trail():
+    """The KO reason is cleared from the row on completion — the trail keeps it.
+
+    A completed day must not carry a blocking reason, but that is exactly the
+    case where a reader will ask "what happened?", so the information has to
+    survive somewhere.
+    """
+    repo = make_scope_with_activity()
+    audit = InMemoryAuditTrailRepository()
+    use_case = SetActivitiesStatusUseCase(repo, audit)
+
+    use_case.execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.KO,
+            ko_reason="Collecteur indisponible",
+        )
+    )
+    use_case.execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.COMPLETED,
+        )
+    )
+
+    activity = repo.find_by_id("scope-001").daily_activity_for(date(2026, 9, 19))
+    assert activity.ko_reason is None
+    reasons = [
+        event.changes.get("ko_reason", {}).get("old")
+        for event in audit.list(AuditEventQuery())
+    ]
+    assert "Collecteur indisponible" in reasons
+
+
+def test_setting_the_status_it_already_has_records_nothing():
+    repo = make_scope_with_activity()
+    audit = InMemoryAuditTrailRepository()
+
+    SetActivitiesStatusUseCase(repo, audit).execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.KO,
+            ko_reason="Panne",
+        )
+    )
+    SetActivitiesStatusUseCase(repo, audit).execute(
+        SetActivitiesStatusCommand(
+            scope_id="scope-001",
+            days=[date(2026, 9, 19)],
+            status=DayStatus.KO,
+            ko_reason="Panne",
+        )
+    )
+
+    events = audit.list(AuditEventQuery())
+    assert len(events) == 1
 
 
 def test_no_repository_keeps_working_without_audit():

@@ -2,10 +2,13 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
+from protab.domain.entities.day_status import KO_REASON_MAX_LENGTH, DayStatus
 from protab.domain.exceptions import (
     DuplicateFeaiReferenceError,
     IncidentsExceedErrorsError,
     InvalidFeaiReferenceError,
+    InvalidKoReasonError,
+    KoReasonTooLongError,
     NegativeErrorsCountError,
     NegativeIncidentsCountError,
 )
@@ -33,13 +36,20 @@ class DailyActivity:
     errors_reported: int
     incidents_created: int
     feai: list[str]
-    handled: bool = False
-    completed: bool = False
+    status: DayStatus = DayStatus.PENDING
+    ko_reason: str | None = None
 
     def __post_init__(self) -> None:
         self.feai = self._validate(
             self.errors_reported, self.incidents_created, self.feai
         )
+        # Normalisation, pas refus : le constructeur est le chemin de
+        # réhydratation des deux adapters, donc une ligne qui porterait un motif
+        # résiduel alors qu'elle est terminée ne doit pas lever — une seule ligne
+        # dégénérée viderait la liste des périmètres de l'instance. C'est le même
+        # arbitrage que ``billing_code`` et ``NonWorkingDays.from_raw`` ; le refus,
+        # lui, est une invariant d'écriture et vit dans ``apply_status``.
+        self.ko_reason = _normalise_ko_reason(self.status, self.ko_reason)
 
     @staticmethod
     def _validate(
@@ -88,9 +98,38 @@ class DailyActivity:
         self.errors_reported = errors_reported
         self.incidents_created = incidents_created
 
-    def mark_handled(self) -> None:
-        self.handled = True
+    def apply_status(
+        self, status: DayStatus, *, ko_reason: str | None = None
+    ) -> None:
+        """Set the day's status — the only way to write it.
 
-    def mark_completed(self) -> None:
-        self.handled = True
-        self.completed = True
+        A reason belongs to a KO and to nothing else, so providing one for a day
+        that is not KO is refused instead of being dropped: silently ignoring it
+        would let the caller believe the reason was recorded. The counters are
+        never touched here, which is what lets a KO day keep whatever was entered
+        before the problem was discovered, and what makes lifting the KO
+        lossless.
+        """
+        if ko_reason is not None and status is not DayStatus.KO:
+            raise InvalidKoReasonError(
+                "ko_reason can only be set on a KO day, not on "
+                f"{status.value!r}."
+            )
+        if ko_reason is not None and len(ko_reason.strip()) > KO_REASON_MAX_LENGTH:
+            raise KoReasonTooLongError(
+                f"ko_reason must not exceed {KO_REASON_MAX_LENGTH} characters."
+            )
+        self.status = status
+        self.ko_reason = _normalise_ko_reason(status, ko_reason)
+
+
+def _normalise_ko_reason(status: DayStatus, ko_reason: str | None) -> str | None:
+    """Reduce a reason to the one shape a day can hold.
+
+    A blank reason and no reason are the same absence, and a reason attached to a
+    day that is not KO is a contradiction rather than a second state.
+    """
+    if status is not DayStatus.KO or ko_reason is None:
+        return None
+    stripped = ko_reason.strip()
+    return stripped or None

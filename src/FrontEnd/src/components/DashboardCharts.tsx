@@ -9,6 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { isCompleted, isKo } from "../constants/dayStatus";
 import { NonWorkingDays, ScopeMonitoring } from "../types";
 import { formatDateFr, getTodayIsoDate } from "../utils/date";
 import { buildDailyTrend } from "../utils/kpi";
@@ -45,13 +46,18 @@ export function DashboardCharts({
   // Répartition compacte des statuts pour le jour affiché
   const statusSummary = useMemo(() => {
     let completed = 0;
+    let ko = 0;
     let inProgress = 0;
     let none = 0;
 
     scopes.forEach((s) => {
       const activity = s.daily_activities.find((a) => a.day === day);
       if (activity) {
-        if (activity.completed) completed++;
+        // Le KO est son propre segment : le confondre avec « en cours »
+        // afficherait un périmètre bloqué par une panne comme un travail
+        // commencé, alors qu'il ne le sera plus aujourd'hui.
+        if (isCompleted(activity.status)) completed++;
+        else if (isKo(activity.status)) ko++;
         else inProgress++;
       } else {
         none++;
@@ -61,9 +67,11 @@ export function DashboardCharts({
     const total = Math.max(scopes.length, 1);
     return {
       completed,
+      ko,
       inProgress,
       none,
       completedWidth: `${(completed / total) * 100}%`,
+      koWidth: `${(ko / total) * 100}%`,
       inProgressWidth: `${(inProgress / total) * 100}%`,
       noneWidth: `${(none / total) * 100}%`,
     };
@@ -176,13 +184,19 @@ export function DashboardCharts({
             {/* Barre horizontale segmentée */}
             <div
               role="img"
-              aria-label={`${statusSummary.completed} terminés, ${statusSummary.inProgress} en cours, ${statusSummary.none} non saisis`}
+              aria-label={`${statusSummary.completed} terminés, ${statusSummary.ko} KO, ${statusSummary.inProgress} en cours, ${statusSummary.none} non saisis`}
               className="flex h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-nord-0"
             >
               {statusSummary.completed > 0 && (
                 <div
                   className="h-full bg-emerald-600 dark:bg-nord-14"
                   style={{ width: statusSummary.completedWidth }}
+                />
+              )}
+              {statusSummary.ko > 0 && (
+                <div
+                  className="h-full bg-rose-600 dark:bg-nord-11"
+                  style={{ width: statusSummary.koWidth }}
                 />
               )}
               {statusSummary.inProgress > 0 && (
@@ -200,13 +214,21 @@ export function DashboardCharts({
             </div>
 
             {/* Légende textuelle (jamais couleur seule) */}
-            <ul className="grid grid-cols-3 gap-2 text-center">
+            <ul className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <li className="flex flex-col items-center gap-0.5 rounded-lg bg-emerald-50 dark:bg-nord-14/15 p-2">
                 <span className="text-lg font-bold text-emerald-700 dark:text-nord-14">
                   {statusSummary.completed}
                 </span>
                 <span className="text-[11px] font-medium text-emerald-800 dark:text-nord-14 capitalize">
                   Terminés
+                </span>
+              </li>
+              <li className="flex flex-col items-center gap-0.5 rounded-lg bg-rose-50 dark:bg-nord-11/15 p-2">
+                <span className="text-lg font-bold text-rose-700 dark:text-nord-11">
+                  {statusSummary.ko}
+                </span>
+                <span className="text-[11px] font-medium text-rose-800 dark:text-nord-11 capitalize">
+                  KO
                 </span>
               </li>
               <li className="flex flex-col items-center gap-0.5 rounded-lg bg-amber-50 dark:bg-nord-13/15 p-2">

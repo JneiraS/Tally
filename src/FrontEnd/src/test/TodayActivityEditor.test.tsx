@@ -15,8 +15,8 @@ const EXISTING_ACTIVITY: DailyActivity = {
   errors_reported: 4,
   incidents_created: 2,
   feai: ["INC000000001"],
-  handled: false,
-  completed: false,
+  status: "pending",
+  ko_reason: null,
 };
 
 vi.mock("../services/api", async (importOriginal) => {

@@ -43,7 +43,7 @@ describe('AuditLogFilterBar', () => {
     ).toBeInTheDocument();
   });
 
-  it('liste les six actions et rien de plus', () => {
+  it('liste les sept actions et rien de plus', () => {
     setup();
 
     const options = screen.getAllByRole('option').map((o) => o.textContent);
@@ -54,6 +54,7 @@ describe('AuditLogFilterBar', () => {
       "Saisie d'activité",
       "Modification d'activité",
       "Validation d'activité",
+      'Journée signalée KO',
       'Note du périmètre',
     ]);
   });

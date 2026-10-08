@@ -22,7 +22,7 @@ vi.mock('../services/api', async (importOriginal) => {
       getScopeMonitorings: vi.fn(),
       createActivity: vi.fn(),
       updateActivity: vi.fn(),
-      completeActivities: vi.fn(),
+      setActivitiesStatus: vi.fn(),
       checkBackendHealth: vi.fn().mockResolvedValue(true),
     },
   };
@@ -66,8 +66,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 0,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: false,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -90,6 +90,105 @@ describe('ScopeListPage Component', () => {
     expect(screen.getByRole('status')).toHaveTextContent('1 périmètre non traité');
     expect(screen.getByText(/18 sept. 2026/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /voir les 1 périmètres/i })).toBeInTheDocument();
+  });
+
+  it('ne compte pas une journée KO parmi les périmètres non traités', async () => {
+    // C'est l'effet recherché du statut : quelqu'un est passé sur le périmètre,
+    // a constaté la panne et l'a signalée. Le compter comme un travail en
+    // attente le ferait remonter chaque matin, indéfiniment, sans rien à faire.
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      makeScope({
+        id: 'scope-untreated',
+        name: 'Scope non traité',
+        knowledge_base_id: 'KB-UNTREATED',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [],
+      }),
+      makeScope({
+        id: 'scope-ko',
+        name: 'Scope bloqué',
+        knowledge_base_id: 'KB-KO',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [
+          {
+            day: '2026-09-18',
+            errors_reported: 0,
+            incidents_created: 0,
+            feai: [],
+            status: 'ko',
+            ko_reason: 'Collecteur indisponible',
+          },
+        ],
+      }),
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    await waitFor(() => {
+      expect(within(screen.getByRole('table')).getByText('Scope bloqué')).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('1 périmètre non traité');
+    });
+    // Le bandeau se base sur le dernier jour ouvré, pas sur le jour affiché :
+    // le compteur doit donc rester à 1 malgré la ligne KO du 18.
+    expect(screen.getByRole('status')).not.toHaveTextContent('2 périmètres');
+  });
+
+  it('affiche la pastille KO et son motif sur la ligne concernée', async () => {
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce([
+      makeScope({
+        id: 'scope-ko',
+        name: 'Scope bloqué',
+        knowledge_base_id: 'KB-KO',
+        official_main: 'Alice',
+        official_backup: 'Bob',
+        billing_code: 'FACT-2026-PAI',
+        daily_activities: [
+          {
+            day: '2026-09-21',
+            errors_reported: 0,
+            incidents_created: 0,
+            feai: [],
+            status: 'ko',
+            ko_reason: 'Collecteur indisponible',
+          },
+        ],
+      }),
+    ]);
+
+    render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+          />
+        </ToastProvider>
+      </BrowserRouter>,
+    );
+
+    const table = within(await screen.findByRole('table'));
+    await waitFor(() => {
+      expect(table.getByText('Scope bloqué')).toBeInTheDocument();
+    });
+    expect(table.getByText('KO')).toBeInTheDocument();
+    // Ni « Terminé » ni « En cours » : le KO n'est pas un travail commencé.
+    expect(table.queryByText('Terminé')).not.toBeInTheDocument();
+    expect(table.queryByText('En cours')).not.toBeInTheDocument();
   });
 
   it('masque le bandeau lorsqu’on consulte le dernier jour ouvré', async () => {
@@ -365,8 +464,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -422,8 +521,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -493,8 +592,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -520,8 +619,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -570,8 +669,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -597,8 +696,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -647,8 +746,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -665,8 +764,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -713,15 +812,15 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
-    vi.mocked(protabApi.completeActivities).mockResolvedValueOnce(undefined);
+    vi.mocked(protabApi.setActivitiesStatus).mockResolvedValueOnce(undefined);
 
     render(
       <BrowserRouter>
@@ -742,9 +841,9 @@ describe('ScopeListPage Component', () => {
     fireEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /Marquer Terminé/i }));
 
     await waitFor(() => {
-      expect(protabApi.completeActivities).toHaveBeenCalledWith(
+      expect(protabApi.setActivitiesStatus).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
-        { days: ['2026-09-21'] }
+        { days: ['2026-09-21'], status: 'completed' }
       );
       expect(protabApi.createActivity).not.toHaveBeenCalled();
     });
@@ -772,7 +871,7 @@ describe('ScopeListPage Component', () => {
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
     vi.mocked(protabApi.createActivity).mockResolvedValueOnce(undefined);
-    vi.mocked(protabApi.completeActivities).mockResolvedValueOnce(undefined);
+    vi.mocked(protabApi.setActivitiesStatus).mockResolvedValueOnce(undefined);
 
     render(
       <BrowserRouter>
@@ -797,9 +896,9 @@ describe('ScopeListPage Component', () => {
         '987e6543-e21b-23c4-a456-426614174000',
         { day: '2026-09-21', errors_reported: 0, incidents_created: 0, feai: [] }
       );
-      expect(protabApi.completeActivities).toHaveBeenCalledWith(
+      expect(protabApi.setActivitiesStatus).toHaveBeenCalledWith(
         '987e6543-e21b-23c4-a456-426614174000',
-        { days: ['2026-09-21'] }
+        { days: ['2026-09-21'], status: 'completed' }
       );
     });
 
@@ -823,15 +922,15 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
     ];
 
     vi.mocked(protabApi.getScopeMonitorings).mockResolvedValueOnce(mockScopes);
-    vi.mocked(protabApi.completeActivities).mockRejectedValueOnce(
+    vi.mocked(protabApi.setActivitiesStatus).mockRejectedValueOnce(
       new Error('Panne du serveur')
     );
 
@@ -853,9 +952,9 @@ describe('ScopeListPage Component', () => {
     fireEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /Marquer Terminé/i }));
 
     await waitFor(() => {
-      expect(protabApi.completeActivities).toHaveBeenCalledWith(
+      expect(protabApi.setActivitiesStatus).toHaveBeenCalledWith(
         '123e4567-e89b-12d3-a456-426614174000',
-        { days: ['2026-09-21'] }
+        { days: ['2026-09-21'], status: 'completed' }
       );
     });
 
@@ -939,8 +1038,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -1000,8 +1099,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -1053,8 +1152,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 2,
             incidents_created: 1,
             feai: ['INC000000001'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -1169,8 +1268,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: ['INC000000001'],
-            handled: true,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -1230,8 +1329,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 1,
             incidents_created: 0,
             feai: ['INC000000001'],
-            handled: true,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -1303,8 +1402,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 5,
             incidents_created: 2,
             feai: ['INC000000009'],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -1347,16 +1446,16 @@ describe('ScopeListPage Component', () => {
             errors_reported: 5,
             incidents_created: 2,
             feai: [],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
           {
             day: '2026-09-24',
             errors_reported: 9,
             incidents_created: 4,
             feai: ['INC000000042'],
-            handled: false,
-            completed: false,
+            status: "pending",
+            ko_reason: null,
           },
         ],
       }),
@@ -1407,8 +1506,8 @@ describe('ScopeListPage Component', () => {
             errors_reported: 5,
             incidents_created: 2,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),
@@ -1460,16 +1559,16 @@ describe('ScopeListPage Component', () => {
             errors_reported: 5,
             incidents_created: 2,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
           {
             day: '2026-09-24',
             errors_reported: 1,
             incidents_created: 0,
             feai: [],
-            handled: true,
-            completed: true,
+            status: "completed",
+            ko_reason: null,
           },
         ],
       }),

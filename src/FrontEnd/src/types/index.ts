@@ -3,17 +3,22 @@
  * Dérivés des contrats de l'API REST FastAPI.
  */
 
+import type { DayStatus } from "../constants/dayStatus";
 import type { IsoWeekday } from "../constants/nonWorkingDays";
 
-export type { IsoWeekday };
+export type { DayStatus, IsoWeekday };
 
 export interface DailyActivity {
   day: string; // Format strict "YYYY-MM-DD"
   errors_reported: number; // Entier >= 0
   incidents_created: number; // Entier >= 0, <= errors_reported
   feai: string[]; // Références canoniques "[PREFIXE-]INC" + 9 chiffres (ex: FE-INC000000001), sans doublon
-  handled: boolean; // Statut traité
-  completed: boolean; // Statut complété (completed => handled)
+  // Un seul champ et non deux drapeaux : « terminée et KO » n'est pas un état
+  // représentable, donc pas un état à désamorcer. Voir `constants/dayStatus.ts`.
+  status: DayStatus;
+  // Motif du blocage, présent uniquement sur un jour KO et `null` sinon. Une
+  // journée terminée n'en porte pas : le motif survit dans le journal d'audit.
+  ko_reason: string | null;
 }
 
 export interface ScopeMonitoring {
@@ -66,8 +71,12 @@ export interface UpdateActivityInput {
   feai: string[];
 }
 
-export interface CompleteActivitiesInput {
+export interface SetActivitiesStatusInput {
   days: string[];
+  status: DayStatus;
+  // Rejeté en 422 si le statut n'est pas « ko », et normalisé en `null` si le
+  // motif est blanc : une seule façon de dire « pas de motif ».
+  ko_reason?: string | null;
 }
 
 export interface UpdateScopeNoteInput {
@@ -80,6 +89,7 @@ export type AuditAction =
   | "activity_created"
   | "activity_updated"
   | "activity_completed"
+  | "activity_ko"
   | "scope_note_updated";
 
 export interface AuditEvent {

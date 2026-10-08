@@ -15,7 +15,6 @@ from protab.adapters.inbound.api.errors import register_exception_handlers
 from protab.adapters.inbound.api.schemas import (
     ActivityResponse,
     AuditEventResponse,
-    CompleteRequest,
     CreateActivityRequest,
     CreatedResponse,
     CreateScopeItem,
@@ -24,6 +23,7 @@ from protab.adapters.inbound.api.schemas import (
     NonWorkingDaysRequest,
     ProjectResponse,
     ScopeResponse,
+    SetStatusRequest,
     SessionResponse,
     UpdateRequest,
     UpdateScopeNoteRequest,
@@ -53,8 +53,8 @@ from protab.application.commands.create_scope_monitoring import (
     CreateScopeMonitoringCommand,
 )
 from protab.application.commands.daily_activity import (
-    CompleteDailyActivityCommand,
     CreateDailyActivityCommand,
+    SetActivitiesStatusCommand,
     UpdateDailyActivityCommand,
 )
 from protab.application.commands.scope_monitoring import (
@@ -64,14 +64,14 @@ from protab.application.queries.get_daily_activity import GetDailyActivityUseCas
 from protab.application.queries.get_scope import GetScopeUseCase
 from protab.application.queries.list_audit_events import ListAuditEventsUseCase
 from protab.application.queries.list_scopes import ListScopesUseCase
-from protab.application.use_cases.complete_daily_activity import (
-    CompleteDailyActivityUseCase,
-)
 from protab.application.use_cases.create_daily_activity import (
     CreateDailyActivityUseCase,
 )
 from protab.application.use_cases.create_scope_monitoring import (
     CreateScopeMonitoringUseCase,
+)
+from protab.application.use_cases.set_activities_status import (
+    SetActivitiesStatusUseCase,
 )
 from protab.application.use_cases.update_daily_activity import (
     UpdateDailyActivityUseCase,
@@ -97,8 +97,8 @@ def _activity_to_response(activity: DailyActivity) -> ActivityResponse:
         errors_reported=activity.errors_reported,
         incidents_created=activity.incidents_created,
         feai=activity.feai,
-        handled=activity.handled,
-        completed=activity.completed,
+        status=activity.status,
+        ko_reason=activity.ko_reason,
     )
 
 
@@ -194,7 +194,7 @@ def create_app(
     ]
     create_scope_monitoring = CreateScopeMonitoringUseCase(repo, audit)
     create_daily_activity = CreateDailyActivityUseCase(repo, audit)
-    complete_daily_activity = CompleteDailyActivityUseCase(repo, audit)
+    set_activities_status = SetActivitiesStatusUseCase(repo, audit)
     update_daily_activity = UpdateDailyActivityUseCase(repo, audit)
     update_scope_note = UpdateScopeNoteUseCase(repo, audit)
     list_audit_events = ListAuditEventsUseCase(audit)
@@ -368,14 +368,21 @@ def create_app(
             )
         )
 
-    @app.post(
-        "/scope-monitorings/{scope_id}/activities/complete",
+    @app.patch(
+        "/scope-monitorings/{scope_id}/activities/status",
         status_code=204,
         dependencies=[Depends(project_context)],
     )
-    def complete_daily_activities(scope_id: str, request: CompleteRequest) -> None:
-        complete_daily_activity.execute(
-            CompleteDailyActivityCommand(scope_id=scope_id, days=request.days)
+    def set_daily_activities_status(
+        scope_id: str, request: SetStatusRequest
+    ) -> None:
+        set_activities_status.execute(
+            SetActivitiesStatusCommand(
+                scope_id=scope_id,
+                days=request.days,
+                status=request.status,
+                ko_reason=request.ko_reason,
+            )
         )
 
     @app.patch(
