@@ -651,6 +651,32 @@ cocher » / « Tout décocher » et « Terminé » — plus de rangée de pastil
 
 ## 10. Graphiques et styles
 
+### Un fond clair a toujours son pendant sombre
+
+Une carte pose **`bg-white` et `dark:bg-nord-1`** — les deux, sur la même chaîne.
+À l'intérieur d'une carte sombre, un fond *enfoncé* (en-tête de tableau, ligne
+dépliée, pied de tableau) prend **`dark:bg-nord-0`**, avec l'opacité habituelle,
+et doit rester plus sombre que le fond de la carte, sinon il se fond dans les
+lignes.
+
+Le couple `bg-white` / `dark:bg-nord-1` est le seul motif de carte dans
+l'application ; un contrôle croisé sur `pages/` et `components/` le confirme.
+Un fond clair sans son pendant sombre laisse **le texte clair sur fond clair** :
+les lignes restent lisibles sur leurs en-têtes, et le défaut n'apparaît que sur
+les lignes de données. C'est arrivé sur le tableau du journal d'audit, seul cas
+restant dans le dépôt.
+
+Le correctif est additif — une seule classe à ajouter — mais **aucun test jsdom
+ne peut l'attraper** : `setup.ts` ne charge pas Tailwind et jsdom ne calcule
+aucun layout, donc `getComputedStyle` renverrait `rgb(255, 255, 255)` quel que
+soit le `className`. Un test de rendu passerait toujours. D'où le **garde-fou de
+classe** de `AuditLogPage.test.tsx` : c'est la chaîne qui est vérifiable, pas la
+couleur. Même catégorie que `expectDoesNotClip` (`overflowGuard.ts`) — un test
+qui échoue quand la classe disparaît, et une preuve réelle qui reste le coup
+d'œil sur la page.
+
+### Le graphique du détail
+
 La page de détail d'un périmètre (`ScopeDetailCharts.tsx`) ne porte **qu'un**
 graphique, « Tendance des erreurs et incidents », en valeurs quotidiennes. C'est
 délibéré : c'est la seule échelle qui répond à une question actionnable — quel
@@ -716,7 +742,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-35 fichiers dans `src/test/` (323 tests). `src/test/setup.ts` importe
+35 fichiers dans `src/test/` (324 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

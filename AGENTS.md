@@ -1642,6 +1642,16 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   class="recharts-surface">`**. Le `className` passé à `<LineChart>` atterrit sur le `.recharts-wrapper`
   (`RechartsWrapper.js:347`) et ne l'atteint pas : il faut une variante arbitraire descendant
   `[&_.recharts-surface]:…` portée par notre conteneur, ou le `outline: none` est un no-op.
+- **Une carte pose `bg-white` ET `dark:bg-nord-1`, sur la même chaîne.** Dans une carte
+  sombre, un fond *enfoncé* (en-tête de tableau, ligne dépliée, pied) prend `dark:bg-nord-0`
+  avec son opacité, et doit rester plus sombre que le fond : sinon il se fond dans les lignes. Le
+  tableau du journal d'audit avait oublié son pendant sombre — **seul cas restant dans le dépôt**,
+  vérifié par contrôle croisé sur `pages/` et `components/`. Le symptôme était trompeur : le texte
+  et les en-têtes étant bien thémés, seules les lignes de données restaient claires. Et aucun
+  test jsdom ne l'attrape : `setup.ts` ne charge pas Tailwind et jsdom ne calcule aucun layout,
+  donc `getComputedStyle` renverrait `rgb(255, 255, 255)` quel que soit le `className`. D'où le
+  **garde-fou de classe** de `AuditLogPage.test.tsx`, même catégorie que `expectDoesNotClip` — il
+  échoue quand la classe disparaît, et la preuve réelle reste le coup d'œil sur la page.
 - **`outline-none` sans `outline-solid` ne remplace rien, il supprime.** `focus-visible:outline-2` compile
   en `outline-style: var(--tw-outline-style)`, et c'est `outline-none` qui met cette variable à `none` sur le
   même élément : le substitut ne serait jamais peint, et l'on perdrait l'anneau du navigateur *et* le
@@ -1791,7 +1801,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 323 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 324 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

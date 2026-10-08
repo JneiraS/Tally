@@ -293,7 +293,7 @@ export function AuditLogPage() {
         </div>
       ) : (
         /* Tableau des événements */
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs dark:border-nord-2">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xs dark:border-nord-2 dark:bg-nord-1">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600 dark:text-nord-5">
               <thead className="border-b border-slate-200 bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-700 dark:border-nord-2 dark:bg-nord-0/60 dark:text-nord-4">

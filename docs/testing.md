@@ -21,7 +21,7 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 | Intégration Python | `tests/integration/` | `make test-db` | 171 tests, dont **99 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
 | Typage Python | `src/protab` | `make typecheck` | `mypy`, `disallow_untyped_defs` |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 323 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 324 tests (vitest) |
 
 Trois exécutions, donc :
 
