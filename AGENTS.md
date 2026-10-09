@@ -1831,6 +1831,26 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   à rang égal (index d'origine en second critère, pas de confiance implicite en la stabilité de `sort`) ;
   l'API renvoyant `ORDER BY name`, chaque groupe reste alphabétique. Requête vide ⇒ tous les rangs égaux
   ⇒ liste du serveur intacte.
+- **Le raccourci « mes périmètres » écrit dans le champ de recherche, il ne porte pas son propre
+  filtre.** L'icône `UserRound` à droite de l'input remplit `searchQuery` avec le `quadrigramme`
+  transmis en prop depuis `App.tsx` (`session.quadrigramme`), et un second clic le vide — `aria-pressed`
+  porte l'état, libellé stable. Deux raisons pour ne pas faire un filtre séparé : une seule règle de
+  correspondance à maintenir (un prédicat `official_main`/`official_backup` exact serait un **deuxième**
+  juge, et les deux divergeiraient), et le tri responsable-suppléant ci-dessus s'applique alors sans
+  une ligne de code. **Corollaire assumé** : `matchesSearchQuery` est un `includes` sur tous les
+  champs, donc un périmètre qui porte le code dans son **nom** survit au filtre — il arrive en dernier.
+  « Où je suis officiel » et « ce que le nom contient » ne sont pas la même question, et le raccourci
+  répond à la seconde, qui est celle du champ de recherche qu'il remplit. Conséquence annexe : le
+  compteur « Affichage de X sur Y » et l'export (`filteredScopes`) suivent le raccourci, puisque
+  c'est la liste filtrée qui les alimente. Verrouillé par `filtre la liste sur mon quadrigramme`,
+  dont la fixture comporte un hit par le nom **et** un périmètre Stranger qui doit disparaître — le
+  second est le seul qui prouve que le bouton filtre, le premier qu'il classe seulement.
+- **Le quadrigramme ne se lit pas dans `localStorage`.** Il vient de `GET /auth/me` et vit dans l'état
+  React de `App.tsx`, passé en prop — exactement comme `projectName` vers `Navbar`. Une session n'est
+  pas persistée côté front : le cookie de session est `HttpOnly`, donc illisible en JS. Un `getItem`
+  sur une clé que rien n'écrit lit `null`, se `JSON.parse` en `{}`, et rend silencieusement une
+  chaîne vide : un bouton affiché, actif, et sans effet. Si une session doit survivre à un
+  rechargement, elle vient de `protabApi.getSession()`, pas du stockage local.
 
 ## 28.7 Journal d'audit : trois filtres qui ont été cassés, et pourquoi
 
