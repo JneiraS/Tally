@@ -1,7 +1,7 @@
-# Graph Report - ProTab  (2026-10-08)
+# Graph Report - ProTab  (2026-10-09)
 
 ## Corpus Check
-- 223 files · ~137,503 words
+- 223 files · ~137,587 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 13 file(s) not represented in the graph (top: (none) 9, .example 1, .conf 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `9ef52f85`
+- Built from commit: `9c5d8e30`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -136,16 +136,16 @@
 10. `PostgresAuthRepository` - 34 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Le lot, depuis l'historique` --references--> `BatchKoModal()`  [INFERRED]
-  docs/frontend.md → src/FrontEnd/src/components/BatchKoModal.tsx
-- `Le reste de la page` --references--> `Modal()`  [INFERRED]
-  docs/frontend.md → src/FrontEnd/src/components/Modal.tsx
-- `La note du périmètre — un brouillon, pas un autosave` --references--> `ScopeNoteCard()`  [INFERRED]
-  docs/frontend.md → src/FrontEnd/src/components/ScopeNoteCard.tsx
-- `Un fond clair a toujours son pendant sombre` --references--> `expectDoesNotClip()`  [INFERRED]
-  docs/frontend.md → src/FrontEnd/src/test/overflowGuard.ts
 - `5. Ce que ces tests ne prouvent pas` --references--> `InMemoryScopeMonitoringRepository`  [INFERRED]
   docs/testing.md → src/protab/adapters/outbound/persistence/in_memory_scope_monitoring_repository.py
+- `Application — `tests/unit/application/`` --references--> `InMemoryScopeMonitoringRepository`  [INFERRED]
+  docs/testing.md → src/protab/adapters/outbound/persistence/in_memory_scope_monitoring_repository.py
+- `6. Sécurité : ce que la topologie garantit, et ce qu'elle ne garantit pas` --references--> `MissingProjectContextError`  [INFERRED]
+  docs/docker-architecture.md → src/protab/adapters/outbound/persistence/postgres_scope_monitoring_repository.py
+- `Contre l'API, sans base` --references--> `FakeAuthRepository`  [INFERRED]
+  docs/testing.md → tests/integration/adapters/auth_api_test.py
+- `Ports — `tests/unit/ports/`` --references--> `ScopeMonitoringRepository`  [INFERRED]
+  docs/testing.md → src/protab/ports/outbound/scope_monitoring_repository.py
 
 ## Import Cycles
 - None detected.
@@ -514,7 +514,7 @@ Nodes (5): count_activity_rows(), date, A duplicated day must not create a secon
   src/FrontEnd/index.html · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **216 isolated node(s):** `$schema`, `plugin`, `protab`, `name`, `private` (+211 more)
+- **216 isolated node(s):** `ScopeFormModalProps`, `UnauthorizedHandler`, `HeatmapMatrix`, `FeaiTagInputProps`, `UndoEntry` (+211 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 595 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **48 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -524,11 +524,11 @@ _Questions this graph is uniquely positioned to answer:_
 - **What is the exact relationship between `React Root Mount (#root)` and `Audit Trail (best-effort mutation journal)`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
 - **Why does `RecordingScopeMonitoringRepository` connect `RecordingScopeMonitoringRepository` to `InMemoryScopeMonitoringRepository`, `.set_activities_status`, `DailyActivity`, `ScopeMonitoring`, `scope_monitoring_repository_contract_test.py`, `SetActivitiesStatusUseCase`, `datetime`, `CreateScopeMonitoringUseCase`, `update_daily_activity_test.py`?**
-  _High betweenness centrality (0.161) - this node is a cross-community bridge._
+  _High betweenness centrality (0.143) - this node is a cross-community bridge._
 - **Why does `7. Écrire un nouveau test` connect `RecordingScopeMonitoringRepository` to `makeScope`, `6. Tests frontend`?**
-  _High betweenness centrality (0.157) - this node is a cross-community bridge._
+  _High betweenness centrality (0.140) - this node is a cross-community bridge._
 - **Why does `6. Le modèle mono-jour` connect `kpi.ts` to `analytics.ts`, `AuditLogPage.tsx`, `search.test.ts`, `ScopeDetailPage.tsx`, `Frontend`, `6. Tests frontend`, `NonWorkingDays`, `AnalyticsFilterBar.tsx`?**
-  _High betweenness centrality (0.153) - this node is a cross-community bridge._
+  _High betweenness centrality (0.132) - this node is a cross-community bridge._
 - **Are the 76 inferred relationships involving `InMemoryScopeMonitoringRepository` (e.g. with `2. Vue d'ensemble des couches` and `5. Ce que ces tests ne prouvent pas`) actually correct?**
   _`InMemoryScopeMonitoringRepository` has 76 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 66 inferred relationships involving `DailyActivity` (e.g. with `_activity_to_response()` and `InMemoryScopeMonitoringRepository`) actually correct?**
