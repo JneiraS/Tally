@@ -37,6 +37,12 @@ vi.mock('../utils/date', async (importOriginal) => {
 });
 
 describe('ScopeListPage Component', () => {
+  // Le <tr> et le <li> mobile portent tous deux role="link" : deux rendus
+  // distincts du même périmètre se répondraient mutuellement. Il faut donc
+  // passer par le conteneur d'un rendu donné avant de comparer l'ordre.
+  const comesFirst = (first: HTMLElement, second: HTMLElement) =>
+    Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getTodayIsoDate).mockReturnValue('2026-09-21');
@@ -431,11 +437,6 @@ describe('ScopeListPage Component', () => {
       expect(table.getByText('MAMA Prod')).toBeInTheDocument();
     });
 
-    // Le <tr> et le <li> mobile portent tous deux role="link" : il faut passer
-    // par le conteneur de chaque rendu, sinon les deux copies se répondent.
-    const comesFirst = (first: HTMLElement, second: HTMLElement) =>
-      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
-
     const expectedOrder = ['Périmètre Responsable', 'Périmètre Suppléant', 'MAMA Prod'];
 
     for (const container of [
@@ -447,6 +448,140 @@ describe('ScopeListPage Component', () => {
         expect(comesFirst(rendered[i], rendered[i + 1])).toBe(true);
       }
     }
+  });
+
+  // Périmètres du raccourci quadrigramme. Chacun des quatre fait mentir une
+  // version différente du raccourci :
+  //   - les deux premiers portent MAMA comme officiel, l'un responsable,
+  //     l'autre suppléant, et le rang doit les séparer dans cet ordre ;
+  //   - « MAMA Prod » ne le porte que par son nom, donc il SURVIT au filtre —
+  //     `matchesSearchQuery` est un `includes` sur tous les champs, et c'est
+  //     cette sémantique-là que le raccourci réutilise (une seule règle de
+  //     correspondance), mais il doit arriver dernier ;
+  //   - « Périmètre Étranger » ne porte MAMA nulle part : c'est le seul dont la
+  //     disparition prouve que le bouton filtre vraiment.
+  const QUADRIGRAMME_SCOPES = [
+    makeScope({
+      id: 'aaaa1111-e21b-23c4-a456-426614174000',
+      name: 'Périmètre Suppléant',
+      knowledge_base_id: 'KB-MINE-SUB',
+      official_main: 'NANA',
+      official_backup: 'MAMA',
+      billing_code: 'FACT-2026-SUB',
+      daily_activities: [],
+    }),
+    makeScope({
+      id: 'bbbb2222-e21b-23c4-a456-426614174000',
+      name: 'Périmètre Responsable',
+      knowledge_base_id: 'KB-MINE-MAIN',
+      official_main: 'MAMA',
+      official_backup: 'LOTO',
+      billing_code: 'FACT-2026-MAIN',
+      daily_activities: [],
+    }),
+    makeScope({
+      id: 'cccc3333-e21b-23c4-a456-426614174000',
+      name: 'Périmètre Étranger',
+      knowledge_base_id: 'KB-OTHER-001',
+      official_main: 'NANA',
+      official_backup: 'LOTO',
+      billing_code: 'FACT-2026-OTH',
+      daily_activities: [],
+    }),
+    makeScope({
+      id: 'dddd4444-e21b-23c4-a456-426614174000',
+      name: 'MAMA Prod',
+      knowledge_base_id: 'KB-NOM-ONLY',
+      official_main: 'NANA',
+      official_backup: 'LOTO',
+      billing_code: 'FACT-2026-NOM',
+      daily_activities: [],
+    }),
+  ];
+
+  function renderListPage(quadrigramme?: string) {
+    vi.mocked(protabApi.getScopeMonitorings).mockResolvedValue(QUADRIGRAMME_SCOPES);
+    return render(
+      <BrowserRouter>
+        <ToastProvider>
+          <ScopeListPage
+            onOpenCreateScope={vi.fn()}
+            onOpenImportCsv={vi.fn()}
+            quadrigramme={quadrigramme}
+          />
+        </ToastProvider>
+      </BrowserRouter>
+    );
+  }
+
+  // Le libellé est stable : c'est `aria-pressed` qui porte l'état, donc un seul
+  // nom interroge le bouton dans les deux sens.
+  const MINE_BUTTON = { name: /Filtrer sur mes périmètres/i };
+  const searchField = () => screen.getByPlaceholderText(/Rechercher/i);
+
+  it('filtre la liste sur mon quadrigramme', async () => {
+    renderListPage('MAMA');
+
+    const table = within(await screen.findByRole('table'));
+    await waitFor(() =>
+      expect(table.getByText('Périmètre Étranger')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', MINE_BUTTON));
+
+    // Le raccourci écrit dans le champ de recherche : un seul filtre existe,
+    // donc le compteur de bas de tableau et l'export en héritent aussi.
+    expect(searchField()).toHaveValue('MAMA');
+    expect(screen.getByRole('button', MINE_BUTTON)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await waitFor(() =>
+      expect(table.queryByText('Périmètre Étranger')).not.toBeInTheDocument(),
+    );
+
+    // Le tri reste celui de la recherche : responsable, puis suppléant, puis le
+    // hit par le nom.
+    const order = ['Périmètre Responsable', 'Périmètre Suppléant', 'MAMA Prod'];
+    const rendered = order.map((name) => table.getByText(name));
+    for (let i = 0; i < rendered.length - 1; i += 1) {
+      expect(comesFirst(rendered[i], rendered[i + 1])).toBe(true);
+    }
+  });
+
+  it('retire le quadrigramme au second clic', async () => {
+    renderListPage('MAMA');
+
+    const table = within(await screen.findByRole('table'));
+    await waitFor(() =>
+      expect(table.getByText('Périmètre Étranger')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', MINE_BUTTON));
+    await waitFor(() =>
+      expect(table.queryByText('Périmètre Étranger')).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole('button', MINE_BUTTON));
+
+    expect(searchField()).toHaveValue('');
+    expect(screen.getByRole('button', MINE_BUTTON)).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await waitFor(() =>
+      expect(table.getByText('Périmètre Étranger')).toBeInTheDocument(),
+    );
+  });
+
+  it('désactive le raccourci quand aucun quadrigramme n’est fourni', async () => {
+    // Le rendu sans session ne doit pas proposer un bouton qui viderait le
+    // champ de recherche : sans code à y écrire, il n'aurait rien à faire.
+    renderListPage(undefined);
+
+    await screen.findByRole('table');
+    expect(screen.getByRole('button', MINE_BUTTON)).toBeDisabled();
   });
 
   it('affiche le chargement puis la liste des périmètres', async () => {

@@ -14,6 +14,7 @@ import {
   Inbox,
   Download,
   CalendarClock,
+  UserRound,
 } from "lucide-react";
 import { isCompleted, isHandled, isKo } from "../constants/dayStatus";
 import { NonWorkingDays, ScopeMonitoring, DailyActivity } from "../types";
@@ -48,6 +49,7 @@ interface ScopeListPageProps {
   onOpenImportCsv: () => void;
   refreshTrigger?: number;
   nonWorkingDays?: NonWorkingDays;
+  quadrigramme?: string;
 }
 
 type QuickFilter = "all" | "to_process" | "errors" | "incidents" | "completed";
@@ -70,6 +72,7 @@ export function ScopeListPage({
   onOpenImportCsv,
   refreshTrigger,
   nonWorkingDays,
+  quadrigramme,
 }: ScopeListPageProps) {
   const navigate = useNavigate();
   const { success: toastSuccess, error: toastError } = useToast();
@@ -584,16 +587,43 @@ export function ScopeListPage({
 
       {/* Barre de contrôle de la liste (recherche & filtres rapides) */}
       <div className="bg-white dark:bg-nord-1 p-3.5 rounded-xl border border-slate-200 dark:border-nord-2 shadow-2xs flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative flex-1 lg:max-w-md">
-          <Search className="w-4 h-4 text-slate-400 dark:text-nord-3 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Rechercher un périmètre, KB, responsable..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Rechercher un périmètre, KB, responsable"
-            className="w-full pl-9 pr-4 py-1.5 text-sm bg-slate-50 dark:bg-nord-0 border border-slate-200 dark:border-nord-2 text-slate-900 dark:text-nord-5 placeholder:text-slate-400 dark:placeholder:text-nord-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 focus:bg-white dark:focus:bg-nord-0 transition-colors"
-          />
+        <div className="flex items-center gap-2 flex-1 lg:max-w-md">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 dark:text-nord-3 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Rechercher un périmètre, KB, responsable..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Rechercher un périmètre, KB, responsable"
+              className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 dark:bg-nord-0 border border-slate-200 dark:border-nord-2 text-slate-900 dark:text-nord-5 placeholder:text-slate-400 dark:placeholder:text-nord-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 focus:bg-white dark:focus:bg-nord-0 transition-colors"
+            />
+          </div>
+          {/* Raccourci « mes périmètres ». Il écrit dans le champ de recherche
+              plutôt que de porter un filtre propre : une seule règle de
+              correspondance et un seul tri, donc le compteur de bas de tableau
+              et l'export en héritent sans rien savoir du quadrigramme. Le
+              bouton est frère de l'input plutôt que posé dessus — en `absolute`
+              sa cible ne mesurait que la largeur de son glyphe. */}
+          <button
+            type="button"
+            onClick={() =>
+              setSearchQuery((query) =>
+                query === quadrigramme ? "" : (quadrigramme ?? ""),
+              )
+            }
+            aria-label="Filtrer sur mes périmètres"
+            aria-pressed={searchQuery === quadrigramme}
+            disabled={!quadrigramme}
+            title="Filtrer sur mes périmètres"
+            className={`inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-nord-8 disabled:cursor-not-allowed disabled:opacity-35 ${
+              searchQuery === quadrigramme
+                ? "bg-blue-600 dark:bg-nord-10 border-transparent text-white"
+                : "bg-slate-50 dark:bg-nord-0 border-slate-200 dark:border-nord-2 text-slate-500 dark:text-nord-4 hover:bg-slate-100 dark:hover:bg-nord-2 hover:text-slate-900 dark:hover:text-nord-6"
+            }`}
+          >
+            <UserRound className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
 
         <div

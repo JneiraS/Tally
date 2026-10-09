@@ -109,6 +109,7 @@ function AppContent() {
                       onOpenImportCsv={() => setIsImportCsvOpen(true)}
                       refreshTrigger={refreshTrigger}
                       nonWorkingDays={session.project.non_working_days}
+                      quadrigramme={session.quadrigramme}
                     />
                   }
                 />

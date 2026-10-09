@@ -24,9 +24,9 @@
     "semantic_hash": "ce430b734575012345cea7428aa1d2a1"
   },
   "src/FrontEnd/src/App.tsx": {
-    "mtime": 1791267774.540328,
-    "seen": 1791386937.7419178,
-    "ast_hash": "d9bfbc35f4dbd90a6f094bce05041bdf",
+    "mtime": 1791547510.6687074,
+    "seen": 1791547616.2844877,
+    "ast_hash": "ee0094b2e7d304079c6466860fb22584",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/components/ActivityFormModal.tsx": {
@@ -180,9 +180,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/pages/ScopeListPage.tsx": {
-    "mtime": 1791492919.5176487,
-    "seen": 1791545302.1307836,
-    "ast_hash": "4fa6b256ed5fa60ac6f38af3728b1939",
+    "mtime": 1791547819.8955574,
+    "seen": 1791547935.4020774,
+    "ast_hash": "71a7b313f099e82449847e4f5906f4d5",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/services/api.ts": {
@@ -228,9 +228,9 @@
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/ScopeListPage.test.tsx": {
-    "mtime": 1791492919.5196025,
-    "seen": 1791545302.1308258,
-    "ast_hash": "5151f7ade3077f4a7582bc503d1a83e3",
+    "mtime": 1791547454.1021028,
+    "seen": 1791547616.2846804,
+    "ast_hash": "bcb88cac8ecfddcc33ebf0e7c3781b86",
     "semantic_hash": ""
   },
   "src/FrontEnd/src/test/TodayActivityEditor.test.tsx": {
@@ -828,9 +828,9 @@
     "semantic_hash": "5d8416d5a4216508b7f9fdda127ea809"
   },
   "AGENTS.md": {
-    "mtime": 1791492919.503826,
-    "seen": 1791545302.1311157,
-    "ast_hash": "14611cd43047d53f40086a57c02b60a8",
+    "mtime": 1791547596.0572183,
+    "seen": 1791547616.2850394,
+    "ast_hash": "7f01a7a9db5e9b11f0bfd83e818056b4",
     "semantic_hash": ""
   },
   "README.md": {
