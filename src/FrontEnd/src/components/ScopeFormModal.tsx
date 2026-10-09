@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Plus, Trash2, ShieldCheck, AlertCircle } from 'lucide-react';
-import { Modal } from './Modal';
-import { CreateScopeInput } from '../types';
-import { validateScopeForm, ScopeValidationErrors } from '../utils/validation';
-import { protabApi, ApiError } from '../services/api';
-import { useToast } from '../hooks/useToast';
+import { useState } from "react";
+import { Plus, Trash2, ShieldCheck, AlertCircle } from "lucide-react";
+import { Modal } from "./Modal";
+import { CreateScopeInput } from "../types";
+import { validateScopeForm, ScopeValidationErrors } from "../utils/validation";
+import { protabApi, ApiError } from "../services/api";
+import { useToast } from "../hooks/useToast";
 
 interface ScopeFormModalProps {
   isOpen: boolean;
@@ -16,18 +16,22 @@ interface ScopeItemState extends CreateScopeInput {
   errors?: ScopeValidationErrors;
 }
 
-export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalProps) {
+export function ScopeFormModal({
+  isOpen,
+  onClose,
+  onSuccess,
+}: ScopeFormModalProps) {
   const { success, error: toastError } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
 
   const [scopes, setScopes] = useState<ScopeItemState[]>([
     {
-      name: '',
-      knowledge_base_id: '',
-      official_main: '',
-      official_backup: '',
-      billing_code: '',
+      name: "",
+      knowledge_base_id: "",
+      official_main: "",
+      official_backup: "",
+      billing_code: "",
       errors: {},
     },
   ]);
@@ -35,11 +39,11 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
   const handleReset = () => {
     setScopes([
       {
-        name: '',
-        knowledge_base_id: '',
-        official_main: '',
-        official_backup: '',
-        billing_code: '',
+        name: "",
+        knowledge_base_id: "",
+        official_main: "",
+        official_backup: "",
+        billing_code: "",
         errors: {},
       },
     ]);
@@ -55,11 +59,11 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
     setScopes((prev) => [
       ...prev,
       {
-        name: '',
-        knowledge_base_id: '',
-        official_main: '',
-        official_backup: '',
-        billing_code: '',
+        name: "",
+        knowledge_base_id: "",
+        official_main: "",
+        official_backup: "",
+        billing_code: "",
         errors: {},
       },
     ]);
@@ -73,7 +77,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
   const handleChange = (
     index: number,
     field: keyof CreateScopeInput,
-    value: string
+    value: string,
   ) => {
     setScopes((prev) => {
       const next = [...prev];
@@ -82,7 +86,7 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
         [field]: value,
         errors: {
           ...next[index].errors,
-          [field]: '',
+          [field]: "",
         },
       };
       return next;
@@ -117,7 +121,9 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
     setScopes(validatedScopes);
 
     if (hasValidationError) {
-      setGeneralError('Veuillez corriger les erreurs indiquées dans le formulaire avant de valider.');
+      setGeneralError(
+        "Veuillez corriger les erreurs indiquées dans le formulaire avant de valider.",
+      );
       return;
     }
 
@@ -133,8 +139,8 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
 
       const res = await protabApi.createScopeMonitorings(payload);
       success(
-        'Périmètre(s) créé(s) avec succès !',
-        `${res.ids.length} périmètre(s) de supervision enregistré(s).`
+        "Périmètre(s) créé(s) avec succès !",
+        `${res.ids.length} périmètre(s) de supervision enregistré(s).`,
       );
       handleReset();
       onSuccess(res.ids);
@@ -143,17 +149,21 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
       if (err instanceof ApiError) {
         if (err.status === 409) {
           setGeneralError(
-            `Conflit (409) : Un périmètre avec ce nom existe déjà. Le nom de chaque périmètre doit être unique.`
+            `Conflit (409) : Un périmètre avec ce nom existe déjà. Le nom de chaque périmètre doit être unique.`,
           );
         } else if (err.status === 400) {
-          setGeneralError(`Erreur de validation domaine (400) : ${err.message}`);
+          setGeneralError(
+            `Erreur de validation domaine (400) : ${err.message}`,
+          );
         } else {
           setGeneralError(err.message);
         }
       } else {
-        setGeneralError('Une erreur imprévue est survenue lors de la création.');
+        setGeneralError(
+          "Une erreur imprévue est survenue lors de la création.",
+        );
       }
-      toastError('Échec de la création', (err as Error)?.message);
+      toastError("Échec de la création", (err as Error)?.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -207,22 +217,25 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                     htmlFor={`scope-name-${idx}`}
                     className="block text-xs font-medium text-slate-700 dark:text-nord-4 mb-1"
                   >
-                    Nom du périmètre <span className="text-rose-500 dark:text-nord-11">*</span>
+                    Nom du périmètre{" "}
+                    <span className="text-rose-500 dark:text-nord-11">*</span>
                   </label>
                   <input
                     id={`scope-name-${idx}`}
                     type="text"
                     value={scope.name}
-                    onChange={(e) => handleChange(idx, 'name', e.target.value)}
+                    onChange={(e) => handleChange(idx, "name", e.target.value)}
                     placeholder="Ex: Scope Paiements"
                     className={`w-full px-3 py-2 text-sm bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                       scope.errors?.name
-                        ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10'
-                        : 'border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+                        ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10"
+                        : "border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8"
                     }`}
                   />
                   {scope.errors?.name && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.name}</p>
+                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">
+                      {scope.errors.name}
+                    </p>
                   )}
                 </div>
 
@@ -232,22 +245,27 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                     htmlFor={`scope-kb-${idx}`}
                     className="block text-xs font-medium text-slate-700 dark:text-nord-4 mb-1"
                   >
-                    ID Base de connaissances (≥ 10 car.) <span className="text-rose-500 dark:text-nord-11">*</span>
+                    ID Base de connaissances (≥ 10 car.){" "}
+                    <span className="text-rose-500 dark:text-nord-11">*</span>
                   </label>
                   <input
                     id={`scope-kb-${idx}`}
                     type="text"
                     value={scope.knowledge_base_id}
-                    onChange={(e) => handleChange(idx, 'knowledge_base_id', e.target.value)}
-                    placeholder="Ex: KB-PAYMENTS-001"
+                    onChange={(e) =>
+                      handleChange(idx, "knowledge_base_id", e.target.value)
+                    }
+                    placeholder="Ex: KB0586321"
                     className={`w-full px-3 py-2 text-sm bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                       scope.errors?.knowledge_base_id
-                        ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10'
-                        : 'border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+                        ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10"
+                        : "border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8"
                     }`}
                   />
                   {scope.errors?.knowledge_base_id && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.knowledge_base_id}</p>
+                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">
+                      {scope.errors.knowledge_base_id}
+                    </p>
                   )}
                 </div>
 
@@ -257,22 +275,27 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                     htmlFor={`scope-main-${idx}`}
                     className="block text-xs font-medium text-slate-700 dark:text-nord-4 mb-1"
                   >
-                    Responsable principal <span className="text-rose-500 dark:text-nord-11">*</span>
+                    Responsable principal{" "}
+                    <span className="text-rose-500 dark:text-nord-11">*</span>
                   </label>
                   <input
                     id={`scope-main-${idx}`}
                     type="text"
                     value={scope.official_main}
-                    onChange={(e) => handleChange(idx, 'official_main', e.target.value)}
-                    placeholder="Ex: Marie Curie"
+                    onChange={(e) =>
+                      handleChange(idx, "official_main", e.target.value)
+                    }
+                    placeholder="Ex: MCUR"
                     className={`w-full px-3 py-2 text-sm bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                       scope.errors?.official_main
-                        ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10'
-                        : 'border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+                        ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10"
+                        : "border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8"
                     }`}
                   />
                   {scope.errors?.official_main && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.official_main}</p>
+                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">
+                      {scope.errors.official_main}
+                    </p>
                   )}
                 </div>
 
@@ -282,22 +305,27 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                     htmlFor={`scope-backup-${idx}`}
                     className="block text-xs font-medium text-slate-700 dark:text-nord-4 mb-1"
                   >
-                    Responsable suppléant (backup) <span className="text-rose-500 dark:text-nord-11">*</span>
+                    Responsable suppléant (backup){" "}
+                    <span className="text-rose-500 dark:text-nord-11">*</span>
                   </label>
                   <input
                     id={`scope-backup-${idx}`}
                     type="text"
                     value={scope.official_backup}
-                    onChange={(e) => handleChange(idx, 'official_backup', e.target.value)}
-                    placeholder="Ex: Paul Valéry"
+                    onChange={(e) =>
+                      handleChange(idx, "official_backup", e.target.value)
+                    }
+                    placeholder="Ex: PVAL"
                     className={`w-full px-3 py-2 text-sm bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                       scope.errors?.official_backup
-                        ? 'border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10'
-                        : 'border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8'
+                        ? "border-rose-300 dark:border-nord-11/50 focus:ring-rose-500 bg-rose-50/20 dark:bg-nord-11/10"
+                        : "border-slate-300 dark:border-nord-2 focus:ring-blue-500 dark:focus:ring-nord-8"
                     }`}
                   />
                   {scope.errors?.official_backup && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.official_backup}</p>
+                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">
+                      {scope.errors.official_backup}
+                    </p>
                   )}
                 </div>
 
@@ -307,22 +335,27 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
                     htmlFor={`scope-billing-${idx}`}
                     className="block text-xs font-medium text-slate-700 dark:text-nord-4 mb-1"
                   >
-                    Code de facturation <span className="text-rose-500 dark:text-nord-11">*</span>
+                    Code de facturation{" "}
+                    <span className="text-rose-500 dark:text-nord-11">*</span>
                   </label>
                   <input
                     id={`scope-billing-${idx}`}
                     type="text"
                     value={scope.billing_code}
-                    onChange={(e) => handleChange(idx, 'billing_code', e.target.value)}
-                    placeholder="Ex: FACT-2026-PAI"
+                    onChange={(e) =>
+                      handleChange(idx, "billing_code", e.target.value)
+                    }
+                    placeholder="Ex: AO9"
                     className={`w-full px-3 py-2 text-sm bg-white dark:bg-nord-1 text-slate-900 dark:text-nord-5 border rounded-lg focus:outline-none focus:ring-2 ${
                       scope.errors?.billing_code
-                        ? 'border-rose-300 dark:border-nord-11/50 focus:border-rose-500 bg-rose-50/20 dark:bg-nord-11/10'
-                        : 'border-slate-300 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8'
+                        ? "border-rose-300 dark:border-nord-11/50 focus:border-rose-500 bg-rose-50/20 dark:bg-nord-11/10"
+                        : "border-slate-300 dark:border-nord-2 focus:border-blue-500 dark:focus:border-nord-8"
                     }`}
                   />
                   {scope.errors?.billing_code && (
-                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">{scope.errors.billing_code}</p>
+                    <p className="mt-1 text-xs text-rose-600 dark:text-nord-11">
+                      {scope.errors.billing_code}
+                    </p>
                   )}
                 </div>
               </div>
@@ -365,7 +398,9 @@ export function ScopeFormModal({ isOpen, onClose, onSuccess }: ScopeFormModalPro
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                <span>Créer le{scopes.length > 1 ? 's périmètres' : ' périmètre'}</span>
+                <span>
+                  Créer le{scopes.length > 1 ? "s périmètres" : " périmètre"}
+                </span>
               </>
             )}
           </button>
