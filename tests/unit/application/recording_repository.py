@@ -69,6 +69,12 @@ class RecordingScopeMonitoringRepository:
         self.calls.append(("update_note", scope_id, note))
         self._inner.update_note(scope_id, note)
 
+    def update_officials(
+        self, scope_id: str, official_main: str, official_backup: str
+    ) -> None:
+        self.calls.append(("update_officials", scope_id, official_main, official_backup))
+        self._inner.update_officials(scope_id, official_main, official_backup)
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         return self._inner.find_by_id(scope_id)
 

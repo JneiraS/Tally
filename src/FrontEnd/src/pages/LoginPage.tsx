@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Activity, LockKeyhole, UserRound } from 'lucide-react';
 import { LoginBackground } from '../components/LoginBackground';
-import { Project, protabApi } from '../services/api';
+import { AuthSession, Project, protabApi } from '../services/api';
 
 interface LoginPageProps {
-  onAuthenticated: (session: { project: Project; quadrigramme: string }) => void;
+  onAuthenticated: (session: AuthSession) => void;
 }
 
 export function LoginPage({ onAuthenticated }: LoginPageProps) {

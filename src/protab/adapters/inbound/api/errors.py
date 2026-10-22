@@ -8,6 +8,7 @@ from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DomainError,
     DuplicateDailyActivityError,
+    NotProjectAdminError,
     ScopeMonitoringAlreadyExistsError,
     ScopeMonitoringNameAlreadyExistsError,
     ScopeMonitoringNotFoundError,
@@ -20,6 +21,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ScopeMonitoringNameAlreadyExistsError, conflict)
     app.add_exception_handler(ScopeMonitoringAlreadyExistsError, conflict)
     app.add_exception_handler(DuplicateDailyActivityError, conflict)
+    app.add_exception_handler(NotProjectAdminError, forbidden)
     app.add_exception_handler(ScopeMonitoringCsvError, bad_request)
     app.add_exception_handler(DomainError, bad_request)
     app.add_exception_handler(Exception, unexpected)
@@ -35,6 +37,10 @@ async def conflict(request: Request, exc: Exception) -> JSONResponse:
 
 async def bad_request(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+async def forbidden(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(status_code=403, content={"detail": str(exc)})
 
 
 async def unexpected(request: Request, exc: Exception) -> JSONResponse:

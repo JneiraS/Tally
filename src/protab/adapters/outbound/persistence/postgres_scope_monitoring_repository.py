@@ -539,6 +539,27 @@ class PostgresScopeMonitoringRepository:
                     f"ScopeMonitoring {scope_id!r} not found."
                 )
 
+    def update_officials(
+        self, scope_id: str, official_main: str, official_backup: str
+    ) -> None:
+        # Targeted write like ``update_note``: only the two officials columns
+        # move, so a concurrent note or day edit survives. The tenant filter is
+        # unconditional: a scope of another project is simply not there.
+        project_id = require_current_project()
+        with self._pool.connection() as conn, conn.transaction():
+            cursor = conn.execute(
+                """
+                UPDATE scope_monitorings
+                SET official_main = %s, official_backup = %s
+                WHERE id = %s AND project_id = %s
+                """,
+                (official_main, official_backup, scope_id, project_id),
+            )
+            if cursor.rowcount == 0:
+                raise ScopeMonitoringNotFoundError(
+                    f"ScopeMonitoring {scope_id!r} not found."
+                )
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         project_id = require_current_project()
         with self._pool.connection() as conn:

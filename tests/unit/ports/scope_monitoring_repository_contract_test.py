@@ -55,6 +55,7 @@ def test_the_port_declares_the_methods_the_application_calls():
         "update_daily_activity",
         "set_activities_status",
         "update_note",
+        "update_officials",
         "find_by_id",
         "find_by_name",
         "find_all",

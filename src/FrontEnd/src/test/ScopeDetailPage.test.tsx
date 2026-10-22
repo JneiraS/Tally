@@ -29,6 +29,7 @@ vi.mock('../services/api', async (importOriginal) => {
       setActivitiesStatus: vi.fn(),
       createActivity: vi.fn(),
       updateActivity: vi.fn(),
+      updateScopeOfficials: vi.fn(),
     },
   };
 });
@@ -54,13 +55,13 @@ function scopeWithDays() {
   });
 }
 
-async function renderPage() {
+async function renderPage(isAdmin = false) {
   vi.mocked(protabApi.getScopeMonitoring).mockResolvedValue(scopeWithDays());
   render(
     <MemoryRouter initialEntries={['/scopes/scope-1']}>
       <ToastProvider>
         <Routes>
-          <Route path="/scopes/:id" element={<ScopeDetailPage />} />
+          <Route path="/scopes/:id" element={<ScopeDetailPage isAdmin={isAdmin} />} />
         </Routes>
         <ToastContainer />
       </ToastProvider>
@@ -209,7 +210,7 @@ describe('ScopeDetailPage — barre d’actions groupées', () => {
       <MemoryRouter initialEntries={['/scopes/scope-1']}>
         <ToastProvider>
           <Routes>
-            <Route path="/scopes/:id" element={<ScopeDetailPage />} />
+            <Route path="/scopes/:id" element={<ScopeDetailPage isAdmin={false} />} />
           </Routes>
           <ToastContainer />
         </ToastProvider>
@@ -427,5 +428,43 @@ describe('ScopeDetailPage — page mono-jour', () => {
         ko_reason: 'Collecteur HS',
       });
     });
+  });
+
+  it("n'expose pas la carte des responsables à un non-admin", async () => {
+    // La tuile « Responsable Principal » reste le seul affichage : l'édition
+    // est une commodité admin, pas un droit déduit de la page.
+    await renderPage(false);
+
+    expect(screen.queryByLabelText('Responsable principal')).not.toBeInTheDocument();
+  });
+
+  it('expose la carte des responsables à un admin et ne recharge rien', async () => {
+    vi.mocked(protabApi.updateScopeOfficials).mockResolvedValue(undefined as never);
+    await renderPage(true);
+
+    const main = screen.getByLabelText('Responsable principal');
+    expect(main).toHaveValue('LAMA');
+
+    fireEvent.change(main, { target: { value: 'MLOZ' } });
+    // « Enregistrer » existe aussi dans la carte de note : on cible la carte,
+    // dont le conteneur porte ses coins arrondis.
+    const card = screen
+      .getByRole('heading', { name: 'Responsables' })
+      .closest('div.rounded-2xl');
+    if (!(card instanceof HTMLElement)) throw new Error('carte introuvable');
+    fireEvent.click(within(card).getByRole('button', { name: 'Enregistrer' }));
+
+    await waitFor(() => {
+      expect(protabApi.updateScopeOfficials).toHaveBeenCalledWith('scope-1', {
+        official_main: 'MLOZ',
+        official_backup: 'JMAB',
+      });
+    });
+    // La tuile reflète la valeur enregistrée — mise à jour locale, sans
+    // `fetchScopeDetail` qui effacerait le jour sélectionné.
+    await waitFor(() => {
+      expect(screen.getAllByText('MLOZ').length).toBeGreaterThan(0);
+    });
+    expect(protabApi.getScopeMonitoring).toHaveBeenCalledTimes(1);
   });
 });

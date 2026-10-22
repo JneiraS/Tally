@@ -103,6 +103,18 @@ class ScopeMonitoring:
             )
         self.note = cleaned or None
 
+    def set_officials(self, official_main: str | None, official_backup: str | None) -> None:
+        """Replace the officials of the scope.
+
+        The :class:`Officials` value object re-runs on the two values, so the
+        edit and the creation cannot drift apart: the same non-blank rule
+        refuses a main or backup left empty, and an invalid call leaves the
+        aggregate untouched. It is a write invariant, like ``set_note`` — there
+        is deliberately no new format here (§28.3): a code the login screen
+        would tolerate must keep being editable.
+        """
+        self.officials = Officials(main=official_main or "", backup=official_backup or "")
+
     def add_daily_activity(self, activity: DailyActivity) -> None:
         if activity.day in self.daily_activities:
             raise DuplicateDailyActivityError(

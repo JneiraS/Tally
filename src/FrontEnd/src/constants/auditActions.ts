@@ -6,6 +6,7 @@ import {
   Plus,
   StickyNote,
   UploadCloud,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import type { AuditAction } from "../types";
@@ -26,6 +27,7 @@ export const AUDIT_ACTIONS: { value: AuditAction; label: string }[] = [
   { value: "activity_completed", label: "Validation d'activité" },
   { value: "activity_ko", label: "Journée signalée KO" },
   { value: "scope_note_updated", label: "Note du périmètre" },
+  { value: "scope_officials_updated", label: "Responsables du périmètre" },
 ];
 
 export const ACTION_LABELS: Record<AuditAction, string> = Object.fromEntries(
@@ -40,4 +42,5 @@ export const ACTION_ICONS: Record<AuditAction, LucideIcon> = {
   activity_completed: CheckCircle2,
   activity_ko: OctagonX,
   scope_note_updated: StickyNote,
+  scope_officials_updated: UserCog,
 };

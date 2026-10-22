@@ -473,18 +473,19 @@ rejoue les entrées **à l'envers**. Le debounce rend les rafales plus fréquent
 qu'on ne le croit : deux suppressions à 1,5 s s'effacent en un seul `PATCH`, donc
 en un seul écrasement.
 
-### La note du périmètre — un brouillon, pas un autosave
+### Les champs en brouillon — note et responsables, pas un autosave
 
-`ScopeNoteCard` est le seul champ éditable de la page de détail qui ne soit pas
-un compteur d'activité, et il ne se comporte pas comme eux : c'est un
-**brouillon** avec « Enregistrer » / « Annuler ». Un autosave y enverrait un
-`PATCH` par frappe au clavier, donc **un événement d'audit par caractère tapé**.
+`ScopeNoteCard` et `ScopeOfficialsCard` sont les seuls champs éditables de la
+page de détail qui ne soient pas un compteur d'activité, et ils ne se
+comportent pas comme eux : ce sont des **brouillons** avec
+« Enregistrer » / « Annuler ». Un autosave y enverrait un `PATCH` par frappe au
+clavier, donc **un événement d'audit par caractère tapé**.
 
 Deux détails qu'il ne faut pas « simplifier » :
 
 - le bouton compare la valeur **nettoyée** à la valeur enregistrée, donc
   « note » et «  note  » ne sont pas considérés comme un brouillon modifié ;
-- la carte renvoie la note enregistrée via `onSaved(note)` et la page ne
+- la carte renvoie la valeur enregistrée via `onSaved(...)` et la page ne
   recharge rien : un `fetchScopeDetail()` au retour du `PATCH` remettrait
   `isLoading` à vrai et effacerait la journée sélectionnée.
 
@@ -492,6 +493,17 @@ La note est éditable **depuis la page de détail uniquement** : ni la liste, ni
 recherche, ni l'export CSV n'en tiennent compte. Elle est au plus
 `NOTE_MAX_LENGTH` (2000) caractères — le serveur refuse au-delà, le champ n'a pas
 de `maxLength` pour ne pas tronquer la frappe.
+
+### Les responsables — un brouillon réservé aux administrateurs
+
+`ScopeOfficialsCard` suit le même motif de brouillon, sur les deux champs
+`official_main` / `official_backup` (`PATCH /scope-monitorings/{id}/officials`).
+Elle n'est rendue que si `AuthSession.is_admin` — calculé par le serveur à chaque
+`/auth/me` et `/auth/login` contre la table `project_admins`, jamais déduit côté
+client. Le masquage n'est qu'une commodité : le `403` du serveur reste l'arbitre
+(quand la révocation suit l'ouverture de la page), et un échec y est annoncé
+comme une erreur toast **sans écraser le brouillon**. La valeur enregistrée est
+renvoyée par `onSaved(...)` et mise à jour en place, comme la note.
 
 ### Saisie d'une référence FEAI
 
@@ -755,7 +767,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-35 fichiers dans `src/test/` (326 tests). `src/test/setup.ts` importe
+36 fichiers dans `src/test/` (338 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

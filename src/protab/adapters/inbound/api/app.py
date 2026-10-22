@@ -26,6 +26,7 @@ from protab.adapters.inbound.api.schemas import (
     SetStatusRequest,
     SessionResponse,
     UpdateRequest,
+    UpdateOfficialsRequest,
     UpdateScopeNoteRequest,
 )
 from protab.adapters.inbound.csv.scope_monitoring_csv_reader import (
@@ -59,6 +60,7 @@ from protab.application.commands.daily_activity import (
 )
 from protab.application.commands.scope_monitoring import (
     UpdateScopeNoteCommand,
+    UpdateScopeOfficialsCommand,
 )
 from protab.application.queries.get_daily_activity import GetDailyActivityUseCase
 from protab.application.queries.get_scope import GetScopeUseCase
@@ -78,6 +80,9 @@ from protab.application.use_cases.update_daily_activity import (
 )
 from protab.application.use_cases.update_scope_note import (
     UpdateScopeNoteUseCase,
+)
+from protab.application.use_cases.update_scope_officials import (
+    UpdateScopeOfficialsUseCase,
 )
 from protab.domain.entities.audit_event import AuditEvent
 from protab.domain.entities.daily_activity import DailyActivity
@@ -197,6 +202,10 @@ def create_app(
     set_activities_status = SetActivitiesStatusUseCase(repo, audit)
     update_daily_activity = UpdateDailyActivityUseCase(repo, audit)
     update_scope_note = UpdateScopeNoteUseCase(repo, audit)
+    # ``auth`` satisfait aussi le port AdminDirectory (is_current_project_admin
+    # contre project_admins, dans le tenant courant) ; ``None`` est le mode
+    # dégradé sans authentification, où l'édition est permise comme le reste.
+    update_scope_officials = UpdateScopeOfficialsUseCase(repo, auth, audit)
     list_audit_events = ListAuditEventsUseCase(audit)
     list_scopes = ListScopesUseCase(repo)
     get_scope = GetScopeUseCase(repo)
@@ -253,6 +262,7 @@ def create_app(
         return LoginResponse(
             project=_project_to_response(project),
             quadrigramme=session.quadrigramme,
+            is_admin=auth.is_admin(project.id, session.quadrigramme),
         )
 
     @app.get("/auth/me", response_model=SessionResponse)
@@ -262,9 +272,12 @@ def create_app(
 
             raise HTTPException(status_code=401, detail="Authentification requise.")
         user = current_user(request, auth)
+        # ``is_admin`` est relu en base à chaque appel : une session ouverte
+        # avant une révocation CLI ne garde aucun droit résiduel.
         return SessionResponse(
             project=_project_to_response(user.project),
             quadrigramme=user.session.quadrigramme,
+            is_admin=auth.is_admin(user.project.id, user.session.quadrigramme),
         )
 
     @app.get(
@@ -413,6 +426,25 @@ def create_app(
     ) -> None:
         update_scope_note.execute(
             UpdateScopeNoteCommand(scope_id=scope_id, note=request.note)
+        )
+
+    @app.patch(
+        "/scope-monitorings/{scope_id}/officials",
+        status_code=204,
+        dependencies=[Depends(project_context)],
+    )
+    def handle_update_scope_officials(
+        scope_id: str, request: UpdateOfficialsRequest
+    ) -> None:
+        # Route dédiée plutôt que d'étendre le PATCH de la note : le sens du
+        # 403 — seuls les administrateurs — reste sans ambiguïté, et le schéma
+        # de la note n'accueille pas un champ dont l'autorisation diffère.
+        update_scope_officials.execute(
+            UpdateScopeOfficialsCommand(
+                scope_id=scope_id,
+                official_main=request.official_main,
+                official_backup=request.official_backup,
+            )
         )
 
     @app.get(

@@ -73,6 +73,13 @@ class InMemoryScopeMonitoringRepository:
     def update_note(self, scope_id: str, note: str | None) -> None:
         self._require(scope_id).set_note(note)
 
+    def update_officials(
+        self, scope_id: str, official_main: str, official_backup: str
+    ) -> None:
+        # ``set_officials`` re-validates, so both adapters refuse the same
+        # blank pair with the same domain exception (§28.1).
+        self._require(scope_id).set_officials(official_main, official_backup)
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         return self._by_id.get(scope_id)
 

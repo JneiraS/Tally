@@ -15,9 +15,12 @@ from protab.domain.value_objects.non_working_days import NonWorkingDays
 
 
 class FakeAuthRepository:
-    def __init__(self, known_codes: set[str] | None = None) -> None:
+    def __init__(
+        self, known_codes: set[str] | None = None, admin_codes: set[str] | None = None
+    ) -> None:
         self.sessions: dict[str, AuthSession] = {}
         self.known_codes = known_codes or set()
+        self.admin_codes = {code.strip().upper() for code in (admin_codes or set())}
         self.settings = NonWorkingDays.default()
 
     def list_projects(self) -> list[Project]:
@@ -59,6 +62,12 @@ class FakeAuthRepository:
 
     def delete_session(self, token: str) -> None:
         self.sessions.pop(token, None)
+
+    def is_admin(self, project_id: str, quadrigramme: str) -> bool:
+        return (quadrigramme or "").strip().upper() in self.admin_codes
+
+    def is_current_project_admin(self, quadrigramme: str) -> bool:
+        return self.is_admin(project_id="alpha", quadrigramme=quadrigramme)
 
 
 def test_authenticated_routes_require_a_valid_session():

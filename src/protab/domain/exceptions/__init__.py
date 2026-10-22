@@ -21,6 +21,7 @@ from .daily_activity import (
     KoReasonTooLongError,
 )
 from .official_code import InvalidOfficialCodeError
+from .authorization import NotProjectAdminError
 
 __all__ = [
     "DomainError",
@@ -42,4 +43,5 @@ __all__ = [
     "InvalidKoReasonError",
     "KoReasonTooLongError",
     "InvalidOfficialCodeError",
+    "NotProjectAdminError",
 ]

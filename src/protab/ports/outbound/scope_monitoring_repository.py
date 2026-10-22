@@ -89,6 +89,24 @@ class ScopeMonitoringRepository(Protocol):
         """
         ...
 
+    def update_officials(
+        self, scope_id: str, official_main: str, official_backup: str
+    ) -> None:
+        """Overwrite the two officials of one scope, leaving everything else alone.
+
+        Targeted write like ``update_note``: the aggregate the caller read is
+        never repersisted, so a concurrent edit to the note or a day survives.
+        The values are already validated — the use case runs them through
+        ``ScopeMonitoring.set_officials`` first, so every implementation
+        receives a normalized pair and re-validates nothing.
+
+        Raises:
+            ScopeMonitoringNotFoundError: the scope does not exist in the
+                current project. A scope from another tenant is "not found",
+                not forbidden: tenant isolation is unconditional.
+        """
+        ...
+
     def find_by_id(self, scope_id: str) -> ScopeMonitoring | None:
         """Return the ScopeMonitoring with the given id, or None."""
         ...
