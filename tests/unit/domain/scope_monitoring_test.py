@@ -199,6 +199,63 @@ def test_hydration_never_rejects_a_note_above_the_limit():
     assert len(scope.note) == NOTE_MAX_LENGTH + 1
 
 
+# --- Officiels (responsable principal / suppléant) --------------------------
+
+
+def test_set_officials_stores_both_values(fixture_scope_monitoring):
+    fixture_scope_monitoring.set_officials("LAMA/JMAB", "  MLOZ  ")
+
+    assert fixture_scope_monitoring.officials.main == "LAMA/JMAB"
+    assert fixture_scope_monitoring.officials.backup == "MLOZ"
+
+
+def test_set_officials_keeps_the_billing_code_and_the_note(fixture_scope_monitoring):
+    # Une édition des officiels ne doit pas effacer les autres champs du
+    # périmètre : le constructeur est le chemin de réhydratation, la mutation
+    # l'écriture ciblée, et le domaine n'a pas à savoir ce que le port persiste.
+    fixture_scope_monitoring.billing_code = "FACT-2026-PAI"
+    fixture_scope_monitoring.set_note("note à conserver")
+    fixture_scope_monitoring.set_officials("NewMain", "NewBackup")
+
+    assert fixture_scope_monitoring.billing_code == "FACT-2026-PAI"
+    assert fixture_scope_monitoring.note == "note à conserver"
+
+
+@pytest.mark.parametrize("blank_main", [None, "", "   "])
+def test_set_officials_rejects_a_blank_main(fixture_scope_monitoring, blank_main):
+    # Même règle que le constructeur : les deux responsables sont obligatoires.
+    # Le refus renvoie au value object, pour que création et édition ne puissent
+    # jamais dévier.
+    with pytest.raises(EmptyOfficialsError):
+        fixture_scope_monitoring.set_officials(blank_main, "Backup")
+
+    assert fixture_scope_monitoring.officials.main == "Official"
+
+
+@pytest.mark.parametrize("blank_backup", [None, "", "   "])
+def test_set_officials_rejects_a_blank_backup(fixture_scope_monitoring, blank_backup):
+    with pytest.raises(EmptyOfficialsError):
+        fixture_scope_monitoring.set_officials("Main", blank_backup)
+
+    assert fixture_scope_monitoring.officials.backup == "Secondary Official"
+
+
+def test_set_officials_leaves_the_daily_activities_intact(fixture_scope_monitoring):
+    """L'invariant du §28.1 : la mutation ne touche que les champs nommés."""
+    day = date(2026, 9, 19)
+    activity = DailyActivity(
+        day=day,
+        errors_reported=7,
+        incidents_created=1,
+        feai=["INC000000019"],
+    )
+    fixture_scope_monitoring.add_daily_activity(activity)
+    fixture_scope_monitoring.set_officials("NewMain", "NewBackup")
+
+    assert fixture_scope_monitoring.daily_activity_for(day).errors_reported == 7
+    assert fixture_scope_monitoring.daily_activity_for(day).feai == ["INC000000019"]
+
+
 # tests pour DailyActivity et ScopeMonitoring
 def test_scope_monitoring_add_daily_activity(fixture_scope_monitoring):
     """Adding a DailyActivity for a new day should succeed."""

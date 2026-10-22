@@ -21,7 +21,7 @@ const PROJECT = {
   non_working_days: { excluded_weekdays: [6, 7], excluded_dates: [] },
 };
 
-const SESSION = { project: PROJECT, quadrigramme: 'JN01' };
+const SESSION = { project: PROJECT, quadrigramme: 'JN01', is_admin: false };
 
 function json(status: number, body: unknown): Response {
   return {

@@ -27,6 +27,7 @@ import { ActivityFormModal } from '../components/ActivityFormModal';
 import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
 import { TodayActivityEditor } from '../components/TodayActivityEditor';
 import { ScopeNoteCard } from '../components/ScopeNoteCard';
+import { ScopeOfficialsCard, type ScopeOfficials } from '../components/ScopeOfficialsCard';
 import { DateNavigator } from '../components/DateNavigator';
 import { DayStatusPanel } from '../components/DayStatusPanel';
 import { BatchKoModal } from '../components/BatchKoModal';
@@ -39,7 +40,16 @@ const ScopeDetailCharts = lazy(() =>
   }))
 );
 
-export function ScopeDetailPage() {
+interface ScopeDetailPageProps {
+  /**
+   * L'utilisateur est-il administrateur du projet courant ? Venue de la
+   * session (`GET /auth/me`), sans relecture client : le 403 du serveur reste
+   * l'arbitre quand la révocation a suivi l'ouverture de la page.
+   */
+  isAdmin: boolean;
+}
+
+export function ScopeDetailPage({ isAdmin }: ScopeDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const { success, error: toastError } = useToast();
 
@@ -111,6 +121,12 @@ export function ScopeDetailPage() {
     // La carte renvoie la note enregistrée : la page se met à jour sans
     // recharger le détail, sinon le changement de jour en cours serait perdu.
     setScope((prev) => (prev ? { ...prev, note } : prev));
+  };
+
+  // Même règle que la note : les responsables enregistrés arrivent de la
+  // carte, la page ne recharge rien et le jour affiché survit.
+  const handleOfficialsSaved = ({ official_main, official_backup }: ScopeOfficials) => {
+    setScope((prev) => (prev ? { ...prev, official_main, official_backup } : prev));
   };
 
   const fetchScopeDetail = async () => {
@@ -434,6 +450,18 @@ export function ScopeDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Responsables — brouillon explicite, réservé aux administrateurs. Les
+          non-admins n'ont pas la carte : les valeurs restent lisibles dans les
+          tuiles ci-dessus, et le serveur reste l'arbitre du droit. */}
+      {isAdmin && scope && (
+        <ScopeOfficialsCard
+          scopeId={scope.id}
+          officialMain={scope.official_main}
+          officialBackup={scope.official_backup}
+          onSaved={handleOfficialsSaved}
+        />
+      )}
 
       {/* Note libre du périmètre — brouillon, enregistré explicitement */}
       <ScopeNoteCard

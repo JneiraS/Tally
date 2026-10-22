@@ -132,7 +132,7 @@ n'a été nécessaire pour l'heure.
 
 ### Port de périmètre — `ports/outbound/scope_monitoring_repository.py`
 
-`Protocol` synchrone de neuf méthodes :
+`Protocol` synchrone de dix méthodes :
 
 - `save(scope)` — **création seule**, refuse un id déjà pris ;
 - `insert_daily_activity`, `update_daily_activity` — écritures ciblées des
@@ -140,6 +140,11 @@ n'a été nécessaire pour l'heure.
 - `set_activities_status(scope_id, days, status, *, ko_reason=None)` — écriture
   ciblée du statut d'un lot de jours. Seul upsert du dépôt : voir §8 ;
 - `update_note(scope_id, note)` — écriture ciblée de la note du périmètre ;
+- `update_officials(scope_id, official_main, official_backup)` — écriture ciblée
+  des deux responsables du périmètre. Les valeurs sont déjà validées (le use
+  case les fait passer par `ScopeMonitoring.set_officials`), et le filtre
+  tenant est inconditionnel : un périmètre d'un autre projet est
+  `ScopeMonitoringNotFoundError`, jamais « interdit » ;
 - `find_by_id`, `find_by_name`, `find_all`, `find_all_scope_names` — lectures.
 
 `set_activities_status` est aussi la seule méthode dont l'upsert est légitime :
@@ -185,6 +190,19 @@ Trois décisions de ce query object portent le comportement du filtre, et les
 La normalisation de `actor` (`.strip().upper()`, blanc = aucun filtre) est faite
 **une seule fois à la frontière entrante** (`app.py`), jamais dans les adaptateurs.
 
+### Port d'administrateurs — `ports/outbound/admin_directory.py`
+
+Un `Protocol` d'une méthode : `is_current_project_admin(code) -> bool`. Il est
+satisfait par `PostgresAuthRepository`, qui lit la table `project_admins` **à
+chaque appel** dans le tenant du contexte courant — jamais un rôle mémorisé en
+session, qui resterait valable pour les 12 h restantes après une révocation via
+la CLI (`protab-project remove-admin`). Son unique consommateur est
+`UpdateScopeOfficialsUseCase`, qui refuse un non-admin **avant** la lecture du
+périmètre (`NotProjectAdminError`, traduite en `403`) : une 404 fournirait un
+détecteur d'ids de périmètres. Sans authentification (`auth=None`, mode dev),
+le use case est construit sans porte et l'édition reste permise, comme le reste
+des routes métier.
+
 ### Absence de port pour l'authentification
 
 `PostgresAuthRepository` n'est **pas** derrière un `Protocol` : l'API et la CLI
@@ -205,8 +223,8 @@ domaine, comme la durée de session (`SESSION_DURATION`), dont le cookie dérive
 
 - **Cas d'usage** (`use_cases/`) : `CreateScopeMonitoring`,
   `CreateDailyActivity`, `UpdateDailyActivity`, `SetActivitiesStatus`,
-  `UpdateScopeNote`. Chacun prend ses ports par constructeur et un
-  `audit_trail` optionnel ; aucun ne construit de connexion.
+  `UpdateScopeNote`, `UpdateScopeOfficials`. Chacun prend ses ports par
+  constructeur et un `audit_trail` optionnel ; aucun ne construit de connexion.
 - **Commandes** (`commands/`) : dataclasses d'entrée
   (`create_scope_monitoring.py`, `daily_activity.py`).
 - **Requêtes** (`queries/`) : `ListScopes`, `GetScope`, `GetDailyActivity`,
@@ -232,6 +250,12 @@ Deux comportements méritent d'être connus avant de modifier un cas d'usage :
   réenregistrer une note identique n'ajoute aucun événement. Il compare la note
   **avant et après** `set_note()`, jamais la commande reçue, car le domaine
   normalise (une note blanche devient `None`).
+- `UpdateScopeOfficialsUseCase` juge la **permission avant la lecture** : un
+  non-admin reçoit `NotProjectAdminError` (403) même sur un id inconnu, pour
+  que le 404 ne serve pas de détecteur d'identifiants. Il compare ensuite les
+  officiels avant/après `set_officials`, et le diff du journal ne porte que les
+  champs réellement modifiés. Écrire des valeurs identiques n'ajoute aucun
+  événement.
 
 ---
 
@@ -258,7 +282,8 @@ Table des routes :
 | POST | `/scope-monitorings` | oui | Création (unitaire ou en lot) |
 | POST | `/scope-monitorings/import-csv` | oui | Import CSV |
 | GET | `/scope-monitorings/{scope_id}` | oui | Détail d'un périmètre |
-| PATCH | `/scope-monitorings/{scope_id}` | oui | Note libre — **seule** route qui modifie un périmètre |
+| PATCH | `/scope-monitorings/{scope_id}` | oui | Note libre |
+| PATCH | `/scope-monitorings/{scope_id}/officials` | oui | Responsables (principal / suppléant) — **403** sauf administrateur du projet |
 | GET | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Compteurs d'un jour |
 | POST | `/scope-monitorings/{scope_id}/activities` | oui | Création d'une activité |
 | PATCH | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Mise à jour des compteurs |

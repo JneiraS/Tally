@@ -1125,13 +1125,36 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `test_the_status_migration_is_idempotent`.
 - **`scope_monitorings.note` est un texte libre nullable, et la première route qui modifie un périmètre.**
   `PATCH /scope-monitorings/{id}` avec `{note}` ne touche qu'à elle — ni `name`, ni `billing_code`, ni les
-  activités. La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
+  officiels (la deuxième écriture ciblée du périmètre est celle des officiels, cf.
+  « Édition des responsables » ci-après). La borne `NOTE_MAX_LENGTH = 2000` est déclarée **dans le domaine** et reprise par le schéma
   Pydantic, jamais recopiée ; une requête trop longue est donc refusée en `422` à la frontière entrante,
   tandis que `set_note()` conserve l'invariant pour les autres appelants. Deux règles distinctes, comme
   pour `NonWorkingDaysRequest` : le constructeur hydrate **sans** refuser une note trop longue (une seule
   ligne dégénérée viderait la liste des périmètres, cf. `billing_code` ci-dessus), la validation est un
   invariant d'écriture. Une note blanche est normalisée en `None` partout — domaine, API et TypeScript
   (`ScopeMonitoring.note` : `string | null`) — donc « pas de note » n'a qu'un état, pas deux.
+- **Édition des responsables : `PATCH /scope-monitorings/{id}/officials`, réservée aux administrateurs du
+  projet.** C'est la demande qui a réalisé la forme anticipée par §28.1 et la prévision de §28.3 bis
+  (« si la demande revient ») : écriture ciblée du port `update_officials` + use case + événement d'audit,
+  **pas un `save()`**. Les arbitraires à ne pas casser :
+  - **la permission est jugée avant la lecture du périmètre** (`AdminDirectory`
+    → `NotProjectAdminError` → `403`) : un `404` d'abord laissait le refus servir de détecteur
+    d'identifiants de périmètres. Pour un admin, un id inconnu reste une `404` métier, comme les autres
+    écritures ciblées ;
+  - **la porte `is_current_project_admin` relit `project_admins` en base à chaque requête** — jamais un
+    drapeau en session, qui survivrait 12 h à une révocation CLI. Elle résout le projet dans le tenant
+    courant côté adapter, le port ne connaît pas de `project_id` ;
+  - **`auth=None`, la vérification est simplement absente** : le use case est construit sans porte en
+    mode dégradé (dev/tests) et l'édition reste permise, comme le reste — cohérence avec
+    `project_context`, pas une brèche nouvelle ;
+  - **pas de nouvelle règle de format** sur les codes : même tolérance `strip` que la création via
+    `Officials` — la relation « administrateur ≠ officiel du périmètre » est conservée, et éditer les
+    officiels ne touche jamais `project_admins`, donc un admin ne peut pas se verrouiller lui-même ;
+  - l'événement `scope_officials_updated` ne porte **que les champs réellement modifiés**, et valeurs
+    identiques ⇒ aucun événement ; le front duplique l'état admin dans `AuthSession.is_admin`,
+    calculé par le serveur à chaque `/auth/me` et `/auth/login` — jamais déduit côté client.
+  Verrouillé par `tests/unit/application/update_scope_officials_test.py` et
+  `tests/integration/adapters/officials_api_test.py`.
 - **`daily_activities.ko_reason` est un texte libre nullable, qui n'existe que sur un jour KO.** La borne
   `KO_REASON_MAX_LENGTH = 500` est déclarée **dans le domaine** et reprise par le schéma Pydantic, comme
   `NOTE_MAX_LENGTH`. **Trois portes, dont deux à contre-courant**, et c'est délibéré :
@@ -1342,11 +1365,14 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   `protab-project set-password` **ne** vous sauverait pas : il supprime les sessions, donc il verrouille.
 - **`project_admins` fait partie de `connect()`**, donc `TRUNCATE ... projects ... CASCADE` la vide avec le
   projet : les fixtures `truncate_all()` n'ont rien à ajouter.
-- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** La seule route qui modifie un
-  périmètre existant est `PATCH /scope-monitorings/{id}`, et elle ne touche que la **note** (§28.1) : ni
-  `name`, ni `billing_code`, ni les officiels. `name` reste `UNIQUE` **mondial** (donc pas par projet).
-  Déclarer un quadrigramme supplémentaire ou corriger un code dans un périmètre existant passe encore par
-  le SQL direct ou par un nouveau périmètre.
+- **Ajouter un administrateur ne remplace pas la mise à jour d'un périmètre.** Les routes qui modifient
+  un périmètre existant restent les écritures ciblées : la note (`PATCH /scope-monitorings/{id}`,
+  tout officiel) et les officiels (`PATCH /{id}/officials`, administrateurs seulement — cf.
+  « Édition des responsables » §28.1). Ni `name`, ni `billing_code` : `name` reste `UNIQUE` **mondial**
+  (donc pas par projet), et ce dernier garde la forme anticipée dans §28.1, application si la demande
+  revient. Déclarer un quadrigramme supplémentaire ou corriger un code dans un périmètre existant passe
+  encore par le SQL direct ou par un nouveau périmètre ; **éditer les responsables n'a jamais donné
+  d'accès** — le login lit `project_admins` et les officiels des périmètres, pas l'historique des éditions.
 
 
 ## 28.4 Tests d'intégration PostgreSQL
@@ -1606,8 +1632,9 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   « Annuler » (`ActivityFormModal.tsx:396`) qui **jette toute la saisie en cours**. Deux contrôles, le même
   libellé, deux sens opposés, dont un destructeur. Si la suppression dans ce modal doit devenir
   réversible, la forme correcte est un « référence retirée — restaurer » **en place** dans la liste.
-- **La note du périmètre est un brouillon, pas un autosave.** C'est le seul champ éditable de la page qui
-  ne soit pas un compteur d'activité : une note se rédige au clavier, donc un autosave enverrait un `PATCH`
+- **La note du périmètre est un brouillon, pas un autosave.** Avec les responsables (ScopeOfficialsCard),
+  ce sont les seuls champs éditables de la page qui ne soient pas des compteurs d'activité : une note se
+  rédige au clavier, donc un autosave enverrait un `PATCH`
   par frappe — et donc un événement d'audit par caractère tapé. D'où le `ScopeNoteCard` dédié, avec
   « Enregistrer » / « Annuler », sur la carte entre l'identité et l'activité du jour. Le bouton compare la
   valeur **nettoyée** à la valeur enregistrée : « note » et «  note  » sont le même enregistrement, donc
@@ -1811,7 +1838,7 @@ Conventions propres au dépôt ProTab, qui complètent les règles générales c
   sert déjà les routes inconnues, donc un bloc dédié serait un no-op — et une
   illusion d'étape obligatoire. En revanche, une route **d'API** imposera son
   entrée dans `vite.config.ts` (proxy de dev) sous peine de CORS.
- - Tests : `npm test` (vitest, 326 tests) et `npm run lint` (`tsc --noEmit`). Le
+ - Tests : `npm test` (vitest, 338 tests) et `npm run lint` (`tsc --noEmit`). Le
   `beforeEach` de `ScopeListPage.test.tsx` fixe la date du jour ; elle doit être un
   **jour ouvré** (lundi 2026-09-21), sinon la page s'ouvre sur le jour ouvré précédent
   et tous les scénarios décalent d'un jour. `setup.ts` allonge

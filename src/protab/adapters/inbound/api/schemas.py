@@ -26,6 +26,14 @@ class UpdateScopeNoteRequest(BaseModel):
     note: str | None = Field(default=None, max_length=NOTE_MAX_LENGTH)
 
 
+class UpdateOfficialsRequest(BaseModel):
+    # Pas de borne de longueur : le domaine n'en déclare aucune sur les
+    # responsables (à la différence de la note), et resserrer ici inventerait
+    # une règle que la création n'impose pas (§28.3).
+    official_main: str = Field(min_length=1)
+    official_backup: str = Field(min_length=1)
+
+
 class SetStatusRequest(BaseModel):
     # The bound is the domain's own constant, like the note's: re-declaring it
     # here would let the two drift, and this is the one entry point where an
@@ -108,11 +116,13 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     project: ProjectResponse
     quadrigramme: str
+    is_admin: bool
 
 
 class SessionResponse(BaseModel):
     project: ProjectResponse
     quadrigramme: str
+    is_admin: bool
 
 
 class ActivityResponse(BaseModel):

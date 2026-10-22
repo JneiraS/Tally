@@ -83,6 +83,11 @@ export interface UpdateScopeNoteInput {
   note: string | null;
 }
 
+export interface UpdateScopeOfficialsInput {
+  official_main: string;
+  official_backup: string;
+}
+
 export type AuditAction =
   | "scope_created"
   | "scope_imported"
@@ -90,7 +95,8 @@ export type AuditAction =
   | "activity_updated"
   | "activity_completed"
   | "activity_ko"
-  | "scope_note_updated";
+  | "scope_note_updated"
+  | "scope_officials_updated";
 
 export interface AuditEvent {
   id: string; // UUID v4

@@ -113,7 +113,10 @@ function AppContent() {
                     />
                   }
                 />
-                <Route path="/scopes/:id" element={<ScopeDetailPage />} />
+                <Route
+                  path="/scopes/:id"
+                  element={<ScopeDetailPage isAdmin={session.is_admin} />}
+                />
                 <Route
                   path={ANALYTICS_PATH}
                   element={

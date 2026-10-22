@@ -28,7 +28,7 @@ const scope = (name: string, kb: string): ScopeMonitoring =>
     official_backup: 'Bob',
     daily_activities: [
       {
-        day: '2026-09-15',
+        day: fixtureDay,
         errors_reported: 2,
         incidents_created: 1,
         feai: ['INC000000001'],
@@ -39,6 +39,9 @@ const scope = (name: string, kb: string): ScopeMonitoring =>
   });
 
 const today = getTodayIsoDate();
+// Un jour dans la fenêtre par défaut (30 glissants) : la range va de
+// `today - 29` à `today`, une date fixe finit par en sortir.
+const fixtureDay = addDaysIso(today, -1);
 const defaultFrom = addDaysIso(today, -29);
 
 const renderModal = (overrides: Partial<Parameters<typeof ExportModal>[0]> = {}) => {

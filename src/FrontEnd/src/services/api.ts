@@ -18,6 +18,7 @@ import {
   SetActivitiesStatusInput,
   UpdateActivityInput,
   UpdateScopeNoteInput,
+  UpdateScopeOfficialsInput,
 } from "../types";
 import { AUDIT_LOG_PATH } from "../constants/routes";
 
@@ -73,6 +74,13 @@ export interface Project {
 export interface AuthSession {
   project: Project;
   quadrigramme: string;
+  /**
+   * Rôle administrateur du projet courant, tel que le serveur l'émet dans
+   * `/auth/me` et `/auth/login` (`is_admin`, calculé contre `project_admins`
+   * à chaque réponse). Jamais déduit côté client : une révocation via la CLI
+   * est effective au prochain appel.
+   */
+  is_admin: boolean;
 }
 
 /**
@@ -381,6 +389,26 @@ export const protabApi = {
    */
   async updateScopeNote(scopeId: string, payload: UpdateScopeNoteInput): Promise<void> {
     await request<void>(`/scope-monitorings/${scopeId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * PATCH /scope-monitorings/{id}/officials
+   * Remplace responsable principal et suppléant. Réservé aux administrateurs
+   * du projet : le serveur répond 403 sinon.
+   * Réponse 204
+   *
+   * Route dédiée plutôt qu'un champ de plus sur le PATCH de la note : le sens
+   * du 403 reste sans ambiguïté, et une note tolère un champ qui change de
+   * sujet sans changer d'autorisation.
+   */
+  async updateScopeOfficials(
+    scopeId: string,
+    payload: UpdateScopeOfficialsInput,
+  ): Promise<void> {
+    await request<void>(`/scope-monitorings/${scopeId}/officials`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });

@@ -15,6 +15,9 @@ from protab.adapters.outbound.persistence.postgres_pool import (
     POOL_MIN_SIZE,
     build_connection_pool,
 )
+from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+    require_current_project,
+)
 from protab.domain.value_objects.non_working_days import NonWorkingDays
 from protab.domain.value_objects.official_code import OfficialCode
 
@@ -313,6 +316,17 @@ class PostgresAuthRepository:
                 (project_id, _normalize_code(quadrigramme)),
             ).fetchone()
         return row is not None
+
+    def is_current_project_admin(self, quadrigramme: str) -> bool:
+        """Whether the actor is an administrator of the current tenant.
+
+        Satisfies the `AdminDirectory` port. The project comes from the same
+        per-request context the scope repository reads, so the check can never
+        leak across tenants — and fails closed when the request bypassed
+        ``project_context``.
+        """
+        project_id = require_current_project()
+        return self.is_admin(project_id, quadrigramme)
 
     def add_admin(self, project_id: str, quadrigramme: str) -> bool:
         """Grant permanent access to one project. Returns False if already set.

@@ -494,3 +494,41 @@ def test_admins_disappear_with_their_project(auth):
         conn.execute("DELETE FROM projects WHERE id = %s", (PROJECT_ID,))
 
     assert auth.list_admins(PROJECT_ID) == []
+
+
+# --- AdminDirectory -----------------------------------------------------------
+
+
+def test_is_current_project_admin_reads_the_tenant_in_context(auth):
+    """The port resolves the project from the request context, not a value the
+    caller could name: a code administered elsewhere is not an administrator."""
+    auth.create_project("project-other", "Autre Projet", "autre-secret")
+    auth.add_admin("project-other", "ABCD")
+
+    assert auth.is_current_project_admin("WHOM") is False
+
+    token = set_current_project("project-other")
+    try:
+        assert auth.is_current_project_admin("abcd") is True
+    finally:
+        reset_current_project(token)
+
+
+def test_is_current_project_admin_is_normalized(auth):
+    auth.add_admin(PROJECT_ID, "MLOZ")
+
+    assert auth.is_current_project_admin("  mloz ") is True
+    assert auth.is_current_project_admin("MRAM") is False
+
+
+def test_is_current_project_admin_refuses_an_empty_context(auth):
+    from protab.adapters.outbound.persistence.postgres_scope_monitoring_repository import (
+        MissingProjectContextError,
+    )
+
+    token = set_current_project(None)
+    try:
+        with pytest.raises(MissingProjectContextError):
+            auth.is_current_project_admin("MLOZ")
+    finally:
+        reset_current_project(token)

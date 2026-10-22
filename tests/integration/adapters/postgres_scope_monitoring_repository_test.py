@@ -809,6 +809,8 @@ def test_adapters_refuse_to_read_or_write_without_project_context(repo):
         repo.save(make_scope())
     with pytest.raises(MissingProjectContextError):
         repo.update_note("scope-001", "Note")
+    with pytest.raises(MissingProjectContextError):
+        repo.update_officials("scope-001", "Main", "Backup")
 
 
 def test_find_all_returns_only_the_requesting_project_scopes(repo):
@@ -866,6 +868,43 @@ def test_update_note_refuses_another_project(repo):
 
     with pytest.raises(ScopeMonitoringNotFoundError):
         repo.update_note("scope-001", "Ne doit pas écrire")
+
+
+# --- Targeted scope write (officials) -----------------------------------------
+
+
+def test_update_officials_touches_its_own_row_only(repo):
+    """Édition ciblée des deux responsables, comme ``update_note`` : le reste
+    de la ligne (note, code de facturation, journées) ne doit pas bouger.
+    """
+    scope = make_scope(day=date(2026, 9, 19))
+    scope.set_note("note existante")
+    repo.save(scope)
+
+    repo.update_officials("scope-001", "MLOZ", "MRAM")
+
+    reloaded = repo.find_by_id("scope-001")
+    assert reloaded.officials.main == "MLOZ"
+    assert reloaded.officials.backup == "MRAM"
+    assert reloaded.note == "note existante"
+    assert reloaded.billing_code == "FACT-2026-PAI"
+    assert reloaded.daily_activity_for(date(2026, 9, 19)).errors_reported == 2
+
+
+def test_update_officials_unknown_scope_raises(repo):
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_officials("inconnu", "Main", "Backup")
+
+
+def test_update_officials_refuses_another_project(repo):
+    """Isolation inconditionnelle : un périmètre d'un autre projet est
+    « introuvable », jamais « interdit ».
+    """
+    repo.save(make_scope())
+    set_current_project("other-project")
+
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_officials("scope-001", "Main", "Backup")
 
 
 def test_save_carries_a_note_on_creation(repo):

@@ -48,8 +48,9 @@ ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
   repositories utilisent pour réhydrater, accepte l'absence : le champ a été introduit après les
   premiers périmètres enregistrés.
 - Une `note` libre et nullable, au plus `NOTE_MAX_LENGTH` (2000) caractères à l'écriture. `set_note()`
-  normalise une note blanche en `None` ; la route `PATCH /scope-monitorings/{id}` est la seule qui modifie
-  un périmètre existant, et elle ne touche qu'à elle.
+  normalise une note blanche en `None` ; la route `PATCH /scope-monitorings/{id}` ne touche qu'à elle.
+  Les responsables se modifient par `PATCH /scope-monitorings/{id}/officials`, réservée aux
+  administrateurs du projet (`project_admins`, vérifiés en base à chaque requête).
 
 ## Use cases (couche application)
 
@@ -204,6 +205,7 @@ make project-admin ARGS="list-admins protab"             # dans le conteneur api
 | `PATCH /scope-monitorings/{id}/activities/{day}`                                                            | `{errors_reported, incidents_created, feai}`                                                | `204`                                                                      | `404` périmètre ou jour inconnu, `400` invariant violé                     |
 | `GET /scope-monitorings`                                                                                    | —                                                                                           | `200` liste des périmètres (id, name, knowledge, officials, activities)    | —                                                                          |
 | `PATCH /scope-monitorings/{id}`                                                                              | `{note}` (2000 caractères max)                                                              | `204`                                                                      | `404` périmètre inconnu, `422` note trop longue                           |
+| `PATCH /scope-monitorings/{id}/officials`                                                                    | `{official_main, official_backup}`                                                          | `204`                                                                      | `403` non-admin (jugé avant la 404 d'un id inconnu), `404` admin + périmètre inconnu, `400` responsable blanc |
 | `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
 | `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
 | `GET /api/audit-log`                                                                  | query : `scope_id` (répété), `actor` (préfixe, insensible à la casse), `action`, `from_created_at`, `to_created_at` (instants ISO, bornes inclusives/exclusives sur `created_at`), `limit` (1–1000, défaut 200) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
