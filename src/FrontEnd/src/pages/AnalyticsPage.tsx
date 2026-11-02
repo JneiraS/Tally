@@ -221,8 +221,8 @@ export function AnalyticsPage({
   }, [granularity, filters.granularity]);
 
   const summary = useMemo(
-    () => computePeriodSummary(selected, days),
-    [selected, days],
+    () => computePeriodSummary(selected, days, nonWorkingDays),
+    [selected, days, nonWorkingDays],
   );
 
   const delta = useMemo(() => {
@@ -236,7 +236,7 @@ export function AnalyticsPage({
     );
     return periodDelta(
       summary,
-      computePeriodSummary(selected, previousDays),
+      computePeriodSummary(selected, previousDays, nonWorkingDays),
     );
   }, [filters.compare, filters.from, filters.to, filters.workingDaysOnly, nonWorkingDays, selected, summary]);
 
@@ -244,14 +244,14 @@ export function AnalyticsPage({
     const agg = granularity === "jour"
       ? aggregateByDay(selected, days)
       : aggregateByWeek(selected, days);
-    const couverture = coverageByColumn(selected, days, granularity);
+    const couverture = coverageByColumn(selected, days, granularity, nonWorkingDays);
     return {
       erreurs: agg.map((p) => p.erreurs),
       incidents: agg.map((p) => p.incidents),
       arriere: agg.map((p) => p.arriere),
       couverture,
     };
-  }, [selected, days, granularity]);
+  }, [selected, days, granularity, nonWorkingDays]);
 
   const exportSelection = () => {
     const rows = buildExportRows(selected, filters.from, filters.to);
@@ -349,6 +349,7 @@ export function AnalyticsPage({
               scopes={selected}
               days={days}
               granularity={granularity}
+              nonWorkingDays={nonWorkingDays}
             />
           )}
         </>

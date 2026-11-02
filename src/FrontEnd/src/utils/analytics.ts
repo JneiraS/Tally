@@ -8,6 +8,8 @@ import { addDaysIso, isValidIsoDate } from "./date";
 import {
   countKoCells,
   coverageRate,
+  filledDueCellCount,
+  isScopeDue,
   isWorkingDay,
   lastWorkingDays,
   measuredActivitiesIn,
@@ -58,9 +60,9 @@ export interface PeriodSummary {
   arriere: number;
   /** null quand la période ne contient aucune erreur : un 0 % serait un mensonge. */
   transformation: number | null;
-  /** Part des cellules périmètre × jour qui portent une saisie, en %. */
+  /** Part des cellules **attendues** (périmètre × jour dû) qui portent une saisie, en %. */
   couverture: number;
-  /** Cellules effectivement saisies, tous périmètres confondus. */
+  /** Cellules attendues et effectivement saisies, tous périmètres confondus. */
   traitees: number;
   /**
    * Relevés KO sur la période — cellules périmètre × jour, **pas** des journées.
@@ -90,6 +92,15 @@ export interface ErrorHeatmapCell {
   errors: number;
   /** Distingue une absence de saisie d'une saisie sans erreur. */
   saisi: boolean;
+  /**
+   * Le périmètre était-il attendu sur cette colonne ?
+   *
+   * Une cellule non attendue et une cellule attendue mais vide s'affichent
+   * toutes deux sans valeur, et ce sont deux informations opposées : la
+   * première ne manque à personne, la seconde est un retard. Le drapeau porte
+   * la distinction, l'affichage aussi.
+   */
+  attendu: boolean;
   changePct: number | null;
 }
 
@@ -222,11 +233,17 @@ export function aggregateByWeek(
  * peuvent être séparées par un week-end si les jours non ouvrés sont filtrés,
  * et la comparaison porte donc bien sur la colonne voisine, pas sur la veille
  * calendaire.
+ *
+ * `attendu` se juge sur le **calendrier du périmètre**, jour par jour : en
+ * granularité semaine, une colonne est attendue dès qu'un des jours ouvrés de la
+ * semaine l'est. Juger sur la semaine entière déclarerait non attendu un
+ * périmètre qui tombe le lundi, et sa cellule vide passerait pour normale.
  */
 export function buildErrorHeatmap(
   scopes: ScopeMonitoring[],
   days: string[],
   granularity: Granularity = "semaine",
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): ErrorHeatmap {
   const labelOf = granularity === "jour" ? (day: string) => day : isoWeekKey;
   const columns = [...new Set(days.map(labelOf))].sort();
@@ -236,6 +253,10 @@ export function buildErrorHeatmap(
   const rows = scopes.map((scope): ErrorHeatmapRow => {
     const errorsByColumn = new Map<string, number>();
     const saisiByColumn = new Set<string>();
+    const dueColumns = new Set<string>();
+    days.forEach((day) => {
+      if (isScopeDue(scope, day, config)) dueColumns.add(labelOf(day));
+    });
     (scope.daily_activities || []).forEach((activity) => {
       if (!daySet.has(activity.day)) return;
       const column = labelOf(activity.day);
@@ -258,6 +279,7 @@ export function buildErrorHeatmap(
         column,
         errors,
         saisi: saisiByColumn.has(column),
+        attendu: dueColumns.has(column),
         changePct: previous === null || previous === 0
           ? null
           : Math.round(((errors - previous) / previous) * 100),
@@ -323,6 +345,7 @@ function sumByLabel(
 export function computePeriodSummary(
   scopes: ScopeMonitoring[],
   days: string[],
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): PeriodSummary {
   const totals = sumByLabel(scopes, days, (day) => day).reduce(
     (acc, point) => ({
@@ -333,12 +356,6 @@ export function computePeriodSummary(
     { erreurs: 0, incidents: 0, arriere: 0 },
   );
 
-  const daySet = new Set(days);
-  const traitees = scopes.reduce(
-    (acc, scope) => acc + measuredActivitiesIn(scope, daySet).length,
-    0,
-  );
-
   return {
     scopes: scopes.length,
     jours: days.length,
@@ -346,8 +363,11 @@ export function computePeriodSummary(
     incidents: totals.incidents,
     arriere: totals.arriere,
     transformation: transformationRate(totals.incidents, totals.erreurs),
-    couverture: coverageRate(scopes, days),
-    traitees,
+    couverture: coverageRate(scopes, days, config),
+    // Même numérateur que la couverture, donc même filtre : `traitees` et
+    // `couverture` doivent raconter le même rapport, sinon la carte affiche un
+    // compte qui ne correspond pas au pourcentage d'à côté.
+    traitees: filledDueCellCount(scopes, days, config),
     relevesKo: countKoCells(scopes, days),
   };
 }
@@ -425,6 +445,7 @@ export function coverageByColumn(
   scopes: ScopeMonitoring[],
   days: string[],
   granularity: Granularity,
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): number[] {
   if (days.length === 0 || scopes.length === 0) return [];
 
@@ -433,6 +454,6 @@ export function coverageByColumn(
 
   return columns.map((column) => {
     const columnDays = days.filter((day) => labelOf(day) === column);
-    return coverageRate(scopes, columnDays);
+    return coverageRate(scopes, columnDays, config);
   });
 }

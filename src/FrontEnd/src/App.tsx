@@ -115,7 +115,12 @@ function AppContent() {
                 />
                 <Route
                   path="/scopes/:id"
-                  element={<ScopeDetailPage isAdmin={session.is_admin} />}
+                  element={
+                    <ScopeDetailPage
+                      isAdmin={session.is_admin}
+                      nonWorkingDays={session.project.non_working_days}
+                    />
+                  }
                 />
                 <Route
                   path={ANALYTICS_PATH}

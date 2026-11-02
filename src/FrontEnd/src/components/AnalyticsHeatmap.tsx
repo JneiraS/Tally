@@ -6,7 +6,8 @@ import type {
   ErrorHeatmapRow,
   Granularity,
 } from "../utils/analytics";
-import { ScopeMonitoring } from "../types";
+import { DEFAULT_NON_WORKING_DAYS } from "../constants/nonWorkingDays";
+import type { NonWorkingDays, ScopeMonitoring } from "../types";
 import { formatDateFr } from "../utils/date";
 import { BillingCodeBadge } from "./BillingCodeBadge";
 import { CARD_CLASS, CARD_PADDING_CLASS, CARD_TITLE_CLASS, CARD_SUBTITLE_CLASS, HEATMAP_SCALE } from "../constants/ui";
@@ -22,17 +23,20 @@ interface AnalyticsErrorHeatmapProps {
   scopes: ScopeMonitoring[];
   days: string[];
   granularity?: Granularity;
+  /** Calendrier du projet : une périodicité ne peut que le restreindre. */
+  nonWorkingDays?: NonWorkingDays;
 }
 
 export function AnalyticsErrorHeatmap({
   scopes,
   days,
   granularity = "semaine",
+  nonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 }: AnalyticsErrorHeatmapProps) {
   const titleId = useId();
   const heatmap = useMemo(
-    () => buildErrorHeatmap(scopes, days, granularity),
-    [scopes, days, granularity],
+    () => buildErrorHeatmap(scopes, days, granularity, nonWorkingDays),
+    [scopes, days, granularity, nonWorkingDays],
   );
   const perColumn = granularity === "jour" ? "jour" : "semaine";
 
@@ -46,7 +50,8 @@ export function AnalyticsErrorHeatmap({
           Erreurs par {perColumn} et par périmètre
         </h3>
         <p className={CARD_SUBTITLE_CLASS}>
-          Volume total d'erreurs · {perColumn}s ISO · — : aucune saisie
+          Volume total d'erreurs · {perColumn}s ISO · — : aucune saisie · case
+          pâle : non attendu
         </p>
       </div>
 
@@ -192,21 +197,30 @@ function ErrorCell({
     cell.changePct === null
       ? "évolution indisponible"
       : `${cell.changePct >= 0 ? "+" : ""}${cell.changePct} %`;
-  const value = cell.saisi
-    ? `${cell.errors} erreur${cell.errors === 1 ? "" : "s"}`
-    : "aucune saisie";
+  // « non attendu » et « aucune saisie » s'affichent tous deux sans valeur, et
+  // disent l'inverse l'un de l'autre : le premier ne manque à personne, le
+  // second est un retard. La classe et le libellé portent la distinction, pas
+  // seulement la couleur d'intensité.
+  const value = !cell.attendu
+    ? "non attendu"
+    : cell.saisi
+      ? `${cell.errors} erreur${cell.errors === 1 ? "" : "s"}`
+      : "aucune saisie";
   const label = `${scopeName}, ${column} : ${value}, ${change}`;
 
   const step = getHeatmapStep(intensity);
+  const tone = cell.attendu
+    ? step.cell
+    : "bg-slate-50 text-slate-300 dark:bg-nord-0 dark:text-nord-3";
 
   return (
     <div
       role="img"
       aria-label={label}
       title={label}
-      className={`flex min-h-10 items-center justify-center border-l border-t border-slate-100 dark:border-nord-2 px-1 text-xs font-semibold tabular-nums ${step.cell}`}
+      className={`flex min-h-10 items-center justify-center border-l border-t border-slate-100 dark:border-nord-2 px-1 text-xs font-semibold tabular-nums ${tone}`}
     >
-      {cell.saisi ? cell.errors : "—"}
+      {cell.attendu && cell.saisi ? cell.errors : "—"}
     </div>
   );
 }
@@ -216,7 +230,11 @@ function HeatmapLegend() {
     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-nord-4">
       <span className="flex items-center gap-1.5">
         <span className="w-5 h-5 rounded border border-slate-200 dark:border-nord-2" aria-hidden="true" />
-        <span className="sr-only">Aucune saisie</span>
+        <span>aucune saisie</span>
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="w-5 h-5 rounded bg-slate-50 border border-slate-200 dark:bg-nord-0 dark:border-nord-2" aria-hidden="true" />
+        <span>non attendu</span>
       </span>
       <span className="flex items-center gap-1.5">
         <span className="flex items-center gap-1.5" aria-label="Intensité : faible">

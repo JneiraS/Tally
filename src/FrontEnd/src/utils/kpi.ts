@@ -3,8 +3,16 @@ import {
   DEFAULT_NON_WORKING_DAYS,
   ISO_WEEKDAY_COUNT,
   toIsoWeekday,
+  toMondayFirstIndex,
 } from "../constants/nonWorkingDays";
-import type { DailyActivity, NonWorkingDays, ScopeMonitoring } from "../types";
+import type {
+  DailyActivity,
+  IsoWeekday,
+  MonitoringSchedule,
+  NonWorkingDays,
+  ScopeMonitoring,
+} from "../types";
+import { addDaysIso } from "./date";
 
 /**
  * Profondeur des deux séries fondées sur les jours ouvrés : la tendance du
@@ -46,6 +54,136 @@ export function isWorkingDay(
     !config.excluded_weekdays.includes(isoWeekday) &&
     !config.excluded_dates.includes(isoDate)
   );
+}
+
+/**
+ * Bornes de la périodicité, alignées sur `MIN_INTERVAL_WEEKS` /
+ * `MAX_INTERVAL_WEEKS` du domaine. Elles ne sont pas recopiées au hasard : le
+ * serveur refuse hors bornes, et la lecture se protège de la même façon pour
+ * qu'une valeur stockée à la main ne produise pas un cycle absurde.
+ */
+export const MIN_INTERVAL_WEEKS = 1;
+export const MAX_INTERVAL_WEEKS = 12;
+
+/** Lundi de référence quand le périmètre n'a pas d'ancre : 1970-01-05. */
+const DEFAULT_SCHEDULE_ANCHOR = "1970-01-05";
+const MS_PER_WEEK = 7 * 86_400_000;
+
+function isoWeekdayOf(isoDate: string): IsoWeekday {
+  return toIsoWeekday(new Date(`${isoDate}T00:00:00Z`).getUTCDay());
+}
+
+function mondayOf(isoDate: string): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - toMondayFirstIndex(date.getUTCDay()));
+  return date.toISOString().split("T")[0];
+}
+
+/**
+ * Nombre de semaines entre l'ancre et le jour, négatif avant l'ancre.
+ *
+ * Le cycle se compte depuis l'ancre **normalisée au lundi** et non depuis le
+ * numéro de semaine ISO : une année à 53 semaines décalerait la parité, et deux
+ * semaines consécutives porteraient la même phase.
+ */
+function weekIndex(isoDate: string, anchorDate: string | null): number {
+  const anchor = Date.parse(
+    `${mondayOf(anchorDate ?? DEFAULT_SCHEDULE_ANCHOR)}T00:00:00Z`,
+  );
+  return Math.round(
+    (Date.parse(`${mondayOf(isoDate)}T00:00:00Z`) - anchor) / MS_PER_WEEK,
+  );
+}
+
+function effectiveInterval(schedule: MonitoringSchedule): number {
+  return Math.min(
+    Math.max(schedule.interval_weeks, MIN_INTERVAL_WEEKS),
+    MAX_INTERVAL_WEEKS,
+  );
+}
+
+/**
+ * Le périmètre est-il **attendu** ce jour-là ?
+ *
+ * La périodicité restreint le calendrier du projet, elle ne l'élargit jamais :
+ * un samedi déclaré dans un projet lundi–vendredi n'est pas attendu, sinon un
+ * périmètre forcerait un jour que le projet a déclaré non ouvré.
+ *
+ * `weekdays` vide = tous les jours ouvrés, et non « jamais attendu » : c'est le
+ * comportement des périmètres créés avant la périodicité.
+ *
+ * Un jour non attendu reste saisissable — il ne compte simplement ni dans le
+ * backlog, ni dans la couverture.
+ */
+export function isScopeDue(
+  scope: ScopeMonitoring,
+  day: string,
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+): boolean {
+  return isDueForSchedule(scope.schedule, day, config);
+}
+
+function isDueForSchedule(
+  schedule: MonitoringSchedule | undefined,
+  day: string,
+  config: NonWorkingDays,
+): boolean {
+  if (!isWorkingDay(day, config)) return false;
+
+  // Une réponse d'API antérieure à la périodicité n'a pas le champ : on ne peut
+  // pas pour autant retirer le périmètre du backlog, ce qui le rendrait
+  // invisible. Il est attendu, comme avant.
+  if (!schedule) return true;
+
+  if (
+    schedule.weekdays.length > 0 &&
+    !schedule.weekdays.includes(isoWeekdayOf(day))
+  ) {
+    return false;
+  }
+
+  const interval = effectiveInterval(schedule);
+  if (interval === 1) return true;
+
+  const index = weekIndex(day, schedule.anchor_date);
+  // `%` de JavaScript rend un reste négatif pour une date antérieure à l'ancre.
+  return ((index % interval) + interval) % interval === 0;
+}
+
+/**
+ * Existe-t-il au moins un jour attendu, sur un cycle complet ?
+ *
+ * La preuve est bornée par construction : au-delà de `7 × interval_weeks` jours
+ * on a vu toutes les combinaisons jour de semaine × phase, donc une périodicité
+ * qui n'a rien trouvé n'en trouvera jamais. Une recherche « jusqu'à en trouver
+ * un » n'aurait pas de terme pour une cadence morte.
+ */
+export function hasAnyDueDay(
+  scope: ScopeMonitoring,
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+): boolean {
+  return isScheduleEverDue(scope.schedule, config);
+}
+
+/**
+ * Même preuve bornée, sur un brouillon de périodicité : c'est ce qui permet à
+ * la carte d'édition d'avertir **avant** l'enregistrement, et de désactiver un
+ * « Enregistrer » qui se solderait par un 422.
+ */
+export function isScheduleEverDue(
+  schedule: MonitoringSchedule | undefined,
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+): boolean {
+  const interval = schedule ? effectiveInterval(schedule) : 1;
+  const start = mondayOf(schedule?.anchor_date ?? DEFAULT_SCHEDULE_ANCHOR);
+  const horizon = ISO_WEEKDAY_COUNT * interval;
+
+  for (let offset = 0; offset < horizon; offset += 1) {
+    if (isDueForSchedule(schedule, addDaysIso(start, offset), config)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -208,18 +346,63 @@ export function baselineDelta(
   };
 }
 
+/**
+ * Cellules **attendues** sur la période : périmètre × jour où le périmètre est
+ * dû. C'est le dénominateur de la couverture, et il n'est plus
+ * `périmètres × jours` — un périmètre hebdomadaire ne peut pas être en retard
+ * les quatre autres jours.
+ */
+export function dueCellCount(
+  scopes: ScopeMonitoring[],
+  days: string[],
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+): number {
+  return scopes.reduce(
+    (acc, scope) =>
+      acc + days.filter((day) => isScopeDue(scope, day, config)).length,
+    0,
+  );
+}
+
+/**
+ * Cellules attendues **et** saisies.
+ *
+ * Une saisie faite un jour hors périodicité reste enregistrée, mais elle ne
+ * compte pas : sinon elle gonflerait le numérateur d'un dénominateur qui ne la
+ * contient pas, et la couverture dépasserait 100 %.
+ */
+export function filledDueCellCount(
+  scopes: ScopeMonitoring[],
+  days: string[],
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+): number {
+  const daySet = new Set(days);
+  return scopes.reduce(
+    (acc, scope) =>
+      acc +
+      measuredActivitiesIn(scope, daySet).filter((activity) =>
+        isScopeDue(scope, activity.day, config),
+      ).length,
+    0,
+  );
+}
+
+/**
+ * Taux de couverture : cellules attendues et saisies / cellules attendues.
+ *
+ * Numérateur et dénominateur portent sur **les mêmes** jours, sans quoi un
+ * périmètre attendu le lundi seulement, rempli lundi et mardi, afficherait
+ * 200 %. Zéro quand rien n'est attendu : la carte KPI sait alors afficher « — ».
+ */
 export function coverageRate(
   scopes: ScopeMonitoring[],
   days: string[],
+  config: NonWorkingDays = DEFAULT_NON_WORKING_DAYS,
 ): number {
   if (scopes.length === 0 || days.length === 0) return 0;
-  const daySet = new Set(days);
-  const cellsWithActivity = scopes.reduce(
-    (acc, scope) =>
-      acc + measuredActivitiesIn(scope, daySet).length,
-    0,
-  );
-  return Math.round((cellsWithActivity / (scopes.length * days.length)) * 100);
+  const due = dueCellCount(scopes, days, config);
+  if (due === 0) return 0;
+  return Math.round((filledDueCellCount(scopes, days, config) / due) * 100);
 }
 
 /**

@@ -26,6 +26,7 @@ from protab.domain.entities.scope_monitoring import (
     Officials,
     ScopeMonitoring,
 )
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DuplicateDailyActivityError,
@@ -929,3 +930,70 @@ def test_a_refused_save_leaves_a_concurrent_note_intact(repo):
         repo.save(scope)
 
     assert repo.find_by_id("scope-001").note == "écrite entre-temps"
+
+
+def test_save_carries_a_schedule_on_creation(repo):
+    scope = make_scope()
+    scope.set_schedule(
+        MonitoringSchedule(
+            weekdays=(1, 5), interval_weeks=2, anchor_date=date(2026, 1, 5)
+        )
+    )
+
+    repo.save(scope)
+
+    assert repo.find_by_id("scope-001").schedule == MonitoringSchedule(
+        weekdays=(1, 5), interval_weeks=2, anchor_date=date(2026, 1, 5)
+    )
+
+
+def test_a_scope_without_a_schedule_reads_every_working_day(repo):
+    """La colonne est nullable : une ligne antérieure à son introduction vaut
+    « tous les jours ouvrés », jamais « jamais dû »."""
+    repo.save(make_scope())
+
+    assert repo.find_by_id("scope-001").schedule == MonitoringSchedule()
+
+
+def test_update_schedule_touches_its_own_row_only(repo):
+    scope = make_scope(day=date(2026, 9, 19))
+    scope.set_note("note existante")
+    repo.save(scope)
+
+    repo.update_schedule(
+        "scope-001", MonitoringSchedule(weekdays=(1,), interval_weeks=2)
+    )
+
+    reloaded = repo.find_by_id("scope-001")
+    assert reloaded.schedule == MonitoringSchedule(weekdays=(1,), interval_weeks=2)
+    assert reloaded.note == "note existante"
+    assert reloaded.billing_code == "FACT-2026-PAI"
+    assert reloaded.officials.main == "Main"
+    assert reloaded.daily_activity_for(date(2026, 9, 19)).errors_reported == 2
+
+
+def test_update_schedule_unknown_scope_raises(repo):
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_schedule("inconnu", MonitoringSchedule(weekdays=(1,)))
+
+
+def test_update_schedule_refuses_another_project(repo):
+    repo.save(make_scope())
+    set_current_project("other-project")
+
+    with pytest.raises(ScopeMonitoringNotFoundError):
+        repo.update_schedule("scope-001", MonitoringSchedule(weekdays=(1,)))
+
+
+def test_an_unreadable_schedule_column_reads_as_every_working_day(repo):
+    """Même doctrine que ``billing_code`` : une seule ligne dégénérée ne doit
+    pas vider la liste des périmètres de l'instance."""
+    repo.save(make_scope())
+    assert TEST_DATABASE_URL is not None
+    with psycopg.connect(TEST_DATABASE_URL, autocommit=True) as conn:
+        conn.execute(
+            "UPDATE scope_monitorings SET schedule = %s WHERE id = %s",
+            ('{"weekdays": ["nope"]}', "scope-001"),
+        )
+
+    assert repo.find_by_id("scope-001").schedule == MonitoringSchedule()

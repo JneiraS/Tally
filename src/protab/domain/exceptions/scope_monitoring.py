@@ -43,3 +43,16 @@ class ScopeMonitoringAlreadyExistsError(DomainError):
 
 class NoteTooLongError(DomainError):
     """Raised when a scope note exceeds the maximum accepted length."""
+
+
+class InvalidScheduleError(DomainError):
+    """Raised when a schedule names a weekday or an interval out of bounds."""
+
+
+class ScheduleNeverDueError(DomainError):
+    """Raised when a schedule can never match a working day of the project.
+
+    The schedule would otherwise be absorbed in silence: the scope would leave
+    the backlog and the coverage denominator without anybody noticing, which is
+    worse than a refusal.
+    """

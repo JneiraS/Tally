@@ -3,6 +3,7 @@ from datetime import date
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     ScopeMonitoringAlreadyExistsError,
@@ -72,6 +73,11 @@ class InMemoryScopeMonitoringRepository:
 
     def update_note(self, scope_id: str, note: str | None) -> None:
         self._require(scope_id).set_note(note)
+
+    def update_schedule(self, scope_id: str, schedule: MonitoringSchedule) -> None:
+        # The value object is frozen and already validated: assigning it is the
+        # whole write, exactly as the SQL adapter stores its dict.
+        self._require(scope_id).set_schedule(schedule)
 
     def update_officials(
         self, scope_id: str, official_main: str, official_backup: str

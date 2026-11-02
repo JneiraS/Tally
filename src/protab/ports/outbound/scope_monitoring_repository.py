@@ -4,6 +4,7 @@ from typing import Protocol
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 
 
 class ScopeMonitoringRepository(Protocol):
@@ -82,6 +83,22 @@ class ScopeMonitoringRepository(Protocol):
         """Overwrite the free-text note of one scope, leaving everything else alone.
 
         ``None`` means "no note"; the repository stores it as SQL ``NULL``.
+
+        Raises:
+            ScopeMonitoringNotFoundError: the scope does not exist in the
+                current project.
+        """
+        ...
+
+    def update_schedule(
+        self, scope_id: str, schedule: MonitoringSchedule
+    ) -> None:
+        """Overwrite the cadence of one scope, leaving everything else alone.
+
+        Targeted write like ``update_note``: the aggregate the caller read is
+        never repersisted, so a concurrent edit to a note or a day survives. The
+        schedule is already a validated value object, so every implementation
+        receives the same legal cadence and re-validates nothing.
 
         Raises:
             ScopeMonitoringNotFoundError: the scope does not exist in the

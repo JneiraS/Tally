@@ -342,3 +342,28 @@ def test_scope_monitoring_multiple_activities_same_day_different_monitorings(
     # Both monitorings should have their own activity for that same day
     assert monitoring.daily_activity_for(date(2026, 9, 19)) is activity2
     assert monitoring2.daily_activity_for(date(2026, 9, 19)) is activity
+
+
+def test_a_scope_hydrated_without_a_schedule_is_due_every_working_day(
+    fixture_scope_monitoring,
+):
+    """The constructor is the rehydration path of both adapters, so a scope read
+    from a row written before the column existed must not be refused — and must
+    keep the behaviour it always had."""
+    from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
+
+    assert fixture_scope_monitoring.schedule == MonitoringSchedule()
+
+
+def test_set_schedule_replaces_only_the_schedule(fixture_scope_monitoring):
+    from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
+
+    fixture_scope_monitoring.set_note("contexte")
+    fixture_scope_monitoring.billing_code = "FACT-1"
+    schedule = MonitoringSchedule(weekdays=(1, 5), interval_weeks=2)
+
+    fixture_scope_monitoring.set_schedule(schedule)
+
+    assert fixture_scope_monitoring.schedule == schedule
+    assert fixture_scope_monitoring.note == "contexte"
+    assert fixture_scope_monitoring.billing_code == "FACT-1"

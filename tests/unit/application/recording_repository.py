@@ -14,6 +14,7 @@ from datetime import date
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.day_status import DayStatus
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 
 
 class RecordingScopeMonitoringRepository:
@@ -68,6 +69,12 @@ class RecordingScopeMonitoringRepository:
     def update_note(self, scope_id: str, note: str | None) -> None:
         self.calls.append(("update_note", scope_id, note))
         self._inner.update_note(scope_id, note)
+
+    def update_schedule(
+        self, scope_id: str, schedule: MonitoringSchedule
+    ) -> None:
+        self.calls.append(("update_schedule", scope_id, schedule))
+        self._inner.update_schedule(scope_id, schedule)
 
     def update_officials(
         self, scope_id: str, official_main: str, official_backup: str

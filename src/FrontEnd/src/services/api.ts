@@ -19,6 +19,7 @@ import {
   UpdateActivityInput,
   UpdateScopeNoteInput,
   UpdateScopeOfficialsInput,
+  UpdateScopeScheduleInput,
 } from "../types";
 import { AUDIT_LOG_PATH } from "../constants/routes";
 
@@ -409,6 +410,24 @@ export const protabApi = {
     payload: UpdateScopeOfficialsInput,
   ): Promise<void> {
     await request<void>(`/scope-monitorings/${scopeId}/officials`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * PATCH /scope-monitorings/{id}/schedule
+   * Remplace la périodicité du périmètre. Ouvert à tout utilisateur connecté,
+   * comme la note — à la différence des responsables, réservés aux
+   * administrateurs. Une cadence qui ne tomberait jamais un jour ouvré du
+   * projet est refusée en 422.
+   * Réponse 204
+   */
+  async updateScopeSchedule(
+    scopeId: string,
+    payload: UpdateScopeScheduleInput,
+  ): Promise<void> {
+    await request<void>(`/scope-monitorings/${scopeId}/schedule`, {
       method: "PATCH",
       body: JSON.stringify(payload),
     });

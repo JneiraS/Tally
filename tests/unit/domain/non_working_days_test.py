@@ -6,6 +6,7 @@ historical row must not empty the calendar of every project on the instance.
 """
 
 import dataclasses
+from datetime import date
 
 import pytest
 
@@ -158,3 +159,26 @@ def test_two_defaults_share_no_mutable_state():
 def test_the_value_object_is_immutable():
     with pytest.raises(dataclasses.FrozenInstanceError):
         NonWorkingDays.default().excluded_weekdays = (1,)
+
+def test_a_weekday_of_the_default_calendar_is_a_working_day():
+    assert NonWorkingDays.default().is_working_day(date(2026, 9, 21))  # lundi
+    assert NonWorkingDays.default().is_working_day(date(2026, 9, 25))  # vendredi
+
+
+def test_the_default_calendar_closes_the_week_end():
+    assert not NonWorkingDays.default().is_working_day(date(2026, 9, 26))  # samedi
+    # dimanche : c'est l'entrée 7 de l'échelle ISO, pas l'index 0 de `getDay()`.
+    assert not NonWorkingDays.default().is_working_day(date(2026, 9, 27))
+
+
+def test_a_one_off_excluded_date_is_not_a_working_day():
+    calendar = NonWorkingDays(excluded_dates=("2026-12-25",))
+
+    assert not calendar.is_working_day(date(2026, 12, 25))
+    assert calendar.is_working_day(date(2026, 12, 24))
+
+
+def test_an_empty_calendar_opens_every_day():
+    """``NonWorkingDays()`` is a choice, not a default: every day is worked."""
+    assert NonWorkingDays().is_working_day(date(2026, 9, 26))  # samedi
+    assert NonWorkingDays().is_working_day(date(2026, 9, 27))  # dimanche

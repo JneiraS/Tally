@@ -248,8 +248,8 @@ describe("heatmap hebdomadaire des erreurs", () => {
     );
 
     expect(heatmap.rows[0].cells).toEqual([
-      { column: "2026-W39", errors: 0, saisi: true, changePct: null },
-      { column: "2026-W40", errors: 0, saisi: false, changePct: null },
+      { column: "2026-W39", errors: 0, saisi: true, attendu: true, changePct: null },
+      { column: "2026-W40", errors: 0, saisi: false, attendu: true, changePct: null },
     ]);
   });
 });
@@ -520,5 +520,88 @@ describe("jours KO", () => {
     const byWeek = aggregateByWeek(KO_SCOPES, DAYS);
     expect(byWeek).toHaveLength(1);
     expect(byWeek[0].erreurs).toBe(10);
+  });
+});
+
+/**
+ * Périodicité dans les agrégats.
+ *
+ * Un périmètre hebdomadaire ne peut pas être « en retard » les quatre autres
+ * jours : le dénominateur de la couverture et le drapeau `attendu` de la
+ * heatmap doivent donc suivre le calendrier du périmètre, pas seulement celui
+ * du projet.
+ */
+describe("périodicité dans les agrégats", () => {
+  const LUNDI_VENDREDI = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25"];
+
+  function scheduled(
+    weekdays: ScopeMonitoring["schedule"]["weekdays"],
+    daily_activities: DailyActivity[] = [],
+  ): ScopeMonitoring {
+    return makeScope({
+      id: "hebdo",
+      name: "Hebdo",
+      billing_code: null,
+      schedule: { weekdays, interval_weeks: 1, anchor_date: null },
+      daily_activities,
+    });
+  }
+
+  it("ne compte au dénominateur que les cellules attendues", () => {
+    // Attendu lundi et vendredi seulement : deux cellules sur cinq.
+    const summary = computePeriodSummary(
+      [scheduled([1, 5], [activity("2026-09-21", 2, 0)])],
+      LUNDI_VENDREDI,
+      CONFIG,
+    );
+
+    expect(summary.traitees).toBe(1);
+    expect(summary.couverture).toBe(50);
+  });
+
+  it("ignore une saisie hors périodicité, donc ne dépasse jamais 100 %", () => {
+    const summary = computePeriodSummary(
+      [scheduled([1], [activity("2026-09-21", 2, 0), activity("2026-09-22", 2, 0)])],
+      LUNDI_VENDREDI,
+      CONFIG,
+    );
+
+    expect(summary.couverture).toBe(100);
+  });
+
+  it("marque non attendues les colonnes hors calendrier du périmètre", () => {
+    const heatmap = buildErrorHeatmap(
+      [scheduled([1])],
+      ["2026-09-21", "2026-09-22"],
+      "jour",
+      CONFIG,
+    );
+
+    expect(heatmap.rows[0].cells).toEqual([
+      { column: "2026-09-21", errors: 0, saisi: false, attendu: true, changePct: null },
+      { column: "2026-09-22", errors: 0, saisi: false, attendu: false, changePct: null },
+    ]);
+  });
+
+  it("juge une colonne hebdomadaire attendue dès qu'un de ses jours l'est", () => {
+    const heatmap = buildErrorHeatmap(
+      [scheduled([1])],
+      LUNDI_VENDREDI,
+      "semaine",
+      CONFIG,
+    );
+
+    expect(heatmap.rows[0].cells[0].attendu).toBe(true);
+  });
+
+  it("rend toutes les colonnes non attendues quand la cadence ne tombe jamais", () => {
+    const heatmap = buildErrorHeatmap(
+      [scheduled([6])],
+      LUNDI_VENDREDI,
+      "jour",
+      CONFIG,
+    );
+
+    expect(heatmap.rows[0].cells.every((cell) => cell.attendu === false)).toBe(true);
   });
 });

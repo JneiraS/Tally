@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from enum import IntEnum
 
 
@@ -67,7 +68,7 @@ class NonWorkingDays:
             return cls.default()
 
         raw_weekdays = value.get("excluded_weekdays") or []
-        weekdays = sorted({int(day) for day in raw_weekdays if _is_iso_weekday(day)})
+        weekdays = sorted({int(day) for day in raw_weekdays if is_iso_weekday(day)})
         # Deux situations retombent sur le défaut, pour deux raisons distinctes :
         # une liste présente dont il ne survit aucune entrée est une corruption,
         # et une liste qui couvre la semaine entière ne laisse aucun jour
@@ -93,8 +94,21 @@ class NonWorkingDays:
             "excluded_dates": list(self.excluded_dates),
         }
 
+    def is_working_day(self, day: date) -> bool:
+        """Whether the project works on ``day``.
 
-def _is_iso_weekday(day: object) -> bool:
+        The single Python answer to "is this day open?", used by the schedule
+        predicate. It reads the ISO scale through ``date.isoweekday`` — 1 is
+        Monday, 7 is Sunday — which is the numbering the column stores, so no
+        conversion can drift here.
+        """
+        return (
+            day.isoweekday() not in self.excluded_weekdays
+            and day.isoformat() not in self.excluded_dates
+        )
+
+
+def is_iso_weekday(day: object) -> bool:
     """Whether a raw entry names a weekday of the ISO scale.
 
     ``str.isdigit`` is not enough: it accepts "²", which ``int()`` refuses, so
