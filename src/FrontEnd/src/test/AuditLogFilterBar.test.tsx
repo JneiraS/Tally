@@ -57,6 +57,7 @@ describe('AuditLogFilterBar', () => {
       'Journée signalée KO',
       'Note du périmètre',
       'Responsables du périmètre',
+      'Périodicité du périmètre',
     ]);
   });
 
