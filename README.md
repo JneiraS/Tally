@@ -1,306 +1,216 @@
-# ProTab
+# Tally
 
-Projection et suivi d'activité quotidienne par périmètre de supervision (scope monitoring).
+**Tally** suit l'activité quotidienne d'une équipe de supervision : pour chaque
+périmètre, une ligne par jour, avec les erreurs relevées, les incidents créés et
+les références FEAI concernées. L'outil remplace le tableur de suivi et applique
+les règles métier à la saisie au lieu de les laisser à la vigilance de chacun.
 
-## Domain model
+> **Nom affiché : Tally.** Le paquet Python et les commandes conservent leur nom
+> historique : `protab`, `protab-project`.
 
-Architecture hexagonale. Le domaine ne dépend d'aucune technologie externe.
+---
+
+## Présentation
+
+Tally est une application web multi-tenant. Un **projet** représente une équipe :
+il porte son calendrier ouvré, ses périmètres, ses administrateurs et son journal
+d'audit. À l'intérieur d'un projet, un **périmètre de supervision** rassemble une
+base de connaissances, des responsables et une périodicité ; son **activité
+journalière** porte les compteurs, les références FEAI et le statut de la journée.
 
 ```text
-ScopeMonitoring (agrégat racine)                      DailyActivity (entité)
-├── id: str                                            ├── day: date            ← datetime.date (pas de classe Day)
-├── name: str                                         ├── errors_reported: int ← >= 0
-├── knowledge: KnowledgeBase                          ├── incidents_created: int ← >= 0 et <= errors_reported
-├── officials: Officials                              ├── feai: list[str]      ← format (PREFIXE-)?INC\d{9}, sans doublon
-├── billing_code: str | None                          ├── status: DayStatus    ← pending | completed | ko
-└── daily_activities: dict[date, DailyActivity]       └── ko_reason: str | None ← motif, uniquement si status = ko
-     └── clé = jour → une seule activité par jour
+Projet (tenant)
+└── Périmètre de supervision
+    ├── identité : nom, base de connaissances, responsables, code de facturation
+    ├── cadence : jours attendus, toutes les N semaines
+    └── activité journalière : erreurs, incidents, références FEAI, statut
 ```
 
-### Décisions de modélisation
+Quatre garanties structurent l'outil :
 
-- `Day` n'est **pas** une classe : un jour n'a ni identité ni comportement métier propres au-delà de sa valeur ;
-  `datetime.date` est déjà un value object immuable. « Toutes les activités d'un jour » est une requête
-  (port outbound), pas une structure du domaine.
-- `ScopeMonitoring` est l'agrégat racine. Il **possède** ses `DailyActivity`, indexées par jour
-  (`dict[date, DailyActivity]`) : unicité d'une activité par périmètre et par jour, garantie par l'agrégat.
-- Relation unidirectionnelle : une `DailyActivity` ne référence pas son `ScopeMonitoring`.
+- **une seule saisie par périmètre et par jour** — la base l'impose ;
+- **des références FEAI normalisées** — une seule graphie est stockée ;
+- **une trace de chaque modification** — le journal d'audit conserve l'auteur,
+  l'action et les valeurs avant/après ;
+- **une isolation stricte entre projets** — chaque requête est filtrée par le
+  projet de la session.
 
-### Invariants
+---
 
-- `errors_reported >= 0`, `incidents_created >= 0`, `incidents_created <= errors_reported`.
-- Références FEAI : code `INC` suivi d'exactement 9 chiffres, précédé d'un préfixe facultatif de 2 à 5
-  lettres (`^(?:[A-Z]{2,5}-)?INC\d{9}$`, ex. `INC000000001` ou `FE-INC000000001`), aucun doublon. La saisie
-  tolère une espace, un slash ou un préfixe collé au code ; la forme stockée porte toujours le tiret.
-- Une seule `DailyActivity` par `ScopeMonitoring` et par jour.
-- `status` est un **enum fermé à trois valeurs** (`DayStatus`) et non deux drapeaux : l'ancien couple
-  `handled` + `completed` était toujours égal en production, et ajouter `ko` à côté aurait produit quatre
-  états dont un interdit — « terminée et KO » — garanti par rien. L'énumération rend cette combinaison
-  non exprimable au lieu de la laisser à désamorcer. `apply_status(status, *, ko_reason=None)` est le seul
-  point d'écriture.
-- `status = ko` signifie « cette journée a été regardée et n'a pas pu être traitée pour un problème
-  technique ». Ce n'est **pas** « non traité » : c'est précisément ce qui la sort du bandeau des non traités.
-- `ko_reason` n'existe que sur un jour KO. `apply_status()` **refuse** un motif fourni pour un autre statut
-  (`InvalidKoReasonError`) plutôt que de l'ignorer, et le complète d'une journée efface le motif de la
-  ligne — l'information survit dans `audit_log.changes`, ce qui est précisément quand on la consultera.
-- Un `ScopeMonitoring` **créé** porte un `billing_code` non vide, de format libre : c'est
-  `ScopeMonitoring.create()` qui l'exige, via `EmptyBillingCodeError`. Le constructeur direct, que les
-  repositories utilisent pour réhydrater, accepte l'absence : le champ a été introduit après les
-  premiers périmètres enregistrés.
-- Une `note` libre et nullable, au plus `NOTE_MAX_LENGTH` (2000) caractères à l'écriture. `set_note()`
-  normalise une note blanche en `None` ; la route `PATCH /scope-monitorings/{id}` ne touche qu'à elle.
-  Les responsables se modifient par `PATCH /scope-monitorings/{id}/officials`, réservée aux
-  administrateurs du projet (`project_admins`, vérifiés en base à chaque requête).
+## Fonctionnalités
 
-## Use cases (couche application)
+**Suivi quotidien**
 
-Les use cases dépendent uniquement du port outbound `ScopeMonitoringRepository`
-(`ports/outbound/`) — la persistance concrète est branchée par un adapter.
+- vue mono-jour : à l'ouverture, la date du jour si elle est ouvrée, sinon le
+  dernier jour ouvré ;
+- saisie en autosave des compteurs et des références FEAI, avec annulation des
+  suppressions ;
+- statut de journée `pending`, `completed` ou `ko`, motif de KO facultatif,
+  changement de statut à l'unité ou en lot ;
+- historique complet par périmètre, totaux de période et sélection multiple.
 
-| Use case                       | Commande                                                                                | Comportement                                                                                                                         |
-| ------------------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `CreateScopeMonitoringUseCase` | `CreateScopeMonitoringCommand(name, knowledge_base_id, official_main, official_backup, billing_code)` | Crée plusieurs `ScopeMonitoring` (id = uuid4) ; **atomique** : doublon de nom ou ligne invalide ⇒ rien n'est persisté.               |
-| `CreateDailyActivityUseCase`   | `CreateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Crée une `DailyActivity` pour un jour donné ; doublon ⇒ `DuplicateDailyActivityError`.                                               |
-| `SetActivitiesStatusUseCase` | `SetActivitiesStatusCommand(scope_id, days, status, ko_reason=None)`                  | Fixe le statut d'une ou plusieurs journées. **Une journée peut être signalée KO sans saisie, pas être terminée sans** : le KO crée la ligne à compteurs nuls, `completed` sur un jour absent ⇒ `DailyActivityNotFoundError`. |
-| `UpdateDailyActivityUseCase`   | `UpdateDailyActivityCommand(scope_id, day, errors_reported, incidents_created, feai)`   | Modifie compteurs/FEAI d'une journée via la validation domaine ; invariants appliqués.                                               |
-| `UpdateScopeNoteUseCase`       | `UpdateScopeNoteCommand(scope_id, note)`                                                 | Remplace la note libre du périmètre (texte blanc ⇒ `None`) ; écriture ciblée, sans toucher aux activités.                            |
+**Périmètres**
 
-Lectures (`application/queries/`) : `ListScopesUseCase`, `GetScopeUseCase`, `GetDailyActivityUseCase`,
-`ListAuditEventsUseCase` — retournent les entités ; les erreurs `*NotFoundError` sont levées côté application.
+- création manuelle ou import CSV, export CSV ;
+- responsables principal et suppléant, note libre ;
+- périodicité : jours attendus de la semaine, intervalle de 1 à 12 semaines,
+  date d'ancrage ;
+- calendrier ouvré du projet : jours récurrents et dates ponctuelles exclues ;
+- recherche par nom, base de connaissances, code de facturation ou quadrigramme.
 
-Chaque use case de mutation enregistre un événement d'audit via le port `AuditTrailRepository` (voir
-« Journal d'audit »).
+**Analyse et traçabilité**
 
-## Import CSV
+- page `/analyse` : indicateurs de période, heatmap périmètre × jour ou semaine,
+  classement des périmètres, tendances ;
+- journal d'audit filtrable par période, acteur, action et périmètre ;
+- export CSV de la liste et des activités filtrées.
 
-Adapter inbound `adapters/inbound/csv/scope_monitoring_csv_reader.py` : transforme les lignes du fichier
-(colonnes `name, knowledge_base_id, official_main, official_backup, billing_code`) en
-`CreateScopeMonitoringCommand`. Le code de facturation étant obligatoire, un fichier qui ne le
-contient pas est rejeté (400 « Invalid headers ») : il faut ajouter la colonne aux CSV préparés avant
-cette évolution.
-En-têtes et nombre de colonnes sont vérifiés structurellement ; les règles métier sont levées par le domaine.
+**Accès et exploitation**
 
-## API HTTP (FastAPI)
+- connexion par quadrigramme et mot de passe de projet, session de 12 heures ;
+- administrateurs de projet nommés par la CLI, en plus des responsables déclarés
+  dans les périmètres ;
+- API REST documentée automatiquement sur `/docs`, sonde `GET /healthz`.
 
-Adapter inbound `adapters/inbound/api/` : expose les use cases via REST. Aucune logique métier dans les
-routes — traduction HTTP ↔ commandes, la validation reste dans le domaine/application.
+---
 
-Démarrage : `make run` (ou `uv run protab`) → serveur uvicorn sur `http://0.0.0.0:8000`. Documentation
-interactive : `/docs` (Swagger). Healthcheck : `GET /healthz` → `{"status": "ok"}`.
+## Stack technique
 
-Configuration (fichier `.env` copié depuis `.env.example`) :
-`PROTAB_HOST` (défaut `0.0.0.0`), `PROTAB_PORT` (défaut `8000`),
-`DATABASE_URL` (DSN PostgreSQL ; **obligatoire** pour démarrer l'API) et
-`PROTAB_COOKIE_SECURE` (`0`/`1`, défaut `0` : à passer à `1` derrière HTTPS).
-`PROTAB_DEFAULT_PROJECT_PASSWORD` et `PROTAB_DEFAULT_PROJECT_ADMIN_CODE` sont **obligatoires au tout premier
-démarrage**, c'est-à-dire au moment où le projet bootstrap doit être créé. L'API refuse alors de démarrer
-(aucun mot de passe ni administrateur par défaut n'est fourni) : un projet créé sans administrateur serait,
-une fois son premier périmètre enregistré, impossible à ouvrir par quiconque. Une fois le projet créé, les
-variables ne sont plus consultées : redémarrer une installation déjà initialisée n'exige aucun secret.
+| Couche | Technologies |
+| --- | --- |
+| API | Python 3.13, FastAPI, Uvicorn |
+| Persistance | PostgreSQL 17, `psycopg` 3 (synchrone), `psycopg_pool` |
+| Frontend | React 19, TypeScript 7, Vite 8, Tailwind CSS 4, recharts 3, lucide-react |
+| Tests | pytest 9, mypy ; vitest 5 et Testing Library côté frontend |
+| Exécution | `uv` pour Python, `npm` pour le frontend, Docker Compose et nginx |
 
-L'API écoute sur `0.0.0.0` *à l'intérieur* du conteneur, mais Docker Compose ne
-publie son port que sur la boucleback (`127.0.0.1:8874:8000`) : elle n'est donc
-pas joignable depuis le réseau local. Pour l'exposer volontairement, adapte le
-mapping `ports:` de `docker-compose.yml` et mets `PROTAB_COOKIE_SECURE=1`.
+Les versions exactes sont déclarées dans `pyproject.toml` et
+`src/FrontEnd/package.json`.
 
-### Authentification par projet
+---
 
-L'application demande le projet, le quadrigramme de l'utilisateur et le mot de passe partagé du projet.
-Les mots de passe sont stockés sous forme de hash et la session est conservée dans un cookie HTTP-only.
-Les périmètres et activités sont filtrés côté backend par le projet authentifié.
+## Architecture
 
-Routes publiques : `GET /healthz`, `GET /projects`, `POST /auth/login`, `GET /auth/me`,
-`POST /auth/logout` et la documentation interactive. Toute autre route exige une session
-valide et un contexte de projet : les adaptateurs PostgreSQL lèvent une erreur explicite
-plutôt que de retomber sur un projet par défaut si le contexte est absent.
-`tests/integration/adapters/route_authorization_test.py` verrouille cette liste : toute
-nouvelle route doit être explicitement déclarée publique, sinon le test échoue.
+Le backend suit une **architecture hexagonale** : le domaine ne dépend d'aucune
+technologie, l'application orchestre les cas d'usage, et les adaptateurs
+(FastAPI, PostgreSQL, CSV, CLI) sont branchés sur des ports.
 
-La session expire au bout de 12 h. Un `401` n'est jamais une panne réseau : le frontend le
-traite globalement (`protabApi.setUnauthorizedHandler`) et revient à l'écran de connexion, au
-lieu d'afficher une erreur « Échec du chargement » que « Réessayer » ne pourrait pas
-réparer. Seul `POST /auth/login` est exclu de ce traitement : un `401` y signifie mot de
-passe erroné et reste une erreur de formulaire.
-Les jours non travaillés sont configurables par projet via `GET /project/settings` et
-`PUT /project/settings`. Par défaut, samedi et dimanche sont exclus ; les dates ponctuelles
-peuvent également être ajoutées.
+```text
+Adaptateurs entrants          Application              Adaptateurs sortants
+API, CSV, CLI        ──────▶  cas d'usage  ──────▶     PostgreSQL, mémoire
+                                   │
+                                   ▼
+                            domaine (entités,
+                            value objects, règles)
+```
 
-La page principale est une vue **mono-jour** : elle affiche les compteurs du jour sélectionné, et
-non un cumul. Le jour à l'ouverture est la date du jour s'il est ouvré, sinon le **dernier jour
-ouvré** — un dimanche n'a rien à faire afficher et n'a rien à faire saisir. Si le jour affiché
-ne contient aucune activité alors qu'une autre journée en contient, un bandeau indique la dernière
-saisie et propose d'y accéder d'un clic ; sans ce point de repère, un historique réimporté
-(restauration d'un dump) resterait invisible depuis la page principale, les données n'étant
-visibles que dans le détail de chaque périmètre.
+Le frontend est une application React indépendante qui consomme l'API REST. Le
+projet courant n'est jamais passé aux cas d'usage : il voyage dans un
+`ContextVar` posé par la couche HTTP et lu par les adaptateurs PostgreSQL.
+Couches, ports et cycle d'une écriture sont détaillés dans
+[`docs/architecture.md`](docs/architecture.md).
 
-Restriction du quadrigramme : une fois qu'un projet possède au moins un périmètre, le quadrigramme fourni au
-login doit correspondre exactement à l'un des quadrigrammes déclarés par un périmètre du projet. Les colonnes
-`official_main` et `official_backup` sont toutes deux interpretées comme une liste : un ou plusieurs
-quadrigrammes séparés par `/` (ex. `MLOZ/MRAM`), la casse et les espaces étant ignorés. Une partie qui ne
-contient aucun caractère alphanumérique est un substitut de saisie et n'est jamais un code valide — c'est ainsi
-que le `?` utilisé pour « pas de suppléant » est écarté. La chaîne entière n'est pas un code : avec
-`official_main = "LAMA/JMAB"`, les codes acceptés sont `LAMA` et `JMAB`, pas `"LAMA/JMAB"`. Tant qu'un projet
-n'a encore aucun périmètre (bootstrap), tout quadrigramme est accepté afin de permettre la création du premier
-périmètre. Cette fenêtre n'est pas collante : dès le premier périmètre, seul un administrateur nommé ou un
-official de ce périmètre peut se connecter.
+---
 
-Le projet initial est créé automatiquement avec `PROTAB_DEFAULT_PROJECT_CODE`,
-`PROTAB_DEFAULT_PROJECT_NAME`, `PROTAB_DEFAULT_PROJECT_PASSWORD` et
-`PROTAB_DEFAULT_PROJECT_ADMIN_CODE`. Les deux dernières sont **obligatoires au tout premier démarrage** :
-l'API refuse alors de démarrer plutôt que de créer un projet que personne ne pourrait rouvrir. Les projets
-suivants se créent avec :
+## Installation et démarrage
+
+Prérequis : Python 3.13, [`uv`](https://docs.astral.sh/uv/), Node.js avec npm,
+Docker et Docker Compose.
 
 ```bash
+cp .env.example .env
+make install
+cd src/FrontEnd && npm ci && cd -
+```
+
+Trois variables sont **obligatoires au démarrage** :
+
+| Variable | Rôle |
+| --- | --- |
+| `DATABASE_URL` | DSN PostgreSQL de l'API |
+| `PROTAB_DEFAULT_PROJECT_PASSWORD` | mot de passe du projet initial |
+| `PROTAB_DEFAULT_PROJECT_ADMIN_CODE` | quadrigramme administrateur du projet initial |
+
+Les deux dernières ne servent qu'à la création du projet initial : une
+installation déjà initialisée redémarre sans elles. La liste complète des
+variables et leurs valeurs par défaut sont dans
+[`docs/development.md`](docs/development.md#3-configuration).
+
+**Développement**
+
+```bash
+make db-up       # PostgreSQL local
+make run         # API sur http://localhost:8000 — Swagger sur /docs
+make frontend    # frontend Vite sur http://localhost:5173
+```
+
+**Stack complète**
+
+```bash
+make docker-up
+# frontend : http://localhost:5173
+# API      : http://127.0.0.1:8874 — Swagger sur /docs
+make docker-down
+```
+
+En Docker, l'API n'est publiée que sur la boucle locale ; TLS doit être terminé
+par un reverse proxy, avec `PROTAB_COOKIE_SECURE=1`. La topologie est décrite
+dans [`docs/docker-architecture.md`](docs/docker-architecture.md).
+
+---
+
+## Administration
+
+L'administration d'hôte passe par la CLI `protab-project`, qui demande la base de
+données et jamais un cookie. C'est la voie de secours d'un projet verrouillé.
+
+```bash
+uv run protab-project --help
 uv run protab-project projet-alpha "Projet Alpha" --admin MLOZ
-```
-
-Le mot de passe d'un projet se change avec la sous-commande `set-password` (le nouveau mot de passe est saisi
-sans écho, jamais en argument) :
-
-```bash
 uv run protab-project set-password projet-alpha
+uv run protab-project add-admin projet-alpha MLOZ
+uv run protab-project list-admins projet-alpha
 ```
 
-Cette commande remplace le hash stocké et **révoque toutes les sessions** ouvertes sur le projet : c'est le
-geste à faire quand un mot de passe a été divulgué, sinon les sessions déjà ouvertes survivraient à la
-rotation. Elle **ne vous sauverait pas** d'un projet verrouillé, puisqu'elle ferme au lieu d'ouvrir.
+Dans la stack Docker, `make project-admin ARGS="list-admins protab"` relaie la
+commande dans le conteneur API. L'inventaire complet, les messages d'erreur et
+les procédures de dépannage sont dans [`docs/cli.md`](docs/cli.md).
 
-### Administrateurs de projet
+---
 
-Un administrateur est un quadrigramme autorisé à se connecter à **un seul projet**, qu'il soit déclaré ou
-non dans l'un de ses périmètres. Sans lui, un projet qui possède des périmètres n'est plus ouvert que par les
-officials de ces périmètres : la personne qui crée le premier périmètre perd son accès à l'instant où elle
-l'enregistre. L'administrateur n'a aucun pouvoir supplémentaire une fois connecté ; c'est un accès permanent,
-pas un rôle. Il donne un accès **par projet** : un code administrateur d'un projet n'ouvre aucun autre projet,
-même avec le bon mot de passe.
+## Documentation
+
+| Je veux… | Document |
+| --- | --- |
+| Comprendre le domaine et ses règles | [`docs/domain-model.md`](docs/domain-model.md) |
+| Comprendre le code et les couches | [`docs/architecture.md`](docs/architecture.md) |
+| Appeler l'API REST | [`docs/api.md`](docs/api.md) |
+| Comprendre la connexion et les droits | [`docs/authentication.md`](docs/authentication.md) |
+| Connaître le schéma PostgreSQL | [`docs/database.md`](docs/database.md) |
+| Administrer un projet | [`docs/cli.md`](docs/cli.md) |
+| Modifier le frontend | [`docs/frontend.md`](docs/frontend.md) |
+| Installer, configurer, dépanner | [`docs/development.md`](docs/development.md) |
+| Lancer et écrire des tests | [`docs/testing.md`](docs/testing.md) |
+| Déployer avec Docker | [`docs/docker-architecture.md`](docs/docker-architecture.md) |
+| Dimensionner un serveur | [`docs/ressources.md`](docs/ressources.md) |
+| Comparer Tally à un tableur | [`docs/tally-vs-excel.md`](docs/tally-vs-excel.md) |
+| Lire les règles normatives du dépôt | [`AGENTS.md`](AGENTS.md) |
+
+---
+
+## Développement
 
 ```bash
-uv run protab-project add-admin projet-alpha MLOZ   # autorise MLOZ sur ce projet
-uv run protab-project list-admins projet-alpha      # liste les administrateurs
-uv run protab-project remove-admin projet-alpha MLOZ # retire l'accès
+make test          # tests Python rapides, sans base
+make test-db       # tests Python complets, PostgreSQL inclus
+make typecheck     # mypy sur src/protab
+cd src/FrontEnd && npm test      # vitest
+cd src/FrontEnd && npm run lint  # tsc --noEmit — types, pas de style
 ```
 
-Ces commandes demandent la base de données, pas une session : c'est la seule voie de secours quand un projet
-est verrouillé. `add-admin` refuse un code que l'écran de connexion ne pourrait pas saisir (liste `A/B`,
-caractère seul, hors 2–20 caractères) — un administrateur que personne ne peut taper serait un verrouillage
-présenté comme une autorisation. `remove-admin` refuse de retirer le dernier administrateur.
+`make help` liste toutes les cibles ; leur inventaire complet est dans
+[`docs/development.md`](docs/development.md#cibles-makefile).
 
-### Administration d'hôte : `protab-project`
-
-La gestion des projets, des mots de passe et des administrateurs passe par la CLI `protab-project`. Son
-inventaire, ses arguments, ses messages d'erreur, la procédure de dépannage d'un projet verrouillé et son
-usage dans Docker sont documentés dans **[`docs/cli.md`](docs/cli.md)** :
-
-```bash
-uv run protab-project --help                              # liste les cinq formes
-make project-admin ARGS="list-admins protab"             # dans le conteneur api
-```
-
-| Méthode & path                                                                                              | Body                                                                                        | Succès                                                                     | Erreurs                                                                    |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `POST /scope-monitorings`                                                                                   | `[{name, knowledge_base_id, official_main, official_backup, billing_code}]`                               | `201 {ids: [...]}`                                                         | `409` nom existant, `400` validation domaine                               |
-| `POST /scope-monitorings/import-csv`                                                                        | multipart, champ `csv_file`                                                                 | `201 {ids: [...]}`                                                         | `400` CSV invalide ou ligne non conforme                                   |
-| `POST /scope-monitorings/{id}/activities`                                                                   | `{day, errors_reported, incidents_created, feai}`                                           | `201`                                                                      | `404` périmètre inconnu, `409` jour déjà enregistré, `400` invariant violé |
-| `PATCH /scope-monitorings/{id}/activities/status`                                                           | `{days, status, ko_reason?}`                                                                | `204`                                                                      | `404` périmètre ou jour inconnu · `422` motif hors KO, motif trop long, statut inconnu |
-| `PATCH /scope-monitorings/{id}/activities/{day}`                                                            | `{errors_reported, incidents_created, feai}`                                                | `204`                                                                      | `404` périmètre ou jour inconnu, `400` invariant violé                     |
-| `GET /scope-monitorings`                                                                                    | —                                                                                           | `200` liste des périmètres (id, name, knowledge, officials, activities)    | —                                                                          |
-| `PATCH /scope-monitorings/{id}`                                                                              | `{note}` (2000 caractères max)                                                              | `204`                                                                      | `404` périmètre inconnu, `422` note trop longue                           |
-| `PATCH /scope-monitorings/{id}/officials`                                                                    | `{official_main, official_backup}`                                                          | `204`                                                                      | `403` non-admin (jugé avant la 404 d'un id inconnu), `404` admin + périmètre inconnu, `400` responsable blanc |
-| `GET /scope-monitorings/{id}`                                                                               | —                                                                                           | `200` périmètre                                                            | `404`                                                                      |
-| `GET /scope-monitorings/{id}/activities/{day}`                                                              | —                                                                                           | `200` activité                                                             | `404` périmètre ou jour inconnu                                            |
-| `GET /api/audit-log`                                                                  | query : `scope_id` (répété), `actor` (préfixe, insensible à la casse), `action`, `from_created_at`, `to_created_at` (instants ISO, bornes inclusives/exclusives sur `created_at`), `limit` (1–1000, défaut 200) | `200` journal desc (id, actor, action, scope_id, day, created_at, changes) | —                                                                          |
-| `GET /project/settings`                                                                                     | —                                                                                           | `200` réglages du projet courant                                           | `401` session absente                                                      |
-| `PUT /project/settings`                                                                                     | `{excluded_weekdays: [1..7], excluded_dates: ["YYYY-MM-DD"]}`                               | `200` réglages mis à jour                                                  | `401` session absente, `422` payload invalide                              |
-
-Les exceptions de domaine sont mappées par des handlers (`adapters/inbound/api/errors.py`) :
-`ScopeMonitoringNotFoundError`/`DailyActivityNotFoundError` → **404**, `ScopeMonitoringNameAlreadyExistsError`/
-`DuplicateDailyActivityError` → **409**, toute autre `DomainError` et `ScopeMonitoringCsvError` → **400**.
-
-### Journal d'audit
-
-Chaque mutation (création/import de périmètre, création/mise à jour/validation d'activité) est tracée dans un
-journal `audit_log` : acteur (quadrigramme de session), action, périmètre, jour concerné et diff avant/après
-(`changes`, champ par champ). Les modifications sans changement effectif ne sont pas journalisées. L'écriture
-du journal est best-effort : un échec d'audit ne fait pas échouer la requête métier. Lecture via
-`GET /api/audit-log` (filtrée par projet comme le reste). Page frontend « Historique » sur `/audit-log`.
-
-## Persistance
-
-Le port outbound `ScopeMonitoringRepository` possède un adapter PostgreSQL pour l'exécution de l'API.
-Le repository mémoire reste disponible pour l'injection explicite dans les tests :
-
-| Adapter    | Fichier                                                                  | Sélection                               |
-| ---------- | ------------------------------------------------------------------------ | --------------------------------------- |
-| Mémoire    | `adapters/outbound/persistence/in_memory_scope_monitoring_repository.py` | Tests uniquement, injecté explicitement |
-| PostgreSQL | `adapters/outbound/persistence/postgres_scope_monitoring_repository.py`  | Obligatoire pour l'API                  |
-
-L'adapter **PostgreSQL** utilise `psycopg` (sync) + `psycopg_pool`. Deux tables :
-`scope_monitorings` (`id`, `name` UNIQUE, `knowledge_base_id`, `official_main`, `official_backup`,
-`billing_code` **nullable**) et
-`daily_activities` (`(scope_id, day)` PK/FK `ON DELETE CASCADE`, `errors_reported`, `incidents_created`,
-`feai TEXT[]`, `status`, `ko_reason`). Le schéma est créé de façon **idempotente au démarrage**
-(`CREATE TABLE IF NOT EXISTS`, index `scope_monitorings(project_id, name)`, aucun outil de migration).
-L'index couvre le filtrage par projet et l'ordre par nom des listes de périmètres. Les contraintes DB
-(nom unique, jour unique) traduisent les erreurs en exceptions de domaine (→ `409`).
-
-L'écriture d'une activité est **ciblée** : `insert_daily_activity`, `update_daily_activity` et
-`set_activities_status` ne touchent que les lignes nommées, et `rowcount == 0` devient
-`DailyActivityNotFoundError`. `set_activities_status` est le seul upsert du dépôt, et la clause
-`ON CONFLICT DO UPDATE` y est légitime : elle ne réécrit que `status` et `ko_reason` de lignes nommées,
-jamais des compteurs qu'un appelant n'a pas relus — c'était l'objection qui a retiré la clause de
-`save()`. Sa conséquence est que `rowcount` ne distingue plus un jour absent d'un jour mis à jour, donc
-**le refus de terminer un jour inexistant vit dans le use case**, pas dans l'adapter.
-`save()` **crée** et ne réécrit rien : son insertion est en
-`ON CONFLICT (id) DO NOTHING`, donc un id déjà pris lève `ScopeMonitoringAlreadyExistsError` (`409`)
-avant toute écriture. Les deux adapters sont d'ailleurs interchangeables, pas seulement compatibles :
-l'in-memory refuse les mêmes collisions avec les mêmes exceptions. Comme
-`daily_activities` ne porte pas de `project_id`, chaque écriture ciblée joint `scope_monitorings` et
-filtre le projet courant sans condition.
-
-`billing_code` est obligatoire pour un périmètre créé aujourd'hui — invariant porté par le domaine et
-par le schéma Pydantic — mais la colonne reste **nullable** : les lignes antérieures ne peuvent pas
-porter de valeur inventée, et un `NOT NULL` ferait échouer l'`ALTER TABLE` idempotent du démarrage sur
-une table déjà peuplée. Ces lignes sont donc lues avec un code absent, affiché « — », et se complètent
-en SQL direct (`docs/cli.md`).
-Les adaptateurs utilisent des pools `psycopg_pool` paramétrés (`min_size=2`, `max_size=10`, attente maximale de 30 s),
-avec pré-ping `SELECT 1`, recyclage des connexions après 1800 s et délai de connexion de 5 s.
-
-## Frontend
-
-Trois vues : la liste des périmètres (saisie du jour, `/`), l'analyse (`/analyse`, agrégats et heatmap de
-supervision sur une période) et le journal d'audit (`/audit-log`). L'analyse est **en lecture seule** et dérive
-entièrement de `GET /scope-monitorings` — aucun appel supplémentaire. Toute sa logique de calcul est pure et
-vit dans `src/FrontEnd/src/utils/analytics.ts`, ce qui la rend testable sans rendu.
-
-Le détail du frontend — arborescence, routage, pièges recharts, tests — est dans
-**[`docs/frontend.md`](docs/frontend.md)**.
-
-## Docker
-
-La stack complète (`db` PostgreSQL + `api` FastAPI + `frontend` React/nginx) est définie dans
-`docker-compose.yml`. Le frontend est servi par nginx (SPA) qui relaie les routes métier vers `api` —
-même origine, aucun CORS requis.
-
-L'architecture elle-même — réseau, ports publiés, ordre de démarrage encodé par les healthchecks, chaîne
-de construction des deux images et flux de requêtes à travers nginx — est décrite dans
-**[`docs/docker-architecture.md`](docs/docker-architecture.md)**. La consommation de la stack — poids des
-images, RAM, CPU, débit, dimensionnement serveur — est mesurée dans
-**[`docs/ressources.md`](docs/ressources.md)**.
-
-```bash
-make docker-up    # docker compose up -d --build
-# → Frontend : http://localhost:5173
-# → API :      http://127.0.0.1:8874   (Swagger : /docs) — boucle locale seulement
-```
-
-| Cible Makefile              | Effet                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------ |
-| `db-up` / `db-down`         | Démarre / arrête uniquement le service PostgreSQL                              |
-| `docker-up` / `docker-down` | Construit et démarre / arrête toute la stack                                   |
-| `db-shell`                  | Shell `psql` dans le conteneur Postgres                                        |
-| `test-db`                   | Lance les tests d'intégration PostgreSQL (base `protab_test` créée si absente) |
-| `project-admin`             | Lance `protab-project` dans le conteneur `api` (`make project-admin ARGS="…"`)  |
-| `resources`                 | Mesure poids des images, RAM, CPU et volume de données (stack démarrée)         |
-
-Identifiants de développement (`POSTGRES_USER/PASSWORD/DB`, défauts `protab/protab/protab`) surchargeables
-via variables d'environnement / fichier `.env`. Les données DB sont conservées dans un volume nommé (`pgdata`).
+Le workflow attendu (TDD, SOLID, architecture, documentation) est défini dans
+[`AGENTS.md`](AGENTS.md). Les détails d'installation, de configuration et de
+qualité sont dans [`docs/development.md`](docs/development.md).

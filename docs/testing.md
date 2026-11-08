@@ -6,7 +6,7 @@
 > sont normatifs dans `AGENTS.md` (§9, §10) ; ici on décrit la suite existante,
 > ce qu'elle prouve — et ce qu'elle ne prouve pas.
 
-Ce document inventorie les tests de ProTab (Python et TypeScript) et explique
+Ce document inventorie les tests de Tally (Python et TypeScript) et explique
 où placer un nouveau test, et surtout ce qu'un test donné peut réellement
 démontrer. Cette dernière partie est la plus utile en pratique : plusieurs
 façades de test de ce dépôt donnent une fausse assurance si on les lit trop vite.
@@ -17,11 +17,11 @@ façades de test de ce dépôt donnent une fausse assurance si on les lit trop v
 
 | Suite | Emplacement | Commande | Volume |
 | --- | --- | --- | --- |
-| Unitaire Python | `tests/unit/` | `make test` | 250 tests |
-| Intégration Python | `tests/integration/` | `make test-db` | 188 tests, dont **105 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
+| Unitaire Python | `tests/unit/` | `make test` | 291 tests |
+| Intégration Python | `tests/integration/` | `make test-db` | 207 tests, dont **111 ignorés** sans `PROTAB_TEST_DATABASE_URL` |
 | E2E Python | `tests/e2e/` | `make test` | 1 test |
 | Typage Python | `src/protab` | `make typecheck` | `mypy`, `disallow_untyped_defs` |
-| Frontend | `src/FrontEnd/src/test/` | `npm test` | 338 tests (vitest) |
+| Frontend | `src/FrontEnd/src/test/` | `npm test` | 352 tests (vitest), 36 fichiers |
 
 Trois exécutions, donc :
 
@@ -32,10 +32,10 @@ make typecheck     # annotations du cœur applicatif
 ```
 
 **Reality check, chiffres mesurés sur ce dépôt :** `make test` sans
-`PROTAB_TEST_DATABASE_URL` affiche `254 passed, 90 skipped`. C'est le piège
-principal : **un quart de la suite n'a pas tourné**, et un « tout est vert »
-local n'est pas une preuve de non-régression des adaptateurs. Seuls
-`make test-db` et le compte `344 tests collected` distinguent les deux cas.
+`PROTAB_TEST_DATABASE_URL` affiche `388 passed, 111 skipped`. C'est le piège
+principal : **plus d'un cinquième de la suite n'a pas tourné**, et un « tout est
+vert » local n'est pas une preuve de non-régression des adaptateurs. Seuls
+`make test-db` et le compte `499 tests collected` distinguent les deux cas.
 
 ---
 
@@ -51,8 +51,9 @@ helpers explicites. Chaque module déclare ses propres doublures.
 | `daily_activity_test.py` (39) | Mise à jour, contraintes et canonicalisation de `feai`, statut (`apply_status`), motif KO refusé hors KO, constructeur lenient |
 | `day_status_test.py` (4) | Les trois états, et une valeur illisible relue comme `pending` |
 | `official_code_test.py` (14) | Forme scalaire du quadrigramme : longueur, `/` refusé |
-| `non_working_days_test.py` (19) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
-| `scope_monitoring_test.py` (37) | Accès à une activité par jour, agrégat, note libre (`set_note`, borne, relecture), édition des responsables (`set_officials`) |
+| `non_working_days_test.py` (23) | Calendrier ouvré : défaut, bornes ISO, relecture lenient, défaut non partagé, liste corrompue ramenée au défaut |
+| `monitoring_schedule_test.py` (23) | Périodicité : bornes de l'intervalle, ancre de phase, `is_due`, preuve bornée « tombe au moins un jour ouvré », relecture lenient |
+| `scope_monitoring_test.py` (39) | Accès à une activité par jour, agrégat, note libre (`set_note`, borne, relecture), édition des responsables (`set_officials`) |
 | `audit_event_test.py` (5) | `build_changes` ne conserve que les champs modifiés |
 | `exceptions_test.py` (1) | Hiérarchie des exceptions métier |
 
@@ -61,10 +62,10 @@ plus solide du dépôt, et la seule qui reste valable si l'infrastructure change
 
 ### Application — `tests/unit/application/`
 
-Sept fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
+Huit fichiers de tests de cas d'usage (`create_scope_monitoring_test.py`,
 `create_daily_activity_test.py`, `update_daily_activity_test.py`,
 `set_activities_status_test.py`, `update_scope_note_test.py`,
-`update_scope_officials_test.py`,
+`update_scope_officials_test.py`, `update_scope_schedule_test.py`,
 `queries_test.py`) plus `audit_trail_test.py`. Ils utilisent
 `InMemoryScopeMonitoringRepository` et un adaptateur d'audit mémoire.
 
@@ -79,6 +80,10 @@ le décorateur ci-dessous) et l'absence d'audit quand la note est inchangée.
 `update_scope_officials_test.py` prolonge l'argument aux responsables : le refus
 d'un non-admin précède la lecture du périmètre (un id inconnu vaut 403, pas 404),
 et l'audit ne porte que les champs réellement modifiés.
+`update_scope_schedule_test.py` (12) couvre la périodicité : le refus `422` d'une
+cadence jamais due est prononcé **avant** toute mutation, les valeurs identiques
+n'ajoutent aucun événement, et l'écriture reste ciblée (`update_schedule`, pas
+`save`).
 
 **`tests/unit/application/recording_repository.py` n'est pas un test** : c'est
 un décorateur qui enregistre les appels reçus au port, et il mérite qu'on
@@ -95,7 +100,7 @@ Sept modules qui testent de la logique d'adaptateur **sans base** :
 (5 : parseur de la liste séparée par `/`), `postgres_auth_bootstrap_test.py`
 (8 : résolution fail-closed des secrets d'amorçage), `postgres_pool_test.py` (1),
 `project_context_guard_test.py` (2 : le contexte projet ne doit jamais être un
-repli), `scope_monitoring_repository_save_test.py` (4 : l'adapter mémoire doit
+repli), `scope_monitoring_repository_save_test.py` (6 : l'adapter mémoire doit
 refuser ce que le SQL refuse, avec les mêmes exceptions) et
 `audit_trail_filter_test.py` (10 : les deux adaptateurs d'audit doivent
 sélectionner les mêmes événements).
@@ -145,7 +150,7 @@ Quatre fichiers, tous ignorés sans `PROTAB_TEST_DATABASE_URL` via un
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `postgres_scope_monitoring_repository_test.py` | 45 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note` et `update_officials`), `set_activities_status` et son upsert, **migration `handled`/`completed` → `status`**, traduction des violations de contrainte, isolation par projet |
+| `postgres_scope_monitoring_repository_test.py` | 51 | Persistance de l'agrégat, **refus de `save()` sur un périmètre existant**, écritures ciblées (dont `update_note`, `update_officials` et `update_schedule`), `set_activities_status` et son upsert, **migration `handled`/`completed` → `status`**, traduction des violations de contrainte, isolation par projet |
 | `postgres_auth_repository_test.py` | 36 | Authentification, sessions, administrateurs (dont le port `AdminDirectory` relu à chaque appel), rotation de mot de passe, jours non ouvrés |
 | `project_admin_test.py` | 19 | La CLI `protab-project` contre la vraie base (en patchant `getpass` et `sys.argv`) |
 | `postgres_audit_trail_repository_test.py` | 5 | Écriture et lecture du journal d'audit, matrice de filtrage mirroring `audit_trail_filter_test.py`, **événement sans journée métier conservé par une période** |
@@ -165,12 +170,13 @@ Deux détails qui font gagner du temps :
 
 | Fichier | Volume | Objet |
 | --- | --- | --- |
-| `api_test.py` | 36 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI, note du périmètre |
+| `api_test.py` | 44 | Routes métier avec un adaptateur en mémoire injecté, canonicalisation FEAI, note du périmètre |
 | `auth_api_test.py` | 11 | Login, session, cookie `Secure`, expiration du cookie alignée sur la session |
 | `officials_api_test.py` | 11 | Édition des responsables : 403 **avant** 404 pour un non-admin, 204 pour un admin, mode dégradé `auth=None`, `is_admin` calculé à la demande |
+| `schedule_api_test.py` | 13 | Périodicité : `400` hors bornes, `422` jamais due, `404` périmètre inconnu, écriture ciblée et audit |
 | `audit_log_api_test.py` | 7 | Journal d'audit, `limit`, et les trois défauts du filtre : `actor` en préfixe insensible à la casse, `scope_id` répété, période `[from, to)` qui **conserve** un événement `day IS NULL` |
 | `scope_monitoring_csv_reader_test.py` | 6 | Lecture et rejet de CSV |
-| `route_authorization_test.py` | 3 | **Polarité inversée** sur l'authentification |
+| `route_authorization_test.py` | 4 | **Polarité inversée** sur l'authentification |
 
 `route_authorization_test.py` mérite une attention particulière : il liste les
 seules routes qui peuvent être non authentifiées (`PUBLIC_ROUTES`,
@@ -233,7 +239,7 @@ npm test            # vitest run
 npm run lint        # tsc --noEmit — contrôle de types, pas de style
 ```
 
-Trente-cinq fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
+Trente-six fichiers dans `src/FrontEnd/src/test/`, plus `src/test/factories.ts`
 qui n'en est pas un. `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge `asyncUtilTimeout` — une seconde,
 le délai par défaut, ne suffit pas quand la suite crée un jsdom par fichier et
@@ -311,7 +317,10 @@ code, qui passe immédiatement, ne prouve souvent rien.
 
 ## 8. Documents voisins
 
-- [`docs/architecture.md`](architecture.md) — ports, couches, invariants.
+- [`docs/architecture.md`](architecture.md) — ports, couches, adaptateurs.
+- [`docs/domain-model.md`](domain-model.md) — invariants que les tests unitaires verrouillent.
+- [`docs/database.md`](database.md) — schéma et écritures ciblées vérifiées en intégration.
+- [`docs/api.md`](api.md) — routes et codes d'erreur testés par les tests d'API.
 - [`docs/development.md`](development.md) — commandes et configuration.
 - [`docs/frontend.md`](frontend.md) — architecture React.
 - `AGENTS.md` §9, §10, §11, §28.1, §28.6 — règles normatives de test.

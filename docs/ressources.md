@@ -1,6 +1,6 @@
 # Ressources consommées par la stack
 
-Ce document répond à une question unique : **combien de ressources la stack ProTab consomme-t-elle,
+Ce document répond à une question unique : **combien de ressources la stack Tally consomme-t-elle,
 et combien en faudrait-il sur un serveur ?** Les chiffres viennent d'un relevé fait avec
 `make resources` sur une machine de développement (16 cœurs, 23 Gio de RAM, Docker 29.7.2,
 snapshotter containerd). Ce ne sont pas des garanties de performance : ce sont des ordres de
@@ -43,7 +43,7 @@ prochain checkpoint.
 
 **Ce que cette mesure ne dit pas.** Je n'ai pas mesuré `du -sh /var/lib/docker`, faute d'accès root
 sur la machine de développement. Le store Docker contient les images de tous les projets de la
-machine, pas seulement ProTab, et l'agrégat n'est donc pas attribuable à la stack. Sur un serveur
+machine, pas seulement Tally, et l'agrégat n'est donc pas attribuable à la stack. Sur un serveur
 dédié, la somme des colonnes « sur disque » ci-dessus est le bon ordre de grandeur ; sur une machine
 partagée, il faut passer par `docker system df` en gardant en tête qu'il compte en décompressé.
 
@@ -131,7 +131,7 @@ Build Cache     773       19        71.57GB   68.68GB
 
 Le **cache de construction pèse 71.6 Go, dont 68.7 Go récupérables** — soit 98 % de l'occupation
 Docker de cette machine, pour 11 images en service. Il est growné par les builds de tous les projets
-(skillmatrix, edulink, ProTab), pas par ProTab : un `docker builder prune` le libère sans toucher à
+(skillmatrix, edulink, Tally), pas par Tally : un `docker builder prune` le libère sans toucher à
 la stack en service.
 
 Sur un serveur de production, on ne construit pas : le cache reste vide et cette ligne disparaît. Sur

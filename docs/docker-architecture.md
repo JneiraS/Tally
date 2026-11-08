@@ -1,4 +1,4 @@
-# L'architecture Docker de ProTab
+# L'architecture Docker de Tally
 
 La stack complète tient en trois services : une base PostgreSQL, une API FastAPI et un frontend servi par
 nginx. Ce document décrit **comment ils sont assemblés, dans quel ordre ils démarrent, et ce qui est
@@ -209,6 +209,10 @@ depuis l'environnement d'exécution ou d'un `.env` :
 indispensable, car sans `0.0.0.0` le serveur n'écouterait que sur la boucle locale du conteneur et la
 publication de port ne relaierait rien. Une variable fournie par Compose à l'exécution prend le dessus sur
 l'`ENV` de l'image, mais rien ici ne neutralise l'écoute sur toutes les interfaces.
+
+Le service `db` accepte `POSTGRES_USER`, `POSTGRES_PASSWORD` et `POSTGRES_DB` (défauts `protab` /
+`protab` / `protab`), surchargeables par l'environnement ou le `.env`. Le `DATABASE_URL` de l'API est
+construit à partir de ces trois valeurs, avec `db` comme hôte.
 
 ---
 

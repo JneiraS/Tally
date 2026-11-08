@@ -90,6 +90,31 @@ make help         # liste les cibles disponibles
 Le premier démarrage crée le projet amorcé, son mot de passe et son
 administrateur. Voir §7 pour la suite.
 
+### Cibles Makefile
+
+`make help` affiche cette liste depuis le `Makefile`, qui reste la source de
+vérité.
+
+| Cible | Effet |
+| --- | --- |
+| `help` | inventaire des cibles |
+| `install` | `uv sync`, crée le `.venv` |
+| `run` | serveur API (`uv run protab`) |
+| `frontend` | serveur Vite dans `src/FrontEnd` |
+| `test` | pytest, tous les tests |
+| `test-v` | pytest `-vv -s` |
+| `test-failed` | pytest `--lf`, derniers échecs |
+| `typecheck` | mypy sur `src/protab` |
+| `test-db` | pytest avec `protab_test` (créée si absente) |
+| `db-up` / `db-down` | démarre / arrête le service PostgreSQL |
+| `db-shell` | `psql` dans le conteneur Postgres |
+| `docker-up` / `docker-down` | construit et démarre / arrête toute la stack |
+| `project-admin` | `protab-project` dans le conteneur `api` (`ARGS="…"`) |
+| `resources` | poids des images, RAM, CPU et volume `pgdata` |
+| `graph-update` | met à jour `graphify-out/` |
+| `graph-hooks-install` | installe les hooks de graphe du clone |
+| `clean` | supprime les artefacts de build |
+
 ---
 
 ## 5. Base de données : pas d'outil de migration
@@ -100,6 +125,10 @@ de migration versionnée**. Le schéma est appliqué de façon idempotente à ch
 EXISTS`, et un ajout de contrainte sous `DO $$ ... $$`
 (`postgres_scope_monitoring_repository.py:164-193`,
 `postgres_auth_repository.py:171-208`).
+
+Le schéma complet — tables, colonnes, contraintes, index, politique de
+migration et pool de connexions — est dans [`docs/database.md`](database.md).
+Cette section ne garde que les conséquences pour le développeur.
 
 Conséquences concrètes :
 
@@ -116,7 +145,7 @@ Conséquences concrètes :
   `DO $$` qui teste `pg_constraint` avant d'ajouter la clé étrangère.
 - **Réparer des données à la main** doit rester compatible avec ce que le code
   fera au démarrage : `UPDATE scope_monitorings SET project_id = 'protab' ...`
-  (`postgres_scope_monitoring_repository.py:170-172`) est precisely le genre de
+  (`postgres_scope_monitoring_repository.py:170-172`) est précisément le genre de
   migration « fait main » qui existe déjà.
 - Aucun outil tiers (Alembic…) n'est dans les dépendances ; en ajouter un
   serait un changement d'architecture, pas un simple raffinement.
@@ -203,7 +232,7 @@ doit savoir ce qu'il **ne** sera pas rattrapé automatiquement.
 | Vérification | État | Commentaire |
 | --- | --- | --- |
 | Tests Python | ✅ `pytest` | Voir `docs/testing.md`. |
-| Tests front | ✅ `vitest` | 227 tests. |
+| Tests front | ✅ `vitest` | 352 tests répartis sur 36 fichiers. |
 | Typage front | ✅ `npm run lint` | `tsc --noEmit` — vérifie les types, pas le style. |
 | Build front | ✅ `npm run build` | `tsc -b && vite build`. |
 | Linter Python | ❌ **absent** | Aucun `ruff`, `flake8` ou `pylint` ; le groupe `dev` ne contient que `pytest`, `httpx2` et `mypy` (`pyproject.toml`). |
@@ -220,9 +249,11 @@ Conséquences à intégrer dans votre pratique :
 - **Une régression peut être fusionnée sans être signalée.** L'absence de CI
   n'est pas une invitation : c'est une raison de lire le diff attentivement et
   de ne pas supposer qu'un test a été exécuté par un tiers.
-- **Le typage Python n'est pas vérifié.** Les annotations sont présentes et
-  utiles à la lecture, mais une annotation fausse ne sera pas détectée ; le
-  runtime reste la seule autorité.
+- **Le typage Python est vérifié, mais seulement sur `src/protab`.** `make
+  typecheck` applique `disallow_untyped_defs` au code de production ; les tests,
+  l'adapter mémoire et le décorateur d'enregistrement restent hors de sa portée.
+  Un type faux côté test ne sera donc pas détecté, et le runtime reste la seule
+  autorité pour eux.
 - `pyproject.toml:4` porte encore le `description` par défaut de l'outil de
   build. Sans effet sur le fonctionnement, mais visible à la publication du
   paquet.
@@ -269,7 +300,11 @@ il appartient à `AGENTS.md` (§22 impose de le mettre à jour en même temps).
 
 ## 12. Documents voisins
 
-- [`docs/architecture.md`](architecture.md) — couches, ports, modèle de données.
+- [`docs/architecture.md`](architecture.md) — couches, ports, adaptateurs.
+- [`docs/domain-model.md`](domain-model.md) — entités, invariants, périodicité.
+- [`docs/api.md`](api.md) — routes, schémas, codes d'erreur.
+- [`docs/database.md`](database.md) — schéma PostgreSQL et pool.
+- [`docs/authentication.md`](authentication.md) — session, administrateurs.
 - [`docs/testing.md`](testing.md) — stratégie et suites de tests.
 - [`docs/frontend.md`](frontend.md) — application React.
 - [`docs/cli.md`](cli.md) — référence de `protab-project`.

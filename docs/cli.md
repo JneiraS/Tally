@@ -20,7 +20,8 @@ uv run protab-project --help    # inventaire des commandes
 | | Le journal d'audit |
 
 Le **projet** (le tenant) et le **quadrigramme** (la personne) sont deux notions distinctes. Un quadrigramme
-n'existe que s'il est déclaré dans un périmètre — voir [§5](#5-qui-peut-se-connecter).
+n'est accepté que s'il est déclaré dans un périmètre **ou** nommé administrateur du projet — voir
+[§5](#5-qui-peut-se-connecter).
 
 ## 2. Prérequis
 
@@ -107,12 +108,16 @@ par son périmètre.
 Le mot de passe reste exigé dans tous les cas : un administrateur donne un accès permanent, **pas un accès
 sans mot de passe**.
 
+Le modèle complet — fenêtre de bootstrap, session, cookie, isolation par projet — est décrit dans
+[`docs/authentication.md`](authentication.md).
+
 ## 6. Pourquoi nommer un administrateur
 
-Dès qu'un projet possède **un seul** périmètre, `authenticate()` refuse tout quadrigramme que ce périmètre
-ne déclare pas. La fenêtre de démarrage (aucun périmètre = tout est accepté) se referme donc au premier
-périmètre enregistré — et **la personne qui vient de l'enregistrer perd son accès**, sans aucun filet : ni
-colonne « admin », ni liste d'administrateurs, ni mémorisation du premier quadrigramme.
+Dès qu'un projet possède **un seul** périmètre, `authenticate()` refuse tout quadrigramme qui n'est ni
+administrateur ni déclaré dans un périmètre. La fenêtre de démarrage (aucun périmètre = tout est accepté)
+se referme donc au premier périmètre enregistré — et **la personne qui vient de l'enregistrer peut perdre
+son accès** si elle n'était pas déjà administratrice. C'est exactement ce que `project_admins` corrige :
+sans administrateur nommé, il n'existe aucun filet.
 
 Un administrateur est donc la garantie qu'un projet **reste ouvrable**. Nommez-en un dès la création :
 
@@ -181,7 +186,7 @@ commande SQL de contournement, pour le cas où vous savez ce que vous faites.
 | `<quadri> n'est pas administrateur de <projet>` | Le code n'a jamais été ajouté, ou a déjà été retiré | `list-admins <projet>` pour voir qui l'est |
 | `<quadri> est le dernier administrateur de <projet>` | Garde anti-verrouillage | Voir [§6](#le-dernier-administrateur-est-protégé) |
 | `Le projet <code> existe déjà. Choisissez un autre code, ou utilisez set-password…` | Le code de projet est déjà pris | Changer de code, ou `set-password` si le projet existe déjà |
-| `unrecognized arguments: …` | Sous-commande mal orthographiée (`add_admn`) | `protab-project --help` liste les cinq formes. Attention : la forme positionnelle Analyse aussi ces arguments, d'où ce message trompeur |
+| `unrecognized arguments: …` | Sous-commande mal orthographiée (`add_admn`) | `protab-project --help` liste les cinq formes. Attention : la forme positionnelle analyse aussi ces arguments, d'où ce message trompeur |
 
 Le mot de passe est demandé **avant** l'écriture : une tentative de doublon n'est découverte qu'à l'insertion,
 puisque c'est la contrainte d'unicité de la base qui fait foi. Saisissez donc le mot de passe avant de
@@ -233,9 +238,9 @@ verrouillé et vous perdez les sessions encore ouvertes.
 Le code de facturation (`scope_monitorings.billing_code`) est **obligatoire à la
 création** d'un périmètre, mais la colonne est nullable : les périmètres
 enregistrés avant son introduction l'ont vide, et l'interface l'affiche « — ».
-Il n'existe aucune route de mise à jour du code de facturation — `PATCH
-/scope-monitorings/{id}` ne modifie que la note du périmètre, depuis l'interface —
-donc la reprise passe par SQL.
+Il n'existe aucune route de mise à jour du code de facturation — les routes de
+modification d'un périmètre touchent la note, les responsables et la périodicité,
+jamais le nom ni le code — donc la reprise passe par SQL.
 
 ```bash
 # Périmètres sans code, tous projets confondus
@@ -278,7 +283,7 @@ lues qu'à la création : une installation déjà initialisée redémarre sans e
 
 ## 11. Voir aussi
 
-- `README.md` § « Authentification par projet » — le modèle d'authentification et les invariants
+- [`docs/authentication.md`](authentication.md) — le modèle d'authentification et les invariants
 - `AGENTS.md` §28.3 et §28.3 bis — pourquoi ces règles existent
-- `docs/architecture.md` §9 — pourquoi `billing_code` est nullable en base
+- [`docs/database.md`](database.md) — pourquoi `billing_code` est nullable en base et comment les tables sont créées
 - `make help` — les cibles Makefile disponibles

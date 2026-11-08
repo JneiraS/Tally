@@ -59,11 +59,11 @@ src/FrontEnd/src/
 ├── constants/ui.ts       Classe de case à cocher partagée
 ├── constants/nonWorkingDays.ts  Échelle ISO des jours, source unique
 ├── constants/dayStatus.ts       Les 3 statuts d'une journée, source unique
-├── constants/auditActions.ts     Libellés et icônes des 7 actions d'audit
+├── constants/auditActions.ts     Libellés et icônes des 9 actions d'audit
 ├── hooks/                useTheme, useToast, useMediaQuery, useDebouncedValue
 ├── pages/                ScopeListPage, ScopeDetailPage, AnalyticsPage,
 │                         AuditLogPage, LoginPage, NotFoundPage
-├── components/           32 composants (modales, éditeurs, panneaux, graphiques, toasts)
+├── components/           34 composants (modales, éditeurs, panneaux, graphiques, toasts)
 └── utils/                kpi, date, export, validation, knowledgeBase,
                           auditStats, analytics, search
 ```
@@ -346,6 +346,32 @@ de tri, donc pas de dépendance à la stabilité implicite de `sort`). L'API
 renvoyant les périmètres par nom (`ORDER BY name`), chaque groupe reste donc
 alphabétique. Une recherche vide donne le même rang à tout le monde : la liste
 est alors celle du serveur, intacte.
+
+### Périodicité : un brouillon, pas un autosave
+
+`ScopeScheduleCard` vit sur la page de détail. Elle édite les jours attendus,
+l'intervalle (1 à 12 semaines) et la semaine de référence, puis enregistre
+explicitement. Comme la note, c'est un **brouillon** : un autosave enverrait un
+`PATCH` par case cochée, donc un événement d'audit par clic.
+
+Trois règles portées par la carte :
+
+- **Aucun jour coché = tous les jours ouvrés du projet.** C'est le comportement
+  de tous les périmètres antérieurs à la périodicité, et la carte le dit
+  explicitement.
+- **Un jour non ouvré est inerte, même coché.** La carte nomme les jours
+  concernés au lieu de laisser croire que la case produit un effet. Le calendrier
+  du projet fait foi.
+- **Une cadence qui ne tombe jamais un jour ouvré est signalée avant l'appel**
+  (`isScheduleEverDue`, `utils/kpi.ts`), et le bouton est bloqué. Le serveur
+  refuserait de toute façon en `422` : le contrôle local évite un aller-retour
+  dont on connaît déjà l'issue.
+
+La carte n'est **pas réservée aux administrateurs**, contrairement à celle des
+responsables : régler une cadence ne donne aucun droit d'accès. Elle renvoie la
+périodicité enregistrée via `onSaved` et le parent met à jour son état local —
+un `fetchScopeDetail()` remettrait `isLoading` à vrai et effacerait la journée
+sélectionnée.
 
 ---
 
@@ -767,7 +793,7 @@ Pour un fond décoratif : `alt=""` + `aria-hidden="true"`, et sur une page en
 npm test
 ```
 
-36 fichiers dans `src/test/` (338 tests). `src/test/setup.ts` importe
+36 fichiers dans `src/test/` (352 tests). `src/test/setup.ts` importe
 `@testing-library/jest-dom/vitest` et allonge le délai des assertions asynchrones
 (`asyncUtilTimeout`) : une seconde, le défaut, ne suffit pas quand la suite lance un
 environnement jsdom par fichier en parallèle et qu'un rendu attend deux réponses

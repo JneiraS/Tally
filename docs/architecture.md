@@ -6,7 +6,7 @@
 > être respectés sont énoncés dans `AGENTS.md` (en particulier §2, §4, §11 et
 > §28) ; ici on se contente de décrire ce qui existe et où.
 
-Ce document décrit la structure interne de ProTab : les couches, le modèle de
+Ce document décrit la structure interne de Tally : les couches, le modèle de
 données, le cycle d'une requête et les points où le code peut dériver de la
 plaine. Pour l'installation et les commandes, voir
 [`docs/development.md`](development.md) ; pour la topologie des conteneurs, voir
@@ -16,7 +16,7 @@ plaine. Pour l'installation et les commandes, voir
 
 ## 1. Ce que fait l'application
 
-ProTab sert un seul métier : **le suivi quotidien d'incidents par périmètre de
+Tally sert un seul métier : **le suivi quotidien d'incidents par périmètre de
 surveillance**, en multi-tenant, avec traçabilité des écritures.
 
 Deux notions suffisent à comprendre le domaine :
@@ -120,6 +120,7 @@ table SQL. C'est la partie la plus facile à tester et la moins volatile.
 | `AuditEvent`, `build_changes()` | `entities/audit_event.py` | Événement immuable ; `build_changes` ne retient que les champs réellement modifiés |
 | `OfficialCode` | `value_objects/official_code.py` | Forme scalaire d'un quadrigramme administrateur (2–20 caractères, refuse `/`) |
 | `NonWorkingDays`, `IsoWeekday` | `value_objects/non_working_days.py` | Calendrier ouvré d'un projet ; l'échelle ISO (1 = lundi) et le défaut « week-end exclu » y sont déclarés, `from_raw()` reconstruit la colonne JSONB de façon lenient |
+| `MonitoringSchedule` | `value_objects/monitoring_schedule.py` | Périodicité d'un périmètre : jours attendus, intervalle de 1 à 12 semaines, ancre de phase ; `from_raw()` est lenient |
 | Exceptions métier | `exceptions/` | `DomainError` et ses spécialisations, toutes traduites en codes HTTP par `adapters/inbound/api/errors.py` |
 
 `domain/repositories/` et `domain/services/` ne contiennent qu'un
@@ -132,7 +133,7 @@ n'a été nécessaire pour l'heure.
 
 ### Port de périmètre — `ports/outbound/scope_monitoring_repository.py`
 
-`Protocol` synchrone de dix méthodes :
+`Protocol` synchrone de onze méthodes :
 
 - `save(scope)` — **création seule**, refuse un id déjà pris ;
 - `insert_daily_activity`, `update_daily_activity` — écritures ciblées des
@@ -145,6 +146,8 @@ n'a été nécessaire pour l'heure.
   case les fait passer par `ScopeMonitoring.set_officials`), et le filtre
   tenant est inconditionnel : un périmètre d'un autre projet est
   `ScopeMonitoringNotFoundError`, jamais « interdit » ;
+- `update_schedule(scope_id, schedule)` — écriture ciblée de la périodicité. Le
+  use case a déjà vérifié que la cadence tombe un jour ouvré du projet ;
 - `find_by_id`, `find_by_name`, `find_all`, `find_all_scope_names` — lectures.
 
 `set_activities_status` est aussi la seule méthode dont l'upsert est légitime :
@@ -183,7 +186,7 @@ Trois décisions de ce query object portent le comportement du filtre, et les
   concernée et vaut `NULL` pour `scope_created`, `scope_imported` et
   `scope_note_updated` : la filtrer faisait disparaître un tiers du journal dès
   qu'une date était saisie. La fenêtre est **semi-ouverte**
-  (`from` inclusif, `to` exclusif), seule façon d-dire « toute cette journée »
+  (`from` inclusif, `to` exclusif), seule façon de dire « toute cette journée »
   sans arrondi à la seconde près ; le serveur n'ayant aucun fuseau, le front
   résout les minuits locaux en instants avant d'appeler.
 
@@ -223,8 +226,9 @@ domaine, comme la durée de session (`SESSION_DURATION`), dont le cookie dérive
 
 - **Cas d'usage** (`use_cases/`) : `CreateScopeMonitoring`,
   `CreateDailyActivity`, `UpdateDailyActivity`, `SetActivitiesStatus`,
-  `UpdateScopeNote`, `UpdateScopeOfficials`. Chacun prend ses ports par
-  constructeur et un `audit_trail` optionnel ; aucun ne construit de connexion.
+  `UpdateScopeNote`, `UpdateScopeOfficials`, `UpdateScopeSchedule`. Chacun prend
+  ses ports par constructeur et un `audit_trail` optionnel ; aucun ne construit
+  de connexion.
 - **Commandes** (`commands/`) : dataclasses d'entrée
   (`create_scope_monitoring.py`, `daily_activity.py`).
 - **Requêtes** (`queries/`) : `ListScopes`, `GetScope`, `GetDailyActivity`,
@@ -256,6 +260,13 @@ Deux comportements méritent d'être connus avant de modifier un cas d'usage :
   officiels avant/après `set_officials`, et le diff du journal ne porte que les
   champs réellement modifiés. Écrire des valeurs identiques n'ajoute aucun
   événement.
+- `UpdateScopeScheduleUseCase` porte le seul contrôle qui ne peut pas vivre dans
+  le domaine : « cette périodicité tombera-t-elle un jour ouvré ? » nécessite le
+  calendrier du projet. La vérification précède toute mutation — l'adaptateur
+  mémoire renvoie l'objet qu'il stocke, donc muter puis refuser corromprait la
+  base au lieu de la laisser intacte. Le refus est `ScheduleNeverDueError`
+  (`422`), pas un `400` : la valeur est inexploitable pour ce projet, comme une
+  note trop longue. Le use case n'exige pas de rôle administrateur.
 
 ---
 
@@ -268,50 +279,29 @@ adaptateurs, les cas d'usage, l'instance `FastAPI` et le gestionnaire
 d'arrêt. `create_default_app()` (`app.py:453-455`) est le point d'entrée du
 processus.
 
-Table des routes :
+L'inventaire complet des routes — méthodes, chemins, schémas, codes d'erreur —
+est dans [`docs/api.md`](api.md). Ce document ne le duplique plus : il ne garde
+que ce qui concerne l'architecture.
 
-| Méthode | Chemin | `project_context` | Rôle |
-| --- | --- | --- | --- |
-| GET | `/healthz` | non | Sonde de disponibilité |
-| GET | `/projects` | non | Liste les projets (écran de connexion) |
-| POST | `/auth/login` | non | Ouvre une session, pose le cookie |
-| GET | `/auth/me` | non * | Session courante — **401** si le cookie est absent |
-| POST | `/auth/logout` | non * | Supprime la session et le cookie |
-| GET / PUT | `/project/settings` | oui | Jours non ouvrés |
-| GET | `/scope-monitorings` | oui | Liste les périmètres du projet |
-| POST | `/scope-monitorings` | oui | Création (unitaire ou en lot) |
-| POST | `/scope-monitorings/import-csv` | oui | Import CSV |
-| GET | `/scope-monitorings/{scope_id}` | oui | Détail d'un périmètre |
-| PATCH | `/scope-monitorings/{scope_id}` | oui | Note libre |
-| PATCH | `/scope-monitorings/{scope_id}/officials` | oui | Responsables (principal / suppléant) — **403** sauf administrateur du projet |
-| GET | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Compteurs d'un jour |
-| POST | `/scope-monitorings/{scope_id}/activities` | oui | Création d'une activité |
-| PATCH | `/scope-monitorings/{scope_id}/activities/{day}` | oui | Mise à jour des compteurs |
-| PATCH | `/scope-monitorings/{scope_id}/activities/status` | oui | Statut d'un lot de jours (`completed`, `ko`, `pending`) |
-| GET | `/api/audit-log` | oui | Journal d'audit |
+Trois points d'attention :
 
-\* `/auth/me` et `/auth/logout` figurent dans `PUBLIC_ROUTES` **parce qu'ils
-gèrent eux-mêmes l'absence de session** (`current_user` lève un 401,
-`auth.py:21-38`) : y poser la dépendance renverrait la même erreur, mais par un
-chemin différent — et pour `logout`, un utilisateur sans session doit pouvoir
-nettoyer son cookie. Ce ne sont donc pas des routes ouvertes.
-
-Il n'existe **aucune route de suppression de périmètre** ni de mise à jour :
-`POST /scope-monitorings` ne fait que créer, et le nom est `UNIQUE` globalement.
-
-Deux points d'attention :
-
-- **La colonne « non » n'est pas décorative.** L'authentification est appliquée
-  par la dépendance `project_context` (`app.py:208-219`), et non par une
-  vérification dans chaque handler. Une route qui oublie
-  `dependencies=[Depends(project_context)]` est donc réellement publique.
-  `tests/integration/adapters/route_authorization_test.py` inverse la
-  polarité du contrôle pour attraper ce cas.
+- **L'authentification est portée par une dépendance, pas par les handlers.**
+  `project_context` (`app.py:208-219`) vérifie la session et pose les
+  `ContextVar`. Une route qui oublie
+  `dependencies=[Depends(project_context)]` est donc réellement publique ;
+  `tests/integration/adapters/route_authorization_test.py` inverse la polarité
+  du contrôle pour attraper ce cas.
+- **Il n'existe aucune route de suppression** de périmètre ou d'activité, et
+  aucune route de modification du nom ou du code de facturation. `POST
+  /scope-monitorings` ne fait que créer, et le nom est `UNIQUE` globalement. Les
+  modifications existantes sont les écritures ciblées : note, responsables,
+  périodicité, compteurs d'une journée, statut d'un lot.
 - **La traduction des erreurs est centralisée** dans
-  `adapters/inbound/api/errors.py:16-42` : 404 pour « introuvable », 409 pour
-  « déjà existant », 400 pour les autres `DomainError`, 500 avec un message
-  générique pour le reste. C'est le seul endroit où une exception du domaine
-  devient un code HTTP.
+  `adapters/inbound/api/errors.py` : `404` pour « introuvable », `409` pour
+  « déjà existant », `403` pour un refus d'administration, `422` pour une
+  périodicité jamais due ou un corps invalide, `400` pour les autres
+  `DomainError` et les erreurs CSV, `500` avec un message générique pour le
+  reste. C'est le seul endroit où une exception du domaine devient un code HTTP.
 
 ### CSV — `adapters/inbound/csv/scope_monitoring_csv_reader.py`
 
@@ -341,7 +331,7 @@ mode **synchrone**, avec un pool partagé construit par `postgres_pool.py`.
 - `PostgresScopeMonitoringRepository` — schéma de `projects`,
   `scope_monitorings` et `daily_activities`. `scope_monitorings.note` est
   `TEXT` nullable, ajoutée par `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` au
-  démarrage, comme `billing_code`.
+  démarrage, comme `billing_code` et `schedule`.
 - `PostgresAuthRepository` — `projects`, `auth_sessions`, `project_admins`
   (`postgres_auth_repository.py`), plus l'amorçage du projet initial. Il ne
   valide plus les jours non travaillés : il persiste `NonWorkingDays.to_dict()`
@@ -416,77 +406,23 @@ Les conséquences pratiques, toutes documentées dans `AGENTS.md` §28.1 :
 
 ## 9. Modèle de données
 
-```mermaid
-erDiagram
-    projects ||--o{ scope_monitorings : porte
-    projects ||--o{ auth_sessions : porte
-    projects ||--o{ project_admins : porte
-    scope_monitorings ||--o{ daily_activities : contient
+Le diagramme entité-relation, les colonnes, les contraintes, les index et la
+politique de migration sont dans [`docs/database.md`](database.md). Ce document
+ne les duplique pas.
 
-    projects {
-        text id PK
-        text name
-        text password_hash
-        boolean active
-        jsonb non_working_days
-    }
-    scope_monitorings {
-        text id PK
-        text project_id FK
-        text name UK
-        text knowledge_base_id
-        text official_main
-        text official_backup
-        text billing_code "nullable"
-    }
-    daily_activities {
-        text scope_id PK
-        date day PK
-        integer errors_reported
-        integer incidents_created
-        text_array feai
-        text status "pending | completed | ko"
-        text ko_reason
-    }
-    auth_sessions {
-        text token_hash PK
-        text project_id FK
-        text quadrigramme
-        timestamptz expires_at
-    }
-    project_admins {
-        text project_id PK
-        text code PK
-        timestamptz created_at
-    }
-    audit_log {
-        text id PK
-        text project_id
-        text scope_id
-        text action
-        text actor
-        date day
-        jsonb changes
-        timestamptz created_at
-    }
-```
+Ce qu'il faut retenir côté architecture : **il n'existe pas d'outil de
+migration**. Le schéma est appliqué de façon idempotente à chaque `connect()`.
+Les colonnes ajoutées après coup (`billing_code`, `note`, `schedule`,
+`non_working_days`, `status`, `ko_reason`, `project_id`) sont donc nullables, et
+les constructeurs les relisent de façon lenient : une ligne ancienne ou
+dégénérée ne doit jamais vider la liste des périmètres de l'instance. Le refus
+d'une valeur invalide appartient aux écritures, jamais à la lecture.
 
-Trois détails qui prêtent à erreur :
-
-- `scope_monitorings.name` est **`UNIQUE` globalement**, pas par projet. Deux
-  projets ne peuvent donc pas utiliser le même nom de périmètre.
-- `official_main` et `official_backup` stockent une **liste** de
-  quadrigrammes séparés par `/` (parseur commun :
-  `postgres_auth_repository.py:130-146`), pas un scalaire.
-- `billing_code` est **obligatoire à la création mais nullable en base**. Les
-  deux règles ne se contredisent pas : l'obligation vit dans le domaine
-  (`ScopeMonitoring.create()`) et dans le schéma Pydantic, jamais dans la
-  colonne. Un `NOT NULL` ferait échouer l'`ALTER TABLE ... ADD COLUMN IF NOT
-  EXISTS` du démarrage sur une table déjà peuplée, et le constructeur — chemin
-  de réhydratation des repositories — refuse de lever sur une ligne lue : une
-  seule ligne ancienne illisible viderait toute la liste. Aucune route ne
-  permet de compléter un code manquant après coup, la reprise se fait en SQL
-  (`docs/cli.md`).
+Les mutations d'un périmètre existant passent par des écritures ciblées du port
+(`insert_daily_activity`, `update_daily_activity`, `set_activities_status`,
+`update_note`, `update_officials`, `update_schedule`), jamais par un `save()`
+qui réécrirait des lignes non relues. Les raisons et les cas limites sont dans
+[`docs/database.md`](database.md) §4 et `AGENTS.md` §28.1.
 
 ---
 
@@ -515,12 +451,13 @@ En prenant pour exemple la mise à jour des compteurs d'une journée :
 
 | Question | Fichier à ouvrir |
 | --- | --- |
-| Une règle métier de périmètre ou de journée | `src/protab/domain/entities/` |
-| Un code HTTP ou un message d'erreur | `src/protab/adapters/inbound/api/errors.py` |
-| Une route, son authentification, son schéma | `src/protab/adapters/inbound/api/app.py`, `schemas.py` |
-| Le comportement d'une écriture en base | `postgres_scope_monitoring_repository.py` |
-| Le schéma SQL et son absence de migration | `_SCHEMA_STATEMENTS` et `_apply_schema` |
-| La connexion, le mot de passe projet, les administrateurs | `postgres_auth_repository.py` |
+| Une règle métier de périmètre ou de journée | `src/protab/domain/entities/`, puis [`docs/domain-model.md`](domain-model.md) |
+| Une règle de périodicité ou de calendrier ouvré | `src/protab/domain/value_objects/`, puis [`docs/domain-model.md`](domain-model.md) |
+| Un code HTTP ou un message d'erreur | `src/protab/adapters/inbound/api/errors.py`, puis [`docs/api.md`](api.md) |
+| Une route, son authentification, son schéma | `src/protab/adapters/inbound/api/app.py`, `schemas.py`, puis [`docs/api.md`](api.md) |
+| Le comportement d'une écriture en base | `postgres_scope_monitoring_repository.py`, puis [`docs/database.md`](database.md) |
+| Le schéma SQL et son absence de migration | `_SCHEMA_STATEMENTS` et `_apply_schema`, puis [`docs/database.md`](database.md) |
+| La connexion, le mot de passe projet, les administrateurs | `postgres_auth_repository.py`, puis [`docs/authentication.md`](authentication.md) |
 | L'administration d'hôte | `project_admin.py`, puis [`docs/cli.md`](cli.md) |
 | L'isolation multi-tenant | `require_current_project()` + `AGENTS.md` §28.1 |
 
@@ -528,8 +465,15 @@ En prenant pour exemple la mise à jour des compteurs d'une journée :
 
 ## 12. Documents voisins
 
+- [`docs/domain-model.md`](domain-model.md) — entités, invariants, périodicité,
+  calendrier ouvré, journal d'audit.
+- [`docs/api.md`](api.md) — routes, schémas, codes d'erreur, import et export CSV.
+- [`docs/database.md`](database.md) — schéma PostgreSQL, contraintes, index,
+  pool de connexions.
+- [`docs/authentication.md`](authentication.md) — connexion, session,
+  administrateurs, isolation multi-tenant.
 - [`docs/development.md`](development.md) — installation, commandes, variables,
-  déplooiement.
+  déploiement.
 - [`docs/testing.md`](testing.md) — stratégie, suites, tests à base de données.
 - [`docs/frontend.md`](frontend.md) — architecture React, thème, accessibilité.
 - [`docs/cli.md`](cli.md) — référence de la CLI `protab-project`.
