@@ -11,6 +11,7 @@ from protab.domain.entities.scope_monitoring import (
     ScopeMonitoring,
 )
 from protab.domain.exceptions import ScopeMonitoringNameAlreadyExistsError
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 from protab.ports.outbound.audit_trail_repository import AuditTrailRepository
 from protab.ports.outbound.scope_monitoring_repository import ScopeMonitoringRepository
 
@@ -51,13 +52,7 @@ class CreateScopeMonitoringUseCase:
                         scope_id=scope.id,
                         changes=build_changes(
                             {},
-                            {
-                                "name": scope.name,
-                                "knowledge_base_id": scope.knowledge.id,
-                                "official_main": scope.officials.main,
-                                "official_backup": scope.officials.backup,
-                                "billing_code": scope.billing_code,
-                            },
+                            _creation_changes(scope),
                         ),
                     )
                 )
@@ -74,4 +69,28 @@ class CreateScopeMonitoringUseCase:
                 backup=command.official_backup,
             ),
             billing_code=command.billing_code,
+            schedule=command.schedule,
         )
+
+def _creation_changes(scope: ScopeMonitoring) -> dict[str, object]:
+    """The fields a creation records.
+
+    The schedule is only mentioned when it is not the default: three fields
+    repeating "every working day" on every creation would bury the identity of
+    the scope in the journal without telling anything.
+    """
+    changes: dict[str, object] = {
+        "name": scope.name,
+        "knowledge_base_id": scope.knowledge.id,
+        "official_main": scope.officials.main,
+        "official_backup": scope.officials.backup,
+        "billing_code": scope.billing_code,
+    }
+    if scope.schedule != MonitoringSchedule():
+        changes.update(
+            {
+                f"schedule_{field}": value
+                for field, value in scope.schedule.to_dict().items()
+            }
+        )
+    return changes

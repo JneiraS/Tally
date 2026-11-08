@@ -9,6 +9,8 @@ import {
   buildDailyTrend,
   coverageRate,
   defaultDisplayDay,
+  hasAnyDueDay,
+  isScopeDue,
   isWorkingDay,
   lastNDays,
   lastWorkingDays,
@@ -267,5 +269,109 @@ describe('latestActivityDay', () => {
   it('renvoie null si rien n’a jamais été saisi', () => {
     expect(latestActivityDay([])).toBeNull();
     expect(latestActivityDay([scope('a', 'A', [])])).toBeNull();
+  });
+});
+
+/**
+ * Périodicité d'un périmètre.
+ *
+ * La cadence **restreint** le calendrier du projet, elle ne l'élargit jamais :
+ * un samedi déclaré dans un projet lundi–vendredi n'est pas un jour attendu. Et
+ * le cycle se compte depuis l'ancre, jamais depuis le numéro de semaine ISO —
+ * une année à 53 semaines en changerait la parité.
+ */
+const MONDAY_TO_FRIDAY: NonWorkingDays = {
+  excluded_weekdays: [6, 7],
+  excluded_dates: [],
+};
+
+function scheduled(
+  weekdays: NonWorkingDays['excluded_weekdays'],
+  interval_weeks = 1,
+  anchor_date: string | null = null,
+): ScopeMonitoring {
+  return makeScope({
+    schedule: { weekdays, interval_weeks, anchor_date },
+  });
+}
+
+describe('isScopeDue', () => {
+  it("considère un périmètre sans périodicité comme attendu chaque jour ouvré", () => {
+    const scope = scheduled([]);
+    expect(isScopeDue(scope, '2026-09-21', MONDAY_TO_FRIDAY)).toBe(true); // lundi
+    expect(isScopeDue(scope, '2026-09-26', MONDAY_TO_FRIDAY)).toBe(false); // samedi
+  });
+
+  it("n'attend un périmètre que les jours qu'il déclare", () => {
+    const scope = scheduled([1, 5]);
+    expect(isScopeDue(scope, '2026-09-21', MONDAY_TO_FRIDAY)).toBe(true);
+    expect(isScopeDue(scope, '2026-09-22', MONDAY_TO_FRIDAY)).toBe(false);
+    expect(isScopeDue(scope, '2026-09-25', MONDAY_TO_FRIDAY)).toBe(true);
+  });
+
+  it("ne rend jamais attendu un jour non ouvré, même déclaré", () => {
+    const scope = scheduled([6]);
+    expect(isScopeDue(scope, '2026-09-26', MONDAY_TO_FRIDAY)).toBe(false);
+  });
+
+  it('saute une semaine sur deux depuis l’ancre', () => {
+    const scope = scheduled([1], 2, '2026-01-05');
+    expect(isScopeDue(scope, '2026-01-05', MONDAY_TO_FRIDAY)).toBe(true);
+    expect(isScopeDue(scope, '2026-01-12', MONDAY_TO_FRIDAY)).toBe(false);
+    expect(isScopeDue(scope, '2026-01-19', MONDAY_TO_FRIDAY)).toBe(true);
+  });
+
+  it('garde la phase au passage d’une année à 53 semaines', () => {
+    // 2026-12-28 est 2026-W53 et 2027-01-04 est 2027-W01 : une règle fondée sur
+    // la parité du numéro de semaine sauterait deux semaines de suite.
+    const scope = scheduled([1], 2, '2026-01-05');
+    expect(isScopeDue(scope, '2026-12-28', MONDAY_TO_FRIDAY)).toBe(false);
+    expect(isScopeDue(scope, '2027-01-04', MONDAY_TO_FRIDAY)).toBe(true);
+  });
+});
+
+describe('hasAnyDueDay', () => {
+  it("détecte une périodicité qui ne tombe jamais un jour ouvré", () => {
+    expect(hasAnyDueDay(scheduled([6]), MONDAY_TO_FRIDAY)).toBe(false);
+    expect(hasAnyDueDay(scheduled([1]), MONDAY_TO_FRIDAY)).toBe(true);
+  });
+
+  it('conclut en un cycle borné, même une semaine sur douze', () => {
+    expect(hasAnyDueDay(scheduled([1], 12, '2026-01-05'), MONDAY_TO_FRIDAY)).toBe(true);
+  });
+});
+
+describe('coverageRate avec périodicité', () => {
+  it('ne compte que les cellules attendues au dénominateur', () => {
+    const scopes = [
+      scheduled([1, 5]), // attendu lundi et vendredi seulement
+      scheduled([]), // attendu les cinq jours
+    ];
+    const days = [
+      '2026-09-21', // lundi
+      '2026-09-22',
+      '2026-09-23',
+      '2026-09-24',
+      '2026-09-25', // vendredi
+    ];
+    const filledEveryDay = scope(
+      'b',
+      'B',
+      days.map((day) => activity(day, 1, 0)),
+    );
+    // 5 cellules remplies sur 2 + 5 = 7 attendues.
+    expect(coverageRate([scopes[0], filledEveryDay], days, MONDAY_TO_FRIDAY)).toBe(71);
+  });
+
+  it('ne compte pas une saisie hors périodicité et ne dépasse jamais 100 %', () => {
+    const scopeDueMonday = scheduled([1]);
+    scopeDueMonday.daily_activities = [
+      activity('2026-09-21', 1, 0), // lundi : attendu
+      activity('2026-09-22', 1, 0), // mardi : hors périodicité
+    ];
+
+    expect(
+      coverageRate([scopeDueMonday], ['2026-09-21', '2026-09-22'], MONDAY_TO_FRIDAY),
+    ).toBe(100);
   });
 });

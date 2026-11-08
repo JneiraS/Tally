@@ -24,6 +24,7 @@ from contextvars import ContextVar, Token
 from datetime import date
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from protab.adapters.outbound.persistence.postgres_pool import (
     POOL_MAX_SIZE,
@@ -37,6 +38,7 @@ from protab.domain.entities.scope_monitoring import (
     Officials,
     ScopeMonitoring,
 )
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 from protab.domain.exceptions import (
     DailyActivityNotFoundError,
     DuplicateDailyActivityError,
@@ -65,7 +67,8 @@ _SCHEMA_STATEMENTS: tuple[str, ...] = (
         official_main TEXT NOT NULL,
         official_backup TEXT NOT NULL,
         billing_code TEXT,
-        note TEXT
+        note TEXT,
+        schedule JSONB
     )
     """,
     """
@@ -121,7 +124,7 @@ def require_current_project() -> str:
 
 _SCOPE_SELECT = (
     "SELECT id, name, knowledge_base_id, official_main, official_backup, "
-    "billing_code, note "
+    "billing_code, note, schedule "
     "FROM scope_monitorings"
 )
 
@@ -211,6 +214,13 @@ class PostgresScopeMonitoringRepository:
         conn.execute(
             "ALTER TABLE scope_monitorings ADD COLUMN IF NOT EXISTS note TEXT"
         )
+        # La périodicité est nullable : une ligne antérieure à son introduction
+        # vaut « tous les jours ouvrés », et un NOT NULL ferait échouer cet ALTER
+        # sur une table déjà peuplée. Aucun CHECK non plus : un ALTER TABLE ADD
+        # CONSTRAINT bloquerait le démarrage sur une ligne écrite à la main.
+        conn.execute(
+            "ALTER TABLE scope_monitorings ADD COLUMN IF NOT EXISTS schedule JSONB"
+        )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_scope_monitorings_project_name "
             "ON scope_monitorings (project_id, name)"
@@ -265,7 +275,7 @@ class PostgresScopeMonitoringRepository:
         row: tuple,
         activities: dict[date, DailyActivity],
     ) -> ScopeMonitoring:
-        scope_id, name, kb_id, main, backup, billing_code, note = row[:7]
+        scope_id, name, kb_id, main, backup, billing_code, note, schedule = row[:8]
         scope = ScopeMonitoring(
             id=scope_id,
             name=name,
@@ -273,6 +283,7 @@ class PostgresScopeMonitoringRepository:
             officials=Officials(main=main, backup=backup),
             billing_code=billing_code,
             note=note,
+            schedule=MonitoringSchedule.from_raw(schedule),
         )
         scope.daily_activities = activities
         return scope
@@ -348,8 +359,8 @@ class PostgresScopeMonitoringRepository:
                     # translated below.
                     cursor = conn.execute(
                         f"""
-                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup, billing_code, note"})
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO scope_monitorings ({"id, project_id, name, knowledge_base_id, official_main, official_backup, billing_code, note, schedule"})
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (id) DO NOTHING
                         """,
                         (
@@ -361,6 +372,7 @@ class PostgresScopeMonitoringRepository:
                             scope.officials.backup,
                             scope.billing_code,
                             scope.note,
+                            Jsonb(scope.schedule.to_dict()),
                         ),
                     )
                     if cursor.rowcount == 0:
@@ -533,6 +545,27 @@ class PostgresScopeMonitoringRepository:
                 WHERE id = %s AND project_id = %s
                 """,
                 (note, scope_id, project_id),
+            )
+            if cursor.rowcount == 0:
+                raise ScopeMonitoringNotFoundError(
+                    f"ScopeMonitoring {scope_id!r} not found."
+                )
+
+    def update_schedule(
+        self, scope_id: str, schedule: MonitoringSchedule
+    ) -> None:
+        # Targeted write like ``update_note``: only the schedule column moves, so
+        # a concurrent note or day edit survives. The value object is frozen and
+        # already validated, so it is stored as its JSON shape and nothing else.
+        project_id = require_current_project()
+        with self._pool.connection() as conn, conn.transaction():
+            cursor = conn.execute(
+                """
+                UPDATE scope_monitorings
+                SET schedule = %s
+                WHERE id = %s AND project_id = %s
+                """,
+                (Jsonb(schedule.to_dict()), scope_id, project_id),
             )
             if cursor.rowcount == 0:
                 raise ScopeMonitoringNotFoundError(

@@ -68,6 +68,11 @@ export function makeScope(
     official_backup: "JMAB",
     billing_code: "FACT-2026-PAI",
     note: null,
+    // Défaut réaliste : « tous les jours ouvrés », le comportement de tous les
+    // périmètres créés avant la périodicité. Un test qui observe une cadence la
+    // surcharge ; la fabrique ne doit pas pouvoir mentir sur la forme d'une
+    // réponse.
+    schedule: { weekdays: [], interval_weeks: 1, anchor_date: null },
     daily_activities: [],
     ...overrides,
   };

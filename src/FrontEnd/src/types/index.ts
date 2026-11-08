@@ -33,8 +33,34 @@ export interface ScopeMonitoring {
   // Note libre, éditable depuis la page de détail uniquement. `null` est le
   // seul état absent : une note vidée est enregistrée comme `null`, jamais "".
   note: string | null;
+  // Périodicité du périmètre : sur quels jours ouvrés il est **attendu**. Elle
+  // ne retire jamais le droit de saisir un autre jour ; elle décide seulement
+  // du backlog et du dénominateur de la couverture.
+  schedule: MonitoringSchedule;
   daily_activities: DailyActivity[];
 }
+
+/**
+ * Périodicité d'un périmètre, telle que l'API la renvoie et l'accepte.
+ *
+ * `weekdays` vide = « tous les jours ouvrés du projet », le comportement de
+ * tous les périmètres créés avant la périodicité — donc jamais « jamais dû ».
+ *
+ * `anchor_date` est une **référence de phase**, pas une date de début : le
+ * rythme s'applique aussi aux jours antérieurs. Le serveur compte les semaines
+ * depuis cette ancre et non depuis le numéro de semaine ISO, qu'une année à 53
+ * semaines ferait changer de parité.
+ */
+export interface MonitoringSchedule {
+  /** Jours ISO attendus (1 = lundi … 7 = dimanche), triés et sans doublon. */
+  weekdays: IsoWeekday[];
+  /** Une semaine sur `interval_weeks`. 1 = chaque semaine. */
+  interval_weeks: number;
+  /** Lundi de référence du cycle, "YYYY-MM-DD", ou `null` pour l'ancre fixe. */
+  anchor_date: string | null;
+}
+
+export type UpdateScopeScheduleInput = MonitoringSchedule;
 
 export interface NonWorkingDays {
   /** Jours ISO (1 = lundi … 7 = dimanche), pas des index JS. */
@@ -48,6 +74,8 @@ export interface CreateScopeInput {
   official_main: string;
   official_backup: string;
   billing_code: string;
+  /** Omis = « tous les jours ouvrés », comme un périmètre créé avant la périodicité. */
+  schedule?: MonitoringSchedule;
 }
 
 export interface CreateScopeResponse {
@@ -96,7 +124,8 @@ export type AuditAction =
   | "activity_completed"
   | "activity_ko"
   | "scope_note_updated"
-  | "scope_officials_updated";
+  | "scope_officials_updated"
+  | "scope_schedule_updated";
 
 export interface AuditEvent {
   id: string; // UUID v4

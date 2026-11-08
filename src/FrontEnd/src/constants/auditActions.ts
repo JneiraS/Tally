@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   CheckCircle2,
   FileText,
   OctagonX,
@@ -28,6 +29,7 @@ export const AUDIT_ACTIONS: { value: AuditAction; label: string }[] = [
   { value: "activity_ko", label: "Journée signalée KO" },
   { value: "scope_note_updated", label: "Note du périmètre" },
   { value: "scope_officials_updated", label: "Responsables du périmètre" },
+  { value: "scope_schedule_updated", label: "Périodicité du périmètre" },
 ];
 
 export const ACTION_LABELS: Record<AuditAction, string> = Object.fromEntries(
@@ -43,4 +45,5 @@ export const ACTION_ICONS: Record<AuditAction, LucideIcon> = {
   activity_ko: OctagonX,
   scope_note_updated: StickyNote,
   scope_officials_updated: UserCog,
+  scope_schedule_updated: CalendarClock,
 };

@@ -28,6 +28,7 @@ import { matchesSearchQuery, sortByOfficialRelevance } from "../utils/search";
 import {
   baselineDelta,
   defaultDisplayDay,
+  isScopeDue,
   latestActivityDay,
   previousWorkingDays,
   trailingErrors,
@@ -57,6 +58,11 @@ type QuickFilter = "all" | "to_process" | "errors" | "incidents" | "completed";
 interface EnrichedScope extends ScopeMonitoring {
   selectedActivity?: DailyActivity;
   hasSelectedDay: boolean;
+  // Le périmètre est-il attendu ce jour-là ? Un jour non attendu reste
+  // saisissable, mais il ne compte ni dans le backlog ni dans le dénominateur
+  // des terminés — sinon un périmètre hebdomadaire serait « en retard » les
+  // quatre autres jours.
+  isDue: boolean;
   selectedDayCompleted: boolean;
   selectedDayKo: boolean;
   // `ko` est son propre état et non un « en cours » : un périmètre bloqué par
@@ -104,6 +110,8 @@ export function ScopeListPage({
   const untreatedLastWorkingDayCount = useMemo(() => {
     if (!lastWorkingDay) return 0;
     return scopes.filter((scope) => {
+      // Un périmètre non attendu ce jour-là ne peut pas être « non traité ».
+      if (!isScopeDue(scope, lastWorkingDay, nonWorkingDays)) return false;
       const activity = (scope.daily_activities || []).find(
         (item) => item.day === lastWorkingDay,
       );
@@ -112,7 +120,7 @@ export function ScopeListPage({
       // n'y a plus rien à faire dessus aujourd'hui.
       return !activity || !isHandled(activity.status);
     }).length;
-  }, [scopes, lastWorkingDay]);
+  }, [scopes, lastWorkingDay, nonWorkingDays]);
 
   const showUntreatedBacklog = () => {
     if (!lastWorkingDay) return;
@@ -160,8 +168,26 @@ export function ScopeListPage({
   const hasActivityOnSelectedDay = scopes.some((scope) =>
     (scope.daily_activities || []).some((a) => a.day === selectedDay),
   );
+
+  // Une journée où aucun périmètre n'est attendu n'est pas un retard : c'est un
+  // calendrier. Le dire explique pourquoi la liste paraît vide, là où « aucune
+  // saisie » accuserait l'utilisateur d'un oubli qui n'en est pas un.
+  const dueScopeCount = useMemo(
+    () =>
+      scopes.filter((scope) => isScopeDue(scope, selectedDay, nonWorkingDays))
+        .length,
+    [scopes, selectedDay, nonWorkingDays],
+  );
+  const showNoDueScopeNotice =
+    !hasUntreatedBacklog && scopes.length > 0 && dueScopeCount === 0;
+
+  // Trois notices, un seul `role="status"` : deux d'entre eux rendraient l'un
+  // des deux inatteignable. Priorité au backlog, qui nomme les périmètres
+  // concernés et filtre la liste ; puis au calendrier, qui explique l'écran ;
+  // « aucune saisie » ne sert que de repli.
   const showEmptyDayNotice =
     !hasUntreatedBacklog &&
+    !showNoDueScopeNotice &&
     latestData !== null &&
     latestData.day !== selectedDay &&
     !hasActivityOnSelectedDay;
@@ -268,6 +294,7 @@ export function ScopeListPage({
         ...scope,
         selectedActivity,
         hasSelectedDay,
+        isDue: isScopeDue(scope, selectedDay, nonWorkingDays),
         selectedDayCompleted,
         selectedDayKo,
         status,
@@ -275,7 +302,7 @@ export function ScopeListPage({
         selectedDayIncidents: selectedActivity?.incidents_created || 0,
       };
     });
-  }, [scopes, selectedDay]);
+  }, [scopes, selectedDay, nonWorkingDays]);
 
   // Filtrage combiné recherche + filtre rapide action, puis priorité au
   // responsable : une recherche par quadrigramme remonte les périmètres dont il
@@ -286,6 +313,9 @@ export function ScopeListPage({
 
       switch (quickFilter) {
         case "to_process":
+          // Un jour non attendu n'a rien à traiter : le lister ici en ferait un
+          // retard permanent pour un périmètre hebdomadaire.
+          if (!scope.isDue) return false;
           // Le KO est traité : le lister ici le reproposerait comme un travail
           // à faire, ce qui est exactement ce que le statut sert à éviter.
           return scope.status !== "completed" && scope.status !== "ko";
@@ -294,7 +324,9 @@ export function ScopeListPage({
         case "incidents":
           return scope.selectedDayIncidents > 0;
         case "completed":
-          return scope.status === "completed";
+          // Même périmètre que le compteur du bandeau KPI : seuls les jours
+          // attendus, sinon le filtre et le compteur annoncent deux chiffres.
+          return scope.isDue && scope.status === "completed";
         default:
           return true;
       }
@@ -303,17 +335,22 @@ export function ScopeListPage({
     return sortByOfficialRelevance(matched, searchQuery);
   }, [enrichedScopes, searchQuery, quickFilter]);
 
-  // Statistiques action-first pour le bandeau KPI
+  // Statistiques action-first pour le bandeau KPI.
+  //
+  // Tout le dénominateur porte sur les périmètres **attendus** ce jour-là : un
+  // périmètre hebdomadaire ne doit pas rendre la journée incomplète les quatre
+  // autres jours. `filterCounts.all` continue de compter tous les périmètres,
+  // parce que la liste, elle, les affiche tous.
   const stats = useMemo(() => {
-    const total = scopes.length;
-    const completedCount = enrichedScopes.filter(
+    const dueScopes = enrichedScopes.filter((s) => s.isDue);
+    const total = dueScopes.length;
+    const completedCount = dueScopes.filter(
       (s) => s.selectedDayCompleted,
     ).length;
-    const koCount = enrichedScopes.filter((s) => s.status === "ko").length;
-    const inProgressCount = enrichedScopes.filter(
+    const inProgressCount = dueScopes.filter(
       (s) => s.status === "in_progress",
     ).length;
-    const noneCount = enrichedScopes.filter((s) => s.status === "none").length;
+    const noneCount = dueScopes.filter((s) => s.status === "none").length;
     const toProcessCount = inProgressCount + noneCount;
     const selectedDayErrors = enrichedScopes.reduce(
       (acc, s) => acc + s.selectedDayErrors,
@@ -528,6 +565,31 @@ export function ScopeListPage({
             >
               Voir ces périmètres
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Aucun périmètre attendu ce jour-là : la périodicité explique l'écran,
+          et le dire vaut mieux que laisser croire à un oubli. */}
+      {showNoDueScopeNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 dark:border-nord-2 dark:bg-nord-1/40"
+        >
+          <CalendarClock
+            aria-hidden="true"
+            className="mt-0.5 h-5 w-5 shrink-0 text-slate-500 dark:text-nord-4"
+          />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-slate-800 dark:text-nord-6">
+              {`Aucun périmètre attendu le ${formatDateFr(selectedDay)}`}
+            </p>
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-nord-4">
+              La périodicité de vos périmètres ne les rend pas attendus ce
+              jour-là. Une saisie reste possible : elle n'entrera simplement ni
+              dans l'arriéré, ni dans la couverture.
+            </p>
           </div>
         </div>
       )}
@@ -832,8 +894,10 @@ export function ScopeListPage({
                             <>
                               {scope.hasSelectedDay ? (
                                 <Badge type="in_progress" label="En cours" />
-                              ) : (
+                              ) : scope.isDue ? (
                                 <Badge type="none" label="Non saisi" />
+                              ) : (
+                                <Badge type="neutral" label="Non attendu" />
                               )}
                               <CompleteTodayButton
                                 onClick={(e) => {
@@ -929,8 +993,10 @@ export function ScopeListPage({
                     <Badge type="ko" label="KO" />
                   ) : scope.hasSelectedDay ? (
                     <Badge type="in_progress" label="En cours" />
-                  ) : (
+                  ) : scope.isDue ? (
                     <Badge type="none" label="Non saisi" />
+                  ) : (
+                    <Badge type="neutral" label="Non attendu" />
                   )}
                 </div>
 

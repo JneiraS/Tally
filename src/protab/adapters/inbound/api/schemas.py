@@ -4,11 +4,35 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from protab.domain.entities.day_status import KO_REASON_MAX_LENGTH, DayStatus
 from protab.domain.entities.scope_monitoring import NOTE_MAX_LENGTH
+from protab.domain.value_objects.monitoring_schedule import (
+    MAX_INTERVAL_WEEKS,
+    MIN_INTERVAL_WEEKS,
+)
 from protab.domain.value_objects.non_working_days import (
     ISO_WEEKDAY_COUNT,
     MAX_ISO_WEEKDAY,
     MIN_ISO_WEEKDAY,
 )
+
+
+class ScheduleRequest(BaseModel):
+    # Bornes reprises du domaine, jamais recopiées : un écart entre les deux
+    # laisserait passer un 422 côté HTTP et un refus côté entité, ou l'inverse.
+    weekdays: list[int] = Field(default_factory=list)
+    interval_weeks: int = Field(
+        default=MIN_INTERVAL_WEEKS, ge=MIN_INTERVAL_WEEKS, le=MAX_INTERVAL_WEEKS
+    )
+    anchor_date: date | None = None
+
+    @field_validator("weekdays")
+    @classmethod
+    def validate_weekdays(cls, values: list[int]) -> list[int]:
+        if any(day < MIN_ISO_WEEKDAY or day > MAX_ISO_WEEKDAY for day in values):
+            raise ValueError(
+                f"Les jours doivent être compris entre {MIN_ISO_WEEKDAY} "
+                f"et {MAX_ISO_WEEKDAY}."
+            )
+        return sorted(set(values))
 
 
 class CreateScopeItem(BaseModel):
@@ -17,6 +41,7 @@ class CreateScopeItem(BaseModel):
     official_main: str
     official_backup: str
     billing_code: str = Field(min_length=1)
+    schedule: ScheduleRequest | None = None
 
 
 class UpdateScopeNoteRequest(BaseModel):
@@ -134,6 +159,12 @@ class ActivityResponse(BaseModel):
     ko_reason: str | None
 
 
+class ScheduleResponse(BaseModel):
+    weekdays: list[int]
+    interval_weeks: int
+    anchor_date: date | None
+
+
 class ScopeResponse(BaseModel):
     id: str
     name: str
@@ -142,6 +173,9 @@ class ScopeResponse(BaseModel):
     official_backup: str
     billing_code: str | None
     note: str | None
+    # Toujours présent : `weekdays` vide signifie « tous les jours ouvrés », ce
+    # qui est le comportement de tous les périmètres créés avant la périodicité.
+    schedule: ScheduleResponse
     daily_activities: list[ActivityResponse]
 
 

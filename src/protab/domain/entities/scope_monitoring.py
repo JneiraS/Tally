@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from protab.domain.entities.daily_activity import DailyActivity
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 from protab.domain.exceptions import (
     DuplicateDailyActivityError,
     EmptyBillingCodeError,
@@ -49,6 +50,11 @@ class ScopeMonitoring:
     officials: Officials
     billing_code: str | None = None
     note: str | None = None
+    # ``MonitoringSchedule()`` means "every working day", which is what every
+    # scope created before the schedule existed does. A shared immutable default
+    # is safe here — unlike the dict default that once leaked between projects —
+    # because the value object is frozen and holds only tuples, an int and a date.
+    schedule: MonitoringSchedule = field(default_factory=MonitoringSchedule)
     daily_activities: dict[date, DailyActivity] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -76,6 +82,7 @@ class ScopeMonitoring:
         knowledge: KnowledgeBase,
         officials: Officials,
         billing_code: str,
+        schedule: MonitoringSchedule | None = None,
     ) -> "ScopeMonitoring":
         if billing_code is None or not billing_code.strip():
             raise EmptyBillingCodeError(
@@ -87,6 +94,7 @@ class ScopeMonitoring:
             knowledge=knowledge,
             officials=officials,
             billing_code=billing_code,
+            schedule=schedule if schedule is not None else MonitoringSchedule(),
         )
 
     def set_note(self, note: str | None) -> None:
@@ -102,6 +110,16 @@ class ScopeMonitoring:
                 f"characters; got {len(cleaned)}."
             )
         self.note = cleaned or None
+
+    def set_schedule(self, schedule: MonitoringSchedule) -> None:
+        """Replace the cadence of the scope.
+
+        No validation here: ``MonitoringSchedule`` is frozen and validates on
+        construction, so the value handed in is already a legal schedule. The
+        "can this schedule ever be due?" check needs the project calendar, which
+        the domain does not know — it lives in the use case, which injects it.
+        """
+        self.schedule = schedule
 
     def set_officials(self, official_main: str | None, official_backup: str | None) -> None:
         """Replace the officials of the scope.

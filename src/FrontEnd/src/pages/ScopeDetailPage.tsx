@@ -28,6 +28,9 @@ import { CompleteActivitiesModal } from '../components/CompleteActivitiesModal';
 import { TodayActivityEditor } from '../components/TodayActivityEditor';
 import { ScopeNoteCard } from '../components/ScopeNoteCard';
 import { ScopeOfficialsCard, type ScopeOfficials } from '../components/ScopeOfficialsCard';
+import { ScopeScheduleCard } from '../components/ScopeScheduleCard';
+import { DEFAULT_NON_WORKING_DAYS } from '../constants/nonWorkingDays';
+import type { MonitoringSchedule, NonWorkingDays } from '../types';
 import { DateNavigator } from '../components/DateNavigator';
 import { DayStatusPanel } from '../components/DayStatusPanel';
 import { BatchKoModal } from '../components/BatchKoModal';
@@ -47,9 +50,18 @@ interface ScopeDetailPageProps {
    * l'arbitre quand la révocation a suivi l'ouverture de la page.
    */
   isAdmin: boolean;
+  /**
+   * Calendrier du projet. Optionnel avec le défaut lundi–vendredi : la page
+   * n'a pas à exiger un réglage pour afficher une périodicité, et les tests
+   * qui ne le fournissent pas restent sur le calendrier par défaut.
+   */
+  nonWorkingDays?: NonWorkingDays;
 }
 
-export function ScopeDetailPage({ isAdmin }: ScopeDetailPageProps) {
+export function ScopeDetailPage({
+  isAdmin,
+  nonWorkingDays = DEFAULT_NON_WORKING_DAYS,
+}: ScopeDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const { success, error: toastError } = useToast();
 
@@ -127,6 +139,12 @@ export function ScopeDetailPage({ isAdmin }: ScopeDetailPageProps) {
   // carte, la page ne recharge rien et le jour affiché survit.
   const handleOfficialsSaved = ({ official_main, official_backup }: ScopeOfficials) => {
     setScope((prev) => (prev ? { ...prev, official_main, official_backup } : prev));
+  };
+
+  // Même règle que la note et les responsables : la carte renvoie la
+  // périodicité enregistrée, la page ne recharge rien.
+  const handleScheduleSaved = (schedule: MonitoringSchedule) => {
+    setScope((prev) => (prev ? { ...prev, schedule } : prev));
   };
 
   const fetchScopeDetail = async () => {
@@ -468,6 +486,14 @@ export function ScopeDetailPage({ isAdmin }: ScopeDetailPageProps) {
         scopeId={scope.id}
         note={scope.note}
         onSaved={handleNoteSaved}
+      />
+
+      {/* Périodicité — brouillon, ouverte à tout utilisateur connecté */}
+      <ScopeScheduleCard
+        scopeId={scope.id}
+        schedule={scope.schedule}
+        nonWorkingDays={nonWorkingDays}
+        onSaved={handleScheduleSaved}
       />
 
       {/* Activité du jour — édition en ligne  */}

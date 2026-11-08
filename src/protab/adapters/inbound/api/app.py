@@ -22,6 +22,8 @@ from protab.adapters.inbound.api.schemas import (
     LoginResponse,
     NonWorkingDaysRequest,
     ProjectResponse,
+    ScheduleRequest,
+    ScheduleResponse,
     ScopeResponse,
     SetStatusRequest,
     SessionResponse,
@@ -61,6 +63,7 @@ from protab.application.commands.daily_activity import (
 from protab.application.commands.scope_monitoring import (
     UpdateScopeNoteCommand,
     UpdateScopeOfficialsCommand,
+    UpdateScopeScheduleCommand,
 )
 from protab.application.queries.get_daily_activity import GetDailyActivityUseCase
 from protab.application.queries.get_scope import GetScopeUseCase
@@ -84,9 +87,13 @@ from protab.application.use_cases.update_scope_note import (
 from protab.application.use_cases.update_scope_officials import (
     UpdateScopeOfficialsUseCase,
 )
+from protab.application.use_cases.update_scope_schedule import (
+    UpdateScopeScheduleUseCase,
+)
 from protab.domain.entities.audit_event import AuditEvent
 from protab.domain.entities.daily_activity import DailyActivity
 from protab.domain.entities.scope_monitoring import ScopeMonitoring
+from protab.domain.value_objects.monitoring_schedule import MonitoringSchedule
 from protab.ports.outbound.audit_trail_repository import (
     AuditEventQuery,
     AuditTrailRepository,
@@ -107,6 +114,24 @@ def _activity_to_response(activity: DailyActivity) -> ActivityResponse:
     )
 
 
+def _schedule_from_request(
+    payload: ScheduleRequest | None,
+) -> MonitoringSchedule:
+    """Translate the inbound schema into the domain value object.
+
+    ``None`` means "not provided", which is the default cadence: every working
+    day. The value object re-validates, so a caller that bypasses the schema
+    still cannot store an out-of-range interval.
+    """
+    if payload is None:
+        return MonitoringSchedule()
+    return MonitoringSchedule(
+        weekdays=tuple(payload.weekdays),
+        interval_weeks=payload.interval_weeks,
+        anchor_date=payload.anchor_date,
+    )
+
+
 def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
     return ScopeResponse(
         id=scope.id,
@@ -116,6 +141,11 @@ def _scope_to_response(scope: ScopeMonitoring) -> ScopeResponse:
         official_backup=scope.officials.backup,
         billing_code=scope.billing_code,
         note=scope.note,
+        schedule=ScheduleResponse(
+            weekdays=list(scope.schedule.weekdays),
+            interval_weeks=scope.schedule.interval_weeks,
+            anchor_date=scope.schedule.anchor_date,
+        ),
         daily_activities=[
             _activity_to_response(activity)
             for activity in scope.daily_activities.values()
@@ -206,6 +236,7 @@ def create_app(
     # contre project_admins, dans le tenant courant) ; ``None`` est le mode
     # dégradé sans authentification, où l'édition est permise comme le reste.
     update_scope_officials = UpdateScopeOfficialsUseCase(repo, auth, audit)
+    update_scope_schedule = UpdateScopeScheduleUseCase(repo, audit)
     list_audit_events = ListAuditEventsUseCase(audit)
     list_scopes = ListScopesUseCase(repo)
     get_scope = GetScopeUseCase(repo)
@@ -344,6 +375,7 @@ def create_app(
                 official_main=item.official_main,
                 official_backup=item.official_backup,
                 billing_code=item.billing_code,
+                schedule=_schedule_from_request(item.schedule),
             )
             for item in items
         ]
@@ -445,6 +477,32 @@ def create_app(
                 official_main=request.official_main,
                 official_backup=request.official_backup,
             )
+        )
+
+    @app.patch(
+        "/scope-monitorings/{scope_id}/schedule",
+        status_code=204,
+        dependencies=[Depends(project_context)],
+    )
+    def handle_update_scope_schedule(
+        scope_id: str, payload: ScheduleRequest, request: Request
+    ) -> None:
+        # Le calendrier du projet est ce qui permet de refuser une périodicité
+        # qui ne tomberait jamais un jour ouvré. Il est résolu ici, à la
+        # frontière, et non dans le use case : le domaine ne connaît pas de
+        # projet, et ``auth=None`` (mode dégradé) n'en a aucun à confronter.
+        calendar = None
+        if auth is not None:
+            user = current_user(request, auth)
+            project = auth.get_project(user.project.id)
+            if project is not None:
+                calendar = project.non_working_days
+        update_scope_schedule.execute(
+            UpdateScopeScheduleCommand(
+                scope_id=scope_id,
+                schedule=_schedule_from_request(payload),
+            ),
+            calendar=calendar,
         )
 
     @app.get(
