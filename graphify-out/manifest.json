@@ -1296,9 +1296,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1792670047.641679,
-    "seen": 1792670282.2008963,
-    "ast_hash": "37d7722a4bb75bd9de73a8e43c14a4d9",
+    "mtime": 1794142197.534954,
+    "seen": 1794148692.1149492,
+    "ast_hash": "49db881eb0b3ce618385b81850d035c6",
     "semantic_hash": ""
   },
   "docker-compose.yml": {
@@ -1308,39 +1308,39 @@
     "semantic_hash": ""
   },
   "docs/architecture.md": {
-    "mtime": 1792670047.641679,
-    "seen": 1792670282.2009008,
-    "ast_hash": "53fcfa5d14adc15a06e0af9774f4334e",
+    "mtime": 1794141740.2575045,
+    "seen": 1794148692.114964,
+    "ast_hash": "55c9228168df48dc1add2c96371dc164",
     "semantic_hash": ""
   },
   "docs/cli.md": {
-    "mtime": 1791449830.4246323,
-    "seen": 1792670282.2009175,
-    "ast_hash": "95f8cff736527299118443eb678aa1a8",
+    "mtime": 1794141895.7496057,
+    "seen": 1794148692.1149712,
+    "ast_hash": "bde13cf86c553ad621333240033aa5df",
     "semantic_hash": ""
   },
   "docs/development.md": {
-    "mtime": 1790955454.8444207,
-    "seen": 1792670282.2009206,
-    "ast_hash": "5ae8bda152a0005620a4ffd7d0815423",
+    "mtime": 1794142182.1740332,
+    "seen": 1794148692.1149776,
+    "ast_hash": "cd27cdf7e059788b1c079f10fef1fd2c",
     "semantic_hash": ""
   },
   "docs/docker-architecture.md": {
-    "mtime": 1791449830.4246323,
-    "seen": 1792670282.200923,
-    "ast_hash": "a8bf0ea65531f22f647bb4d461e12d24",
+    "mtime": 1794142023.9740193,
+    "seen": 1794148692.114981,
+    "ast_hash": "62bc5efe5df55a03d05c427b726c61e6",
     "semantic_hash": ""
   },
   "docs/frontend.md": {
-    "mtime": 1792670047.642679,
-    "seen": 1792670282.200925,
-    "ast_hash": "42bdb84f3b5d25b142a1ca7ca71c8f78",
+    "mtime": 1794141675.8358395,
+    "seen": 1794148692.1149867,
+    "ast_hash": "b8e1bc76443fd191016decfa2db24fb0",
     "semantic_hash": ""
   },
   "docs/ressources.md": {
-    "mtime": 1791449830.4256325,
-    "seen": 1792670282.2009275,
-    "ast_hash": "c9ba18cdedc166c452fbde7ae7f19b97",
+    "mtime": 1794141740.261028,
+    "seen": 1794148692.1149893,
+    "ast_hash": "8ed6f11eb43f211fb1e1edcd1bab9564",
     "semantic_hash": ""
   },
   "docs/tally-vs-excel.md": {
@@ -1350,9 +1350,9 @@
     "semantic_hash": ""
   },
   "docs/testing.md": {
-    "mtime": 1792670047.642679,
-    "seen": 1792670282.200932,
-    "ast_hash": "8e4352677d2e9884ff5b38d35f616916",
+    "mtime": 1794141740.2622955,
+    "seen": 1794148692.1149955,
+    "ast_hash": "fcdaf300bf0f6536db74eeccda7e2260",
     "semantic_hash": ""
   },
   "src/FrontEnd/index.html": {
@@ -1407,6 +1407,30 @@
     "mtime": 1794139219.7738178,
     "seen": 1794139253.7281277,
     "ast_hash": "a634a5d36a50209b6d1798e45b618398",
+    "semantic_hash": ""
+  },
+  "docs/api.md": {
+    "mtime": 1794141319.3506265,
+    "seen": 1794148692.114959,
+    "ast_hash": "a3cea2e9befb2dccedae6fef7054ae81",
+    "semantic_hash": ""
+  },
+  "docs/authentication.md": {
+    "mtime": 1794141375.2714455,
+    "seen": 1794148692.1149676,
+    "ast_hash": "f36d56a141ba2e822915e4d50ea95fca",
+    "semantic_hash": ""
+  },
+  "docs/database.md": {
+    "mtime": 1794141440.1895373,
+    "seen": 1794148692.1149743,
+    "ast_hash": "2ade2a0b10129f010a9b5eee435de074",
+    "semantic_hash": ""
+  },
+  "docs/domain-model.md": {
+    "mtime": 1794142106.9155216,
+    "seen": 1794148692.114984,
+    "ast_hash": "edbe111a23e968c15fb86680b6988e53",
     "semantic_hash": ""
   }
 }
